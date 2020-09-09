@@ -1,0 +1,10 @@
+.vscode*
+*.kdev4
+*~
+.ipynb_checkpoints
+__pycache__
+*.pch
+*.tags*
+*XDG_CACHE_HOME*
+imgui.ini
+build*
