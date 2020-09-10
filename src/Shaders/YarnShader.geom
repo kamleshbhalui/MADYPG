@@ -1,5 +1,6 @@
+#define NVERTICES 16
 layout (lines) in;
-layout (triangle_strip, max_vertices = 32) out; //triangle_strip, max = 2 * 16
+layout (triangle_strip, max_vertices = NVERTICES) out;
 
 // out VS_OUT {
 //     highp vec4 viewPosition_vert;
@@ -95,7 +96,7 @@ void main() {
 
    vec3 perpx = normalize(createPerp( axis ));
    vec3 perpy = normalize(cross( axis, perpx ));
-   int segs = 16;
+   int segs = NVERTICES/2;
    for(int i=0; i<segs; i++) {
       float a = i/float(segs-1) * 2.0 * 3.14159;
       float ca = cos(a); float sa = sin(a);

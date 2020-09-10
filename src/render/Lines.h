@@ -8,6 +8,9 @@
 #include <Magnum/Magnum.h>
 #include <numeric> // iota
 #include <vector>
+#include <limits>
+#include "EigenDefinitions.h"
+#include <iostream>
 
 namespace Magnum
 {
@@ -31,28 +34,64 @@ namespace Magnum
           .setPrimitive(GL::MeshPrimitive::LineStrip);
       m_mesh.addVertexBuffer(
           this->m_vertexBuffer, 0, Shaders::Generic3D::Position{}); // something about memory layout of data in vertex buffer
+
+      // enable breaking of linestrips within single index buffer by using the index GLuint::max
+      glEnable(GL_PRIMITIVE_RESTART);
+      glPrimitiveRestartIndex(std::numeric_limits<GLuint>::max());
     }
 
     void setIndices(const std::vector<UnsignedInt> &indices)
     {
-      this->m_indices = indices;
-      m_mesh.setCount(this->m_indices.size());
-      m_indexBuffer.setData(this->m_indices, m_indexBufferUsage);
+      // this->m_indices = indices;
+      m_mesh.setCount(indices.size());
+      m_indexBuffer.setData(indices, m_indexBufferUsage);
+    }
+
+    template< typename Matrix>
+    void setVertices(const Matrix &M)
+    {
+      // assume row major ? or col major? 
+
+      // Eigen::Map<Eigen::RowVectorXf> v({M.data()}, M.size());
+// (size_t) sizeof(typename Matrix::Scalar) *
+// std::cout<< (uint32_t(sizeof(typename Matrix::Scalar)) * uint32_t(M.size()))<<"\n";
+// std::cout<< uint32_t(sizeof(typename Matrix::Scalar))<<" * "<<uint32_t(M.size())<<"\n";
+//       if (M.innerSize() == M.outerStride()) {
+//         std::cout<< "YES\n";
+//       }else{
+//         std::cout<< "NO\n";
+
+//       }
+
+//       std::cout<< M.rows()<<" "<<M.cols()<<"\n";
+//       int N = 40000;
+//       for (int i = 0; i < N; i++)
+//       {
+//         std::cout<<M(i,0)<<" "<<M(i,1)<<" "<<M(i,2)<<"\n";
+//         std::cout<<M.data()[3*i+0]<<" "<<M.data()[3*i+1]<<" "<<M.data()[3*i+2]<<"\n";
+//       }
+//       std::cout<< "\n";
+      
+
+      this->m_vertexBuffer.setData({M.data(),
+        uint32_t(M.size())}, this->m_vertexBufferUsage);
     }
 
     void setVertices(const std::vector<Vector3> &vertices,
                      bool recalculateIndices = false)
     {
-      printf("VERTS, TODO avoid storing local vertices and indices ...\n");
-      this->m_vertices.resize(vertices.size());
-      for (size_t i = 0; i < vertices.size(); ++i)
-      {
-        this->m_vertices[i].position = vertices[i];
-      }
-      this->m_vertexBuffer.setData(this->m_vertices, this->m_vertexBufferUsage);
+      // printf("VERTS, TODO avoid storing local vertices and indices ...\n");
+      // this->m_vertices.resize(vertices.size());
+      // for (size_t i = 0; i < vertices.size(); ++i)
+      // {
+      //   this->m_vertices[i].position = vertices[i];
+      // }
+      // this->m_vertexBuffer.setData(this->m_vertices, this->m_vertexBufferUsage);
+      this->m_vertexBuffer.setData(vertices, this->m_vertexBufferUsage);
+
 
       if (recalculateIndices)
-        this->recalculateIndices(this->m_vertices.size());
+        this->recalculateIndices(vertices.size());
     }
 
     // void draw(const Matrix4 &transformationMatrix, Camera3D &camera) {
@@ -86,11 +125,16 @@ namespace Magnum
 
     void recalculateIndices(int n)
     {
-      m_indices.resize(n);
-      std::iota(std::begin(m_indices), std::end(m_indices),
+      // m_indices.resize(n);
+      // std::iota(std::begin(m_indices), std::end(m_indices),
+      //           0); // increasing integer values
+      // m_mesh.setCount(this->m_indices.size());
+      // m_indexBuffer.setData(this->m_indices, m_indexBufferUsage);
+      std::vector<UnsignedInt> indices(n);
+      std::iota(std::begin(indices), std::end(indices),
                 0); // increasing integer values
-      m_mesh.setCount(this->m_indices.size());
-      m_indexBuffer.setData(this->m_indices, m_indexBufferUsage);
+      m_mesh.setCount(indices.size());
+      m_indexBuffer.setData(indices, m_indexBufferUsage);
     }
 
   private:

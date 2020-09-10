@@ -51,3 +51,9 @@ target_link_libraries(magnum-ssao PRIVATE
     Magnum::Primitives
     # Magnum::AnySceneImporter
     MagnumIntegration::ImGui)
+
+find_package(Eigen3 CONFIG REQUIRED)
+target_link_libraries(magnum-ssao PUBLIC Eigen3::Eigen)
+
+find_package(TBB CONFIG REQUIRED)
+target_link_libraries(magnum-ssao PUBLIC TBB::tbb)

@@ -1,6 +1,5 @@
 #define DECLARE_UNUSED(x) ((void)x);
 
-
 #include <Magnum/Primitives/Cube.h>
 #include <Magnum/Primitives/Axis.h>
 #include "arcball/ArcBall.h"
@@ -12,6 +11,7 @@
 #include "Shaders/SsaoApplyShader.h"
 #include "Shaders/SsaoShader.h"
 #include "render/Lines.h"
+#include "render/TestYarns.h"
 
 #include <Corrade/Containers/Optional.h>
 // #include <Corrade/Containers/String.h>
@@ -70,14 +70,14 @@ namespace Magnum
           : _shader(shader)
       {
         static std::mt19937 gen(1991);
-        static std::uniform_real_distribution<float> distS(7.5,12.5);
+        static std::uniform_real_distribution<float> distS(7.5, 12.5);
         static std::uniform_real_distribution<float> distTXY(-110.0, 110.0);
         static std::uniform_real_distribution<float> distTZ(-25.0, 25.0);
         // static std::uniform_real_distribution<float> distH(80.0f,250.0f);
-        static std::uniform_real_distribution<float> distH(100.0f,375.0f);
+        static std::uniform_real_distribution<float> distH(100.0f, 375.0f);
         _trafo = Matrix4::translation(Vector3(distTXY(gen), distTXY(gen), distTZ(gen))) *
                  Matrix4::scaling(Vector3(distS(gen)));
-        _diffuseColor = Color4::fromHsv(ColorHsv(Deg{distH(gen)}, 0.15f, 0.9f), 1.0f); 
+        _diffuseColor = Color4::fromHsv(ColorHsv(Deg{distH(gen)}, 0.15f, 0.9f), 1.0f);
         //ColorHsv().to
 
         _mesh = MeshTools::compile(Primitives::cubeSolid());
@@ -102,7 +102,6 @@ namespace Magnum
       GL::Mesh _mesh;
       Color4 _diffuseColor{0.9};
     };
-
 
     void setupTexture(GL::Texture2D &texture, Vector2i const &size,
                       GL::TextureFormat format);
@@ -141,8 +140,11 @@ namespace Magnum
       void drawSettings();
 
       std::vector<Lines<YarnShader>> _lines;
+      TestYarns _interface;
+      bool _paused = false;
+
       std::vector<RandomCube> _cubes;
-      std::unique_ptr<ArcBallCamera> _arcballCamera;
+      // std::unique_ptr<ArcBallCamera> _arcballCamera;
 
       DeferredGeometryShader _geometryShader{NoCreate};
       YarnShader _yarnGeometryShader{NoCreate};
@@ -153,9 +155,11 @@ namespace Magnum
       // Magnum::Shaders::VertexColor3D _vcShader{NoCreate};
       // GL::Mesh _axes = MeshTools::compile(Primitives::axis3D());
 
-
       Containers::Optional<ArcBall> _arcball;
       Matrix4 _projection;
+      Deg _proj_fov = 45.0_degf;
+      float _proj_near = 0.01f;
+      float _proj_far = 10000.0f; // TODO reduce far/near to proper scale
 
       GL::Mesh _mesh{NoCreate}, _screenAlignedTriangle{NoCreate};
 
@@ -279,45 +283,54 @@ namespace Magnum
         _ssaoShader = SsaoShader{_ssaoFlag};
         _ssaoApplyShader = SsaoApplyShader{};
         _phong = Magnum::Shaders::Phong{};
-        // _vcShader = Magnum::Shaders::VertexColor3D{};
 
-        // PluginManager::Manager<Trade::AbstractImporter> manager;
-        // Containers::Pointer<Trade::AbstractImporter> importer =
-        // manager.loadAndInstantiate("AnySceneImporter");
-        // if(!importer)
-        //     std::exit(1);
-        // if(!importer->openFile(meshPath))
-        //     std::exit(4);
-
-        // const auto meshData = importer->mesh(0);
-        // _mesh = MeshTools::compile(*meshData);
         for (size_t i = 0; i < 200; i++)
           _cubes.emplace_back(_geometryShader);
 
-
-
-        for (int j = 0; j < 2; j++)
         {
-          std::vector<Vector3> vertices;
-          for (size_t i = 0; i < 100; i++)
-          {
-            float a = float(i)/(99.0f);
-
-            /* code */
-            distr(engine); // -1 to 1
-            vertices.emplace_back(
-              (1-a) * -100 + a*100 + 2.0f * distr(engine),
-              std::sin(j*1.7f + a * 3.14f * 2.0f * (j+1.0f))*30 + 2.0f * distr(engine),
-            40.0f - j * (std::cos(a * 8.0f)-1)*10 - std::sin(j*1.7f + 1.0f + a * 3.14f * 6.0f* (j+1.0f))*10 + 2.0f * distr(engine)
-            );
-          }
           _lines.emplace_back(_yarnGeometryShader);
-          _lines.back().setVertices(vertices, true);
+          _lines.back().setIndices(_interface.getIndices());
+          _lines.back().setVertices(_interface.getVertexData());
         }
+        // _lines.clear();
+        // int N = 800;
+        // int Nv = 2400;
+        // float S = 350.0f;
+        // float amp = 2.0f;
+        // for (int j = 0; j < N; j++)
+        // {
+        //   float A = float(j) / (N - 1);
 
-        // _lines.emplace_back(_yarnGeometryShader);
-        // _lines.back().setVertices({Vector3(-100,0,50),Vector3(100,0,50)}, true);
-        
+        //   {
+        //     float x = (1 - A) * -S + A * S;
+        //     Vector3 d = Vector3(1.0, 0.0, 0.0);
+
+        //     std::vector<Vector3> vertices;
+        //     for (int i = 0; i < Nv; i++)
+        //     {
+        //       float a = float(i) / (Nv-1);
+
+        //       vertices.push_back(((1 - a) * -S + a * S) * d + Vector3(0.0f, x, 40.0f + amp*std::sin(j*3.14f + a * 3.14f * 50.0f)));
+        //     }
+        //     _lines.emplace_back(_yarnGeometryShader);
+        //     _lines.back().setVertices(vertices, true);
+        //   }
+        //   {
+        //     float x = (1 - A) * -S + A * S;
+        //     Vector3 d = Vector3(0.0, 1.0, 0.0);
+
+        //     std::vector<Vector3> vertices;
+        //     for (int i = 0; i < Nv; i++)
+        //     {
+        //       float a = float(i) / (Nv-1);
+
+        //       vertices.push_back(((1 - a) * -S + a * S) * d + Vector3(x, 0.0f, 40.0f + amp*std::sin(3.14f * 0.33f + j*3.14f + a * 3.14f * 50.0f)));
+        //     }
+        //     _lines.emplace_back(_yarnGeometryShader);
+        //     _lines.back().setVertices(vertices, true);
+        //   }
+        // }
+
       }
 
       /* Set up the arcball and projection */
@@ -329,14 +342,14 @@ namespace Magnum
         _arcball->setLagging(0.85f);
 
         _projection = Matrix4::perspectiveProjection(
-            45.0_degf, Vector2{framebufferSize()}.aspectRatio(), 0.01, 1000);
+            _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near, _proj_far);
       }
 
       _profiler = DebugTools::GLFrameProfiler{
           DebugTools::GLFrameProfiler::Value::FrameTime |
               DebugTools::GLFrameProfiler::Value::GpuDuration |
               DebugTools::GLFrameProfiler::Value::CpuDuration,
-          180};
+          60};
 
       /* Loop at 60 Hz max */
       setSwapInterval(1);
@@ -348,6 +361,11 @@ namespace Magnum
       GL::defaultFramebuffer.clear(GL::FramebufferClear::Color |
                                    GL::FramebufferClear::Depth);
       _profiler.beginFrame();
+
+      if (!_paused) { // SIM
+          _interface.step();
+          _lines.back().setVertices(_interface.getVertexData());
+      }
 
       const bool camChanged = _arcball->updateTransformation();
       DECLARE_UNUSED(camChanged);
@@ -446,7 +464,7 @@ namespace Magnum
 
       _arcball->reshape(wSize);
       _projection = Matrix4::perspectiveProjection(
-          45.0_degf, Vector2{fbSize}.aspectRatio(), 0.1, 1000);
+          _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near, _proj_far);
 
       setupFramebuffer(fbSize);
 
@@ -507,12 +525,18 @@ namespace Magnum
       ImGui::SliderInt("SSAO blur radius", &_ao_blur_radius, 0, 5);
       ImGui::SliderFloat("SSAO pow", &_ao_pow, 0.0f, 10.0f);
 
+      if (_lines.size() > 0) {
       float rad = _lines[0].m_radius;
-      if (ImGui::DragFloat("yarn radius", &rad, 0.1f, 0.001f, 10.0f)) {
-        for (auto& line : _lines) {
-          line.m_radius = rad;
+        if (ImGui::DragFloat("yarn radius", &rad, 0.1f, 0.001f, 10.0f))
+        {
+          for (auto &line : _lines)
+          {
+            line.m_radius = rad;
+          }
         }
       }
+
+      ImGui::Checkbox("Pause", &_paused);
 
       ImGui::Checkbox("Apply SSAO", &_applySsao);
 
@@ -558,6 +582,18 @@ namespace Magnum
     {
       if (_imgui.handleKeyPressEvent(event))
         return;
+
+      switch (event.key())
+      {
+      case KeyEvent::Key::Esc:
+        this->exit();
+        break;
+      case KeyEvent::Key::Space:
+        _paused = !_paused;
+        break;
+      default:
+        break;
+      }
     }
 
     void SsaoExample::keyReleaseEvent(KeyEvent &event)
