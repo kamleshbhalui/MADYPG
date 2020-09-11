@@ -68,28 +68,29 @@ void main()
     blurredOcclusion = pow(blurredOcclusion, ao_pow); /* To make the effect more visible */
 
 #ifndef DRAW_OCCLUSION_FACTOR
-    /* No ambient color */
-    fragmentColor = vec4(0,0,0,1);
+    // /* No ambient color */
+    // fragmentColor = vec4(0,0,0,1);
 
-    /* normalize normal */
-    mediump vec3 normalizedTransformedNormal = normalize(normal);
+    // /* normalize normal */
+    // mediump vec3 normalizedTransformedNormal = normalize(normal);
 
-    /* Add diffuse color */
-    highp vec3 normalizedLightDirection = normalize(lightPosition - position);
-    lowp float intensity = max(0.0, dot(normalizedTransformedNormal, normalizedLightDirection));
-    fragmentColor.rgb += albedo*lightColor*intensity*blurredOcclusion;
+    // /* Add diffuse color */
+    // highp vec3 normalizedLightDirection = normalize(lightPosition - position);
+    // lowp float intensity = max(0.0, dot(normalizedTransformedNormal, normalizedLightDirection));
+    // fragmentColor.rgb += albedo*lightColor*intensity*blurredOcclusion;
 
-    /* Add specular color, if needed */
-    if(intensity > 0.001) {
-        highp vec3 reflection = reflect(-normalizedLightDirection, normalizedTransformedNormal);
-        mediump float specularity = clamp(pow(max(0.0, dot(normalize(-position), reflection)), shininess), 0.0, 1.0);
-        fragmentColor.rgb += specularColor*specularity; /* white specular color */
-    }
+    // /* Add specular color, if needed */
+    // if(intensity > 0.001) {
+    //     highp vec3 reflection = reflect(-normalizedLightDirection, normalizedTransformedNormal);
+    //     mediump float specularity = clamp(pow(max(0.0, dot(normalize(-position), reflection)), shininess), 0.0, 1.0);
+    //     fragmentColor.rgb += specularColor*specularity; /* white specular color */
+    // }
+    fragmentColor.rgb = albedo*blurredOcclusion;
 #else
     fragmentColor.rgb = vec3(blurredOcclusion);
 #endif
 
-// fragmentColor.rgb =albedo;
-
+// TODO WHEN USING MATCAPS NO NEED TO DO
+// fragmentColor.rgb =albedo; 
 }
 

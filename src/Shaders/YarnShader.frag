@@ -39,9 +39,14 @@ layout(location = 2)
 out highp vec3 normal;
 
 uniform vec4 diffuseColor;
+uniform sampler2D matcap;
 
 void main() {
-    color = diffuseColor;
+    // color = diffuseColor; // TODO SAMPLE TEXTURE based on uv = viewnormal.xy 
+    // color = vec4(texture(matcap, viewNormal.xy).rgb, 1.0);
+    // vec2 uv = viewNormal.xy * 2 - 1;
+    vec2 uv = viewNormal.xy * 0.5 + 0.5;
+    color = vec4(texture(matcap, uv).rgb, 1.0) * diffuseColor;
     position = viewPosition;
     normal = viewNormal; //;vec3(0.0,0.0,1.0);
 }

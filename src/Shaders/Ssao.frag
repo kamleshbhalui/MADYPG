@@ -46,12 +46,15 @@ vec2 noiseScale = vec2(textureSize(positions,0))/vec2(textureSize(noise,0));
 void main()
 {
     vec3 position = texture(positions, textureCoordinate).xyz;
-    if(position.z == 0) {
-        ambientOcclusion = 1;
-        return;
-    }
+    // if(position.z == 0) {
+    //     ambientOcclusion = 1;
+    //     return;
+    // }
     vec3 normal = normalize(texture(normals, textureCoordinate).xyz);
     vec3 randomVector = normalize(texture(noise, textureCoordinate*noiseScale).xyz);
+
+
+    // normal=vec3(0,0,1.0);
 
     /* tangent-space to view-space */
     vec3 tangent = normalize(randomVector - normal*dot(randomVector, normal));

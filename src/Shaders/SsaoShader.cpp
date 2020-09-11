@@ -1,33 +1,3 @@
-/*
-    This file is part of Magnum.
-
-    Original authors — credit is appreciated but not required:
-
-        2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020 —
-            Vladimír Vondruš <mosra@centrum.cz>
-        2020 — Janos Meny <janos.meny@gmail.com>
-
-    This is free and unencumbered software released into the public domain.
-
-    Anyone is free to copy, modify, publish, use, compile, sell, or distribute
-    this software, either in source code form or as a compiled binary, for any
-    purpose, commercial or non-commercial, and by any means.
-
-    In jurisdictions that recognize copyright laws, the author or authors of
-    this software dedicate any and all copyright interest in the software to
-    the public domain. We make this dedication for the benefit of the public
-    at large and to the detriment of our heirs and successors. We intend this
-    dedication to be an overt act of relinquishment in perpetuity of all
-    present and future rights to this software under copyright law.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-    THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-    IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
-
 #include "SsaoShader.h"
 
 #include <Magnum/GL/Texture.h>
@@ -56,7 +26,7 @@ enum {
 };
 }
 
-SsaoShader::SsaoShader(Flag flag, UnsignedInt sampleCount) {
+SsaoShader::SsaoShader(UnsignedInt sampleCount) {
 
     constexpr Float mean = 0.f;
     constexpr Float std = 0.4f;
@@ -74,41 +44,30 @@ SsaoShader::SsaoShader(Flag flag, UnsignedInt sampleCount) {
     }
     Utility::Resource rs{"ssao-data"};
 
-    if(flag == Flag::FragmentShader){
-        MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL330);
-        GL::Shader vert{GL::Version::GL330, GL::Shader::Type::Vertex};
-        GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
+    MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL330);
+    GL::Shader vert{GL::Version::GL330, GL::Shader::Type::Vertex};
+    GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
 
-        vert.addSource(rs.get("FullScreenTriangle.vert"));
-        frag.addSource(Utility::formatString("#define SAMPLE_COUNT {}\n", sampleCount))
-            .addSource(rs.get("Ssao.frag"));
+    vert.addSource(rs.get("FullScreenTriangle.vert"));
+    frag.addSource(Utility::formatString("#define SAMPLE_COUNT {}\n", sampleCount))
+        .addSource(rs.get("Ssao.frag"));
 
-        CORRADE_INTERNAL_ASSERT_OUTPUT(GL::Shader::compile({vert, frag}));
-        attachShaders({vert, frag});
-    } else {
-        MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL430);
-        GL::Shader comp{GL::Version::GL430, GL::Shader::Type::Compute};
-        comp.addSource(Utility::formatString("#define SAMPLE_COUNT {}\n", sampleCount))
-                .addSource(rs.get("Ssao.comp"));
+    CORRADE_INTERNAL_ASSERT_OUTPUT(GL::Shader::compile({vert, frag}));
+    attachShaders({vert, frag});
 
-        CORRADE_INTERNAL_ASSERT_OUTPUT(comp.compile());
-        attachShaders({comp});
-    }
 
     CORRADE_INTERNAL_ASSERT_OUTPUT(link());
 
     bindFragmentDataLocation(AmbientOcclusionOutput, "ambientOcclusion");
 
-    if(flag == Flag::FragmentShader){
-        setUniform(uniformLocation("positions"), PositionUnit);
-        setUniform(uniformLocation("normals"), NormalUnit);
-        setUniform(uniformLocation("noise"), NoiseUnit);
+    setUniform(uniformLocation("positions"), PositionUnit);
+    setUniform(uniformLocation("normals"), NormalUnit);
+    setUniform(uniformLocation("noise"), NoiseUnit);
 
-        _projectionUniform = uniformLocation("projection");
-        _biasUniform = uniformLocation("bias");
-        _radiusUniform = uniformLocation("radius");
-        _samplesUniform = uniformLocation("samples");
-    }
+    _projectionUniform = uniformLocation("projection");
+    _biasUniform = uniformLocation("bias");
+    _radiusUniform = uniformLocation("radius");
+    _samplesUniform = uniformLocation("samples");
 
     setUniform(_samplesUniform, randomSamples);
 }

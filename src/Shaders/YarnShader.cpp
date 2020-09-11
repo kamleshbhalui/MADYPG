@@ -79,6 +79,9 @@ namespace Magnum
             _projectionUniform = uniformLocation("projection");
             _diffuseColorUniform = uniformLocation("diffuseColor");
             _radiusUniform = uniformLocation("radius");
+
+            // get uniform location and immediately use to set to textureunit
+            setUniform(uniformLocation("matcap"), TextureUnit);
         }
 
         YarnShader &YarnShader::setTransformation(const Matrix4 &transformation)
@@ -107,6 +110,12 @@ namespace Magnum
         YarnShader &YarnShader::setRadius(float radius)
         {
             setUniform(_radiusUniform, radius);
+            return *this;
+        }
+
+        YarnShader &YarnShader::bindTexture(GL::Texture2D &texture)
+        {
+            texture.bind(TextureUnit);
             return *this;
         }
 

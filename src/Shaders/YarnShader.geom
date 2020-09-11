@@ -1,5 +1,11 @@
 #define NVERTICES 16
-layout (lines) in;
+
+#define Vprv gl_in[0]
+#define V0 gl_in[1]
+#define V1 gl_in[2]
+#define Vnxt gl_in[3]
+layout (lines_adjacency) in;
+// layout (lines) in;
 layout (triangle_strip, max_vertices = NVERTICES) out;
 
 // out VS_OUT {
@@ -12,50 +18,6 @@ out highp vec3 viewNormal;
 uniform float radius = 1.0;
 uniform mat4 projection;
 
-
-
-
-// void main() {   
-//     vec3 e0 = gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
-//     vec3 e1 = (gl_in[0].gl_Position.xyz + gl_in[1].gl_Position.xyz) * 0.5 + vec3(0.0, 50.0, 0.0) - gl_in[0].gl_Position.xyz;
-
-//     // viewNormal = vec3(0.0,0.0,1.0); 
-//     viewNormal = normalize(cross(e0, e1));//vec3(0.0,0.0,1.0); 
-
-//     gl_Position = gl_in[0].gl_Position ;
-//     EmitVertex();
-//     gl_Position = gl_in[1].gl_Position ;//+ vec4( 10, 0.0, 0.0, 0.0);
-//     EmitVertex();
-//     gl_Position = (gl_in[0].gl_Position + gl_in[1].gl_Position) * 0.5 + vec4(0.0, 10.0, 0.0, 0.0); 
-//     EmitVertex();
-    
-//     EndPrimitive();
-
-// }    
-
-// void main() { 
-
-//     // input: gl_Position ... viewspace coordinates
-//     vec3 e0 = gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
-//     vec3 e1 = (gl_in[0].gl_Position.xyz + gl_in[1].gl_Position.xyz) * 0.5 + vec3(0.0, 50.0, 0.0) - gl_in[0].gl_Position.xyz;
-//     viewNormal = normalize(cross(e0, e1));
-
-//     // viewNormal = vec3(0.0,0.0,1.0); 
-
-//     viewPosition = gl_in[0].gl_Position.xyz;
-//     gl_Position = projection * vec4(viewPosition,1.0);
-//     EmitVertex();
-//     viewPosition = gl_in[1].gl_Position.xyz;
-//     gl_Position = projection * vec4(viewPosition,1.0);
-//     EmitVertex();
-//     viewPosition = (gl_in[0].gl_Position.xyz + gl_in[1].gl_Position.xyz) * 0.5 + vec3(0.0, 10.0, 0.0);
-//     gl_Position = projection * vec4(viewPosition,1.0);
-//     EmitVertex();
-    
-//     EndPrimitive();
-// }
-
-
 // https://github.com/torbjoern/polydraw_scripts/blob/master/geometry/drawcone_geoshader.pss
 vec3 createPerp(vec3 invec)
 {
@@ -67,65 +29,77 @@ vec3 createPerp(vec3 invec)
   return ret;
 }
 
+
+// void main() { 
+
+//    float r1 = 1.0 * radius;
+//    float r2 = 1.0 * radius;
+
+//    vec3 axis = V1.gl_Position.xyz - V0.gl_Position.xyz;
+
+//    vec3 perpx = normalize(createPerp( axis ));
+//    vec3 perpy = normalize(cross( axis, perpx ));
+//    int segs = NVERTICES/2;
+//    for(int i=0; i<segs; i++) {
+//       float a = i/float(segs-1) * 2.0 * 3.14159;
+//       float ca = cos(a); float sa = sin(a);
+
+//       viewNormal = vec3( ca*perpx.x + sa*perpy.x,
+//                      ca*perpx.y + sa*perpy.y,
+//                      ca*perpx.z + sa*perpy.z );
+
+
+//       vec3 p1 = V0.gl_Position.xyz + r1*viewNormal;
+//       vec3 p2 = V1.gl_Position.xyz + r2*viewNormal;
+
+//       viewPosition = p2;
+//       gl_Position = projection*vec4(p2, 1.0); EmitVertex();    
+//       viewPosition = p1;
+//       gl_Position = projection*vec4(p1, 1.0); EmitVertex();   
+//    }
+//    EndPrimitive();  
+// }
+
+
+
 void main() { 
 
-    // // input: gl_Position ... viewspace coordinates
-    // vec3 e0 = gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
-    // vec3 e1 = (gl_in[0].gl_Position.xyz + gl_in[1].gl_Position.xyz) * 0.5 + vec3(0.0, 50.0, 0.0) - gl_in[0].gl_Position.xyz;
-    // viewNormal = normalize(cross(e0, e1));
+  float r1 = 1.0 * radius;
+  float r2 = 1.0 * radius;
 
-    // // viewNormal = vec3(0.0,0.0,1.0); 
+  // segment tangent, and weighted avg vertex tangents
+  vec3 t = V1.gl_Position.xyz - V0.gl_Position.xyz;
+  vec3 tv0 = (t + (V0.gl_Position.xyz - Vprv.gl_Position.xyz));
+  vec3 tv1 = (t + (Vnxt.gl_Position.xyz - V1.gl_Position.xyz));
 
-    // viewPosition = gl_in[0].gl_Position.xyz;
-    // gl_Position = projection * vec4(viewPosition,1.0);
-    // EmitVertex();
-    // viewPosition = gl_in[1].gl_Position.xyz;
-    // gl_Position = projection * vec4(viewPosition,1.0);
-    // EmitVertex();
-    // viewPosition = (gl_in[0].gl_Position.xyz + gl_in[1].gl_Position.xyz) * 0.5 + vec3(0.0, 10.0, 0.0);
-    // gl_Position = projection * vec4(viewPosition,1.0);
-    // EmitVertex();
-    
-    // EndPrimitive();
+  // normals and binormals
+  vec3 nv0 = normalize(createPerp( tv0 ));
+  vec3 bv0 = normalize(cross( tv0, nv0 ));
+  vec3 nv1 = normalize(createPerp( tv1 ));
+  vec3 bv1 = normalize(cross( tv1, nv1 ));
 
+  // vec3 n = normalize(createPerp( t ));
+  // vec3 b = normalize(cross( t, n ));
 
-   float r1 = 1.0 * radius;
-   float r2 = 1.0 * radius;
+  int segs = NVERTICES/2;
+  for(int i=0; i<segs; i++) {
+    float a = i/float(segs-1) * 2.0 * 3.14159;
+    float ca = cos(a); float sa = sin(a);
 
-   vec3 axis = gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
+    // viewNormal = vec3( ca*b.x + sa*n.x,
+    //                 ca*b.y + sa*n.y,
+    //                 ca*b.z + sa*n.z );
+    viewNormal = vec3( ca*bv0.x + sa*nv0.x,
+                ca*bv0.y + sa*nv0.y,
+                ca*bv0.z + sa*nv0.z );
+    viewPosition = V0.gl_Position.xyz + r1*viewNormal;  
+    gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();  
 
-   vec3 perpx = normalize(createPerp( axis ));
-   vec3 perpy = normalize(cross( axis, perpx ));
-   int segs = NVERTICES/2;
-   for(int i=0; i<segs; i++) {
-      float a = i/float(segs-1) * 2.0 * 3.14159;
-      float ca = cos(a); float sa = sin(a);
-
-      viewNormal = vec3( ca*perpx.x + sa*perpy.x,
-                     ca*perpx.y + sa*perpy.y,
-                     ca*perpx.z + sa*perpy.z );
-
-
-      vec3 p1 = gl_in[0].gl_Position.xyz + r1*viewNormal;
-      vec3 p2 = gl_in[1].gl_Position.xyz + r2*viewNormal;
-      
-      viewPosition = p2;
-      gl_Position = projection*vec4(p2, 1.0); EmitVertex();    
-      viewPosition = p1;
-      gl_Position = projection*vec4(p1, 1.0); EmitVertex();   
-   }
-   EndPrimitive();  
+    viewNormal = vec3( ca*bv1.x + sa*nv1.x,
+                ca*bv1.y + sa*nv1.y,
+                ca*bv1.z + sa*nv1.z );
+    viewPosition = V1.gl_Position.xyz + r2*viewNormal;
+    gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();   
+  }
+  EndPrimitive();  
 }
-
-// in highp vec4 position;
-
-// uniform mat4 transformation;
-// uniform mat4 projection;
-
-// out highp vec3 viewPosition;
-
-// void main(){
-//    vec4 position4 = transformation*position;
-//    viewPosition = position4.xyz;
-//    gl_Position = projection*position4;
-// }

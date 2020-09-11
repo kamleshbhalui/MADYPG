@@ -34,6 +34,7 @@
 #include <Magnum/GL/AbstractShaderProgram.h>
 #include <Magnum/Shaders/Generic.h>
 #include <Magnum/GL/GL.h>
+#include <Magnum/GL/Texture.h>
 
 namespace Magnum { namespace Examples {
 
@@ -64,13 +65,17 @@ public:
     
     YarnShader& setRadius(float radius);
 
+    YarnShader& bindTexture(GL::Texture2D& texture);
+
 private:
+    enum: Int { TextureUnit = 0 };
 
     Int _transformationUniform,
         _normalMatrixUniform,
         _projectionUniform,
         _diffuseColorUniform,
         _radiusUniform;
+
 };
 
 }}

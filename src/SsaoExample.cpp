@@ -1,12 +1,10 @@
 #define DECLARE_UNUSED(x) ((void)x);
 
-#include <Magnum/Primitives/Cube.h>
 #include <Magnum/Primitives/Axis.h>
 #include "arcball/ArcBall.h"
 #include "arcball/ArcBallCamera.h"
 
 // #include "configure.h"
-#include "Shaders/DeferredGeometryShader.h"
 #include "Shaders/YarnShader.h"
 #include "Shaders/SsaoApplyShader.h"
 #include "Shaders/SsaoShader.h"
@@ -41,6 +39,10 @@
 // #include <Magnum/Shaders/VertexColor.h>
 #include <Magnum/Trade/AbstractImporter.h>
 #include <Magnum/Trade/MeshData.h>
+#include <Magnum/Trade/ImageData.h>
+#include <MagnumPlugins/PngImporter/PngImporter.h>
+#include <MagnumPlugins/JpegImporter/JpegImporter.h>
+#include <MagnumPlugins/AnyImageImporter/AnyImageImporter.h>
 
 // #include <Magnum/SceneGraph/Camera.h>
 // #include <Magnum/SceneGraph/Drawable.h>
@@ -59,49 +61,6 @@ namespace Magnum
 {
   namespace Examples
   {
-
-    // using Object3D = SceneGraph::Object<SceneGraph::MatrixTransformation3D>;
-    // using Scene3D  = SceneGraph::Scene<SceneGraph::MatrixTransformation3D>;
-
-    class RandomCube
-    {
-    public:
-      explicit RandomCube(DeferredGeometryShader &shader)
-          : _shader(shader)
-      {
-        static std::mt19937 gen(1991);
-        static std::uniform_real_distribution<float> distS(7.5, 12.5);
-        static std::uniform_real_distribution<float> distTXY(-110.0, 110.0);
-        static std::uniform_real_distribution<float> distTZ(-25.0, 25.0);
-        // static std::uniform_real_distribution<float> distH(80.0f,250.0f);
-        static std::uniform_real_distribution<float> distH(100.0f, 375.0f);
-        _trafo = Matrix4::translation(Vector3(distTXY(gen), distTXY(gen), distTZ(gen))) *
-                 Matrix4::scaling(Vector3(distS(gen)));
-        _diffuseColor = Color4::fromHsv(ColorHsv(Deg{distH(gen)}, 0.15f, 0.9f), 1.0f);
-        //ColorHsv().to
-
-        _mesh = MeshTools::compile(Primitives::cubeSolid());
-      }
-
-      void draw(const Matrix4 &V)
-      {
-        // assumed that camera proj already set
-
-        Matrix4 MV = V * _trafo;
-        _shader.setTransformation(MV)
-            .setNormalMatrix(MV.normalMatrix())
-            // .setProjection(camera.projectionMatrix())
-            // .setProjection(_projection)
-            .setDiffuseColor(_diffuseColor)
-            .draw(_mesh);
-      }
-
-    private:
-      DeferredGeometryShader &_shader;
-      Matrix4 _trafo;
-      GL::Mesh _mesh;
-      Color4 _diffuseColor{0.9};
-    };
 
     void setupTexture(GL::Texture2D &texture, Vector2i const &size,
                       GL::TextureFormat format);
@@ -141,12 +100,12 @@ namespace Magnum
 
       std::vector<Lines<YarnShader>> _lines;
       TestYarns _interface;
+      GL::Texture2D _matcap{NoCreate};
       bool _paused = false;
+      Color4 _bgColor = Color4(Color3(0.2f), 1.0f);
 
-      std::vector<RandomCube> _cubes;
       // std::unique_ptr<ArcBallCamera> _arcballCamera;
 
-      DeferredGeometryShader _geometryShader{NoCreate};
       YarnShader _yarnGeometryShader{NoCreate};
       SsaoApplyShader _ssaoApplyShader{NoCreate};
       SsaoShader _ssaoShader{NoCreate};
@@ -177,13 +136,11 @@ namespace Magnum
       DebugTools::GLFrameProfiler _profiler;
 
       Color4 _specularColor{0.3};
-      bool _applySsao = true;
       Float _radius = 1.5f;
       Float _bias = 0.5f;
       int _ao_blur_radius = 0;
       Float _ao_pow = 4.0f;
 
-      SsaoShader::Flag _ssaoFlag = SsaoShader::Flag::FragmentShader;
       SsaoApplyShader::Flag _ssaoApplyFlag = {};
 
       ImGuiIntegration::Context _imgui{NoCreate};
@@ -276,61 +233,35 @@ namespace Magnum
 
         _framebuffer = GL::Framebuffer{viewport};
         setupFramebuffer(vpSize);
-        GL::Renderer::setClearColor({});
+        // GL::Renderer::setClearColor({});
+        // GL::Renderer::setClearColor(_bgColor);
+        // GL::defaultFramebuffer.clearColor(_bgColor);
 
-        _geometryShader = DeferredGeometryShader{};
         _yarnGeometryShader = YarnShader{};
-        _ssaoShader = SsaoShader{_ssaoFlag};
+        _ssaoShader = SsaoShader{};
         _ssaoApplyShader = SsaoApplyShader{};
         _phong = Magnum::Shaders::Phong{};
-
-        for (size_t i = 0; i < 200; i++)
-          _cubes.emplace_back(_geometryShader);
 
         {
           _lines.emplace_back(_yarnGeometryShader);
           _lines.back().setIndices(_interface.getIndices());
           _lines.back().setVertices(_interface.getVertexData());
         }
-        // _lines.clear();
-        // int N = 800;
-        // int Nv = 2400;
-        // float S = 350.0f;
-        // float amp = 2.0f;
-        // for (int j = 0; j < N; j++)
-        // {
-        //   float A = float(j) / (N - 1);
 
-        //   {
-        //     float x = (1 - A) * -S + A * S;
-        //     Vector3 d = Vector3(1.0, 0.0, 0.0);
-
-        //     std::vector<Vector3> vertices;
-        //     for (int i = 0; i < Nv; i++)
-        //     {
-        //       float a = float(i) / (Nv-1);
-
-        //       vertices.push_back(((1 - a) * -S + a * S) * d + Vector3(0.0f, x, 40.0f + amp*std::sin(j*3.14f + a * 3.14f * 50.0f)));
-        //     }
-        //     _lines.emplace_back(_yarnGeometryShader);
-        //     _lines.back().setVertices(vertices, true);
-        //   }
-        //   {
-        //     float x = (1 - A) * -S + A * S;
-        //     Vector3 d = Vector3(0.0, 1.0, 0.0);
-
-        //     std::vector<Vector3> vertices;
-        //     for (int i = 0; i < Nv; i++)
-        //     {
-        //       float a = float(i) / (Nv-1);
-
-        //       vertices.push_back(((1 - a) * -S + a * S) * d + Vector3(x, 0.0f, 40.0f + amp*std::sin(3.14f * 0.33f + j*3.14f + a * 3.14f * 50.0f)));
-        //     }
-        //     _lines.emplace_back(_yarnGeometryShader);
-        //     _lines.back().setVertices(vertices, true);
-        //   }
-        // }
-
+        PluginManager::Manager<Trade::AbstractImporter> manager;
+        Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
+        if (!importer.openFile("matcaps/mcb.jpg"))
+        // if (!importer.openFile("matcaps/hughsk/00036.png"))
+          std::exit(2);
+        Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
+        CORRADE_INTERNAL_ASSERT(image);
+        _matcap = GL::Texture2D();
+        _matcap.setWrapping(GL::SamplerWrapping::ClampToEdge)
+            .setMagnificationFilter(GL::SamplerFilter::Linear)
+            .setMinificationFilter(GL::SamplerFilter::Linear, GL::SamplerMipmap::Linear)
+            .setStorage(Math::log2(image->size().min()) + 1, GL::textureFormat(image->format()), image->size())
+            .setSubImage(0, {}, *image)
+            .generateMipmap();
       }
 
       /* Set up the arcball and projection */
@@ -362,9 +293,10 @@ namespace Magnum
                                    GL::FramebufferClear::Depth);
       _profiler.beginFrame();
 
-      if (!_paused) { // SIM
-          _interface.step();
-          _lines.back().setVertices(_interface.getVertexData());
+      if (!_paused)
+      { // SIM
+        _interface.step();
+        _lines.back().setVertices(_interface.getVertexData());
       }
 
       const bool camChanged = _arcball->updateTransformation();
@@ -373,19 +305,20 @@ namespace Magnum
 
       /* render the scene into g-buffer */
       _framebuffer
-          .mapForDraw({{DeferredGeometryShader::AlbedoOutput,
+          .mapForDraw({{YarnShader::AlbedoOutput,
                         GL::Framebuffer::ColorAttachment{0}},
-                       {DeferredGeometryShader::PositionsOutput,
+                       {YarnShader::PositionsOutput,
                         GL::Framebuffer::ColorAttachment{1}},
-                       {DeferredGeometryShader::NormalsOutput,
+                       {YarnShader::NormalsOutput,
                         GL::Framebuffer::ColorAttachment{2}}})
-          .clear(GL::FramebufferClear::Depth | GL::FramebufferClear::Color)
+          // .clear(GL::FramebufferClear::Depth | GL::FramebufferClear::Color)
+          .clearColor(0,_bgColor)
+          .clearColor(1,Color4(0.0,0.0,0.0,1.0))
+          .clearColor(2,Color4(0.0,0.0,1.0,1.0))
+          .clearDepth(1.0)
           .bind();
 
-      _geometryShader.setProjection(_projection);
-      for (auto &cube : _cubes)
-        cube.draw(tf);
-
+      _yarnGeometryShader.bindTexture(_matcap);
       _yarnGeometryShader.setProjection(_projection);
       for (auto &line : _lines)
         line.draw(tf);
@@ -397,21 +330,11 @@ namespace Magnum
           .setSampleRadius(_radius)
           .setBias(_bias);
 
-      if (_ssaoFlag == SsaoShader::Flag::ComputeShader)
-      {
-        const Vector2i size = _occlusion.imageSize(0);
-        const Vector3ui wgCount(size.x(), size.y(), 1);
-        _ssaoShader.bindOcclusionTexture(_occlusion).dispatchCompute(wgCount);
-        GL::Renderer::setMemoryBarrier(GL::Renderer::MemoryBarrier::TextureFetch);
-      }
-      else if (_ssaoFlag == SsaoShader::Flag::FragmentShader)
-      {
-        _framebuffer
-            .mapForDraw({{SsaoShader::AmbientOcclusionOutput,
-                          GL::Framebuffer::ColorAttachment{3}}})
-            .clear(GL::FramebufferClear::Color);
-        _ssaoShader.draw(_screenAlignedTriangle);
-      }
+      _framebuffer
+          .mapForDraw({{SsaoShader::AmbientOcclusionOutput,
+                        GL::Framebuffer::ColorAttachment{3}}})
+          .clear(GL::FramebufferClear::Color);
+      _ssaoShader.draw(_screenAlignedTriangle);
 
       GL::defaultFramebuffer.bind();
       _ssaoApplyShader.bindAlbedoTexture(_albedo)
@@ -498,35 +421,14 @@ namespace Magnum
       const float spacing = 10;
       ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
 
-      using T = std::pair<const char *, SsaoShader::Flag>;
-      const static auto shaderTypes = Containers::array<T>(
-          {{"Compute Shader", SsaoShader::Flag::ComputeShader},
-           {"Fragment Shader", SsaoShader::Flag::FragmentShader}});
-      static std::size_t current = 1;
-      if (ImGui::BeginCombo("##Shader Type", shaderTypes[current].first))
-      {
-        for (std::size_t i = 0; i < shaderTypes.size(); ++i)
-        {
-          bool isSelected = i == current;
-          if (ImGui::Selectable(shaderTypes[i].first, isSelected))
-          {
-            current = i;
-            _ssaoFlag = shaderTypes[i].second;
-            _ssaoShader = SsaoShader{_ssaoFlag};
-          }
-          if (isSelected)
-            ImGui::SetItemDefaultFocus();
-        }
-        ImGui::EndCombo();
-      }
-
       ImGui::SliderFloat("SSAO radius", &_radius, 0.001f, 5.0f);
       ImGui::SliderFloat("SSAO bias", &_bias, 0.001f, 1.0f);
       ImGui::SliderInt("SSAO blur radius", &_ao_blur_radius, 0, 5);
       ImGui::SliderFloat("SSAO pow", &_ao_pow, 0.0f, 10.0f);
 
-      if (_lines.size() > 0) {
-      float rad = _lines[0].m_radius;
+      if (_lines.size() > 0)
+      {
+        float rad = _lines[0].m_radius;
         if (ImGui::DragFloat("yarn radius", &rad, 0.1f, 0.001f, 10.0f))
         {
           for (auto &line : _lines)
@@ -537,8 +439,6 @@ namespace Magnum
       }
 
       ImGui::Checkbox("Pause", &_paused);
-
-      ImGui::Checkbox("Apply SSAO", &_applySsao);
 
       ImGui::SameLine();
 
@@ -555,8 +455,7 @@ namespace Magnum
       // if (ImGui::Button("Hot Reload Shader"))
       // {
       //   Utility::Resource::overrideGroup("ssao-data", "../Shaders/resources.conf");
-      //   _geometryShader = DeferredGeometryShader{};
-      //   _ssaoShader = SsaoShader{_ssaoFlag};
+      //   _ssaoShader = SsaoShader{};
       //   _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
       // }
 
@@ -568,6 +467,15 @@ namespace Magnum
       if (ImGui::Checkbox("Camera Lagging", &lagging))
       {
         _arcball->setLagging(float(lagging) * 0.75f);
+      }
+
+      {
+        static float col[3] = {_bgColor.r(), _bgColor.g(), _bgColor.b()};
+        if (ImGui::ColorEdit3("BG Color", col))
+        {
+          _bgColor = Color4(col[0], col[1], col[2], 1.0f);
+          // GL::Renderer::setClearColor(_bgColor);
+        }
       }
 
       std::string stats = _profiler.statistics();

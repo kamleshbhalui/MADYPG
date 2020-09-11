@@ -31,7 +31,8 @@ namespace Magnum
           m_vertexBufferUsage(vertexBufferUsage), m_shader(shader)
     {
       m_mesh.setIndexBuffer(m_indexBuffer, 0, GL::MeshIndexType::UnsignedInt)
-          .setPrimitive(GL::MeshPrimitive::LineStrip);
+          // .setPrimitive(GL::MeshPrimitive::LineStrip);
+          .setPrimitive(GL::MeshPrimitive::LineStripAdjacency);
       m_mesh.addVertexBuffer(
           this->m_vertexBuffer, 0, Shaders::Generic3D::Position{}); // something about memory layout of data in vertex buffer
 
@@ -80,15 +81,7 @@ namespace Magnum
     void setVertices(const std::vector<Vector3> &vertices,
                      bool recalculateIndices = false)
     {
-      // printf("VERTS, TODO avoid storing local vertices and indices ...\n");
-      // this->m_vertices.resize(vertices.size());
-      // for (size_t i = 0; i < vertices.size(); ++i)
-      // {
-      //   this->m_vertices[i].position = vertices[i];
-      // }
-      // this->m_vertexBuffer.setData(this->m_vertices, this->m_vertexBufferUsage);
       this->m_vertexBuffer.setData(vertices, this->m_vertexBufferUsage);
-
 
       if (recalculateIndices)
         this->recalculateIndices(vertices.size());
@@ -110,7 +103,8 @@ namespace Magnum
           // .setNormalMatrix(MV.normalMatrix())
           // .setProjection(camera.projectionMatrix())
           // .setProjection(_projection)
-          .setDiffuseColor(Color4(0.9))
+          .setDiffuseColor(Color4(1.0)) // more like tint
+          // .setDiffuseColor(Color4(1.0,0.5,0.5,1.0))
           .setRadius(m_radius)
           .draw(m_mesh);
     }
@@ -125,11 +119,6 @@ namespace Magnum
 
     void recalculateIndices(int n)
     {
-      // m_indices.resize(n);
-      // std::iota(std::begin(m_indices), std::end(m_indices),
-      //           0); // increasing integer values
-      // m_mesh.setCount(this->m_indices.size());
-      // m_indexBuffer.setData(this->m_indices, m_indexBufferUsage);
       std::vector<UnsignedInt> indices(n);
       std::iota(std::begin(indices), std::end(indices),
                 0); // increasing integer values
@@ -140,6 +129,8 @@ namespace Magnum
   private:
     std::vector<UnsignedInt> m_indices;
     std::vector<Vertex> m_vertices;
+      // _yarnGeometryShader.bindTexture(_matcap);
+
   };
 
 } // namespace Magnum

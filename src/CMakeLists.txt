@@ -16,8 +16,10 @@ find_package(Magnum REQUIRED
     DebugTools
     Primitives
     # AnySceneImporter
+    AnyImageImporter
     )
 find_package(MagnumIntegration REQUIRED ImGui)
+find_package(MagnumPlugins REQUIRED PngImporter JpegImporter)
 
 set_directory_properties(PROPERTIES CORRADE_USE_PEDANTIC_FLAGS ON)
 
@@ -30,8 +32,6 @@ file(GLOB_RECURSE glob_SRCS
 add_executable(magnum-ssao
         # SsaoExample.cpp
         # arcball/ArcBall.cpp
-        # Shaders/DeferredGeometryShader.cpp
-        # Shaders/DeferredGeometryShader.h
         # Shaders/SsaoShader.cpp
         # Shaders/SsaoShader.h
         # Shaders/SsaoApplyShader.cpp
@@ -50,7 +50,11 @@ target_link_libraries(magnum-ssao PRIVATE
     Magnum::DebugTools
     Magnum::Primitives
     # Magnum::AnySceneImporter
-    MagnumIntegration::ImGui)
+    Magnum::AnyImageImporter
+    MagnumIntegration::ImGui
+    MagnumPlugins::PngImporter
+    MagnumPlugins::JpegImporter
+    )
 
 find_package(Eigen3 CONFIG REQUIRED)
 target_link_libraries(magnum-ssao PUBLIC Eigen3::Eigen)
