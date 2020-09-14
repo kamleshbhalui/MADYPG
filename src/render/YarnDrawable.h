@@ -9,13 +9,13 @@
 #include <numeric> // iota
 #include <vector>
 #include <limits>
-#include "EigenDefinitions.h"
+#include "../EigenDefinitions.h"
 #include <iostream>
 
 namespace Magnum
 {
   template <typename Shader>
-  class Lines
+  class YarnDrawable
   {
   public:
     struct Vertex
@@ -23,7 +23,7 @@ namespace Magnum
       Vector3 position;
     };
 
-    explicit Lines(
+    explicit YarnDrawable(
         Shader &shader,
         GL::BufferUsage vertexBufferUsage = GL::BufferUsage::StreamDraw, // probably change every frame
         GL::BufferUsage indexBufferUsage = GL::BufferUsage::StaticDraw)  // probably only ever change once

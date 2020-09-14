@@ -42,8 +42,25 @@ uniform vec3 specularColor;
 
 out vec4 fragmentColor;
 
-uniform int ao_blurr_radius = 2;
+uniform int ao_blur_radius = 2;
+uniform float ao_blur_feature = 1.0; // exp(-dz^2/2sigmafeature^2) = exp(-dz^2/2 blur_feature^2)
 uniform float ao_pow = 4.0;
+
+// bilateral filter:
+// If(xi) = 1/Wp sum_j ( I(xj) fr(|I(xi)-I(xj)|) gs(|xi-xj|) )
+// Wp = sum_j ( fr(|I(xi)-I(xj)|) gs(|xi-xj) )
+
+// joint bilateral filter: ubstead if using main signal difference in weight, use other signal's dif
+// If(xi) = 1/W sum_j ( I(xj) w(xi,xj) )
+//          w: wx(i,j) wy(zi,zj)  instead of wy(xi,xj)
+
+// w: exp( - (dij)^2/(2 sigd^2) - dz^2/(2 sigr^2) ) 
+
+float bilateral_weight() {
+    float w = 0.0;
+    return w;
+}
+
 
 void main()
 {
@@ -55,17 +72,54 @@ void main()
     vec3 albedo = texture(albedoTexture, textureCoordinate).rgb;
 #endif
 
-    /* blur occlusion factor */
+
+
+    // /* average blur occlusion factor */
     vec2 texelSize = 1.0 / vec2(textureSize(ambientOcclusionTexture, 0));
+    // float blurredOcclusion = 0.0;
+    // for (int x = -ao_blur_radius; x <= ao_blur_radius; ++x) {
+    //     for (int y = -ao_blur_radius; y <= ao_blur_radius; ++y) {
+    //         vec2 offset = vec2(float(x), float(y)) * texelSize;
+    //         blurredOcclusion += texture(ambientOcclusionTexture, textureCoordinate + offset).x;
+    //     }
+    // }
+    // blurredOcclusion /= float((ao_blur_radius*2 + 1)*(ao_blur_radius*2 + 1));
+
     float blurredOcclusion = 0.0;
-    for (int x = -ao_blurr_radius; x <= ao_blurr_radius; ++x) {
-        for (int y = -ao_blurr_radius; y <= ao_blurr_radius; ++y) {
-            vec2 offset = vec2(float(x), float(y)) * texelSize;
-            blurredOcclusion += texture(ambientOcclusionTexture, textureCoordinate + offset).x;
+
+    if (ao_blur_radius > 0) {
+        float wtotal = 0.0;
+
+        // sigma from radius for gaussian
+        /*const*/ float BlurSigma = float(ao_blur_radius) * 0.5;
+        /*const*/ float BlurFalloff = 1.0 / (2.0*BlurSigma*BlurSigma);
+        /*const*/ float BlurFeatureFalloff = 0.5 * ao_blur_feature*ao_blur_feature;
+
+        for (int i = -ao_blur_radius; i <= ao_blur_radius; ++i) {
+            for (int j = -ao_blur_radius; j <= ao_blur_radius; ++j) {
+                vec2 uvij = textureCoordinate + vec2(i,j) * texelSize;
+                float w = 1.0;
+                float exponent = (i*i+j*j)*BlurFalloff;
+                if (ao_blur_feature > 0.00001) {
+                    float dz = texture(positionTexture, uvij).z - position.z;
+                    exponent -= dz*dz*BlurFeatureFalloff;
+                }
+                w = exp(exponent);
+                // exp( - (dij)^2/(2 sigd^2) - dz^2/(2 sigr^2) ) 
+                blurredOcclusion += w * texture(ambientOcclusionTexture, uvij).x;
+                wtotal += w;
+            }
         }
+        blurredOcclusion /= wtotal;
+    } else {
+        blurredOcclusion = texture(ambientOcclusionTexture, textureCoordinate).x;
     }
-    blurredOcclusion /= float((ao_blurr_radius*2 + 1)*(ao_blurr_radius*2 + 1));
-    blurredOcclusion = pow(blurredOcclusion, ao_pow); /* To make the effect more visible */
+
+
+
+    
+    // ssao power to strengthen effect
+    blurredOcclusion = pow(blurredOcclusion, ao_pow); 
 
 #ifndef DRAW_OCCLUSION_FACTOR
     // /* No ambient color */

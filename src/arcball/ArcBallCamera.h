@@ -37,7 +37,7 @@
 
 #include "ArcBall.h"
 
-namespace Magnum { namespace Examples {
+namespace Magnum {
 
 /* Arcball camera implementation integrated into the SceneGraph */
 class ArcBallCamera: public ArcBall {
@@ -95,6 +95,6 @@ class ArcBallCamera: public ArcBall {
         SceneGraph::Camera3D* _camera{};
 };
 
-}}
+}
 
 #endif

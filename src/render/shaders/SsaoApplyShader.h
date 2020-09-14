@@ -1,5 +1,5 @@
-#ifndef _YARNSHADER_H_
-#define _YARNSHADER_H_
+#ifndef Magnum_Examples_Ssao_SsaoApplyShader_h
+#define Magnum_Examples_Ssao_SsaoApplyShader_h
 
 /*
     This file is part of Magnum.
@@ -33,51 +33,53 @@
 
 #include <Magnum/GL/AbstractShaderProgram.h>
 #include <Magnum/Shaders/Generic.h>
-#include <Magnum/GL/GL.h>
-#include <Magnum/GL/Texture.h>
+#include <Magnum/Math/Vector3.h>
+#include <Magnum/Math/Color.h>
 
-namespace Magnum { namespace Examples {
+namespace Magnum {
 
-class YarnShader : public Magnum::GL::AbstractShaderProgram {
+class SsaoApplyShader : public Magnum::GL::AbstractShaderProgram {
 public:
 
-    using Position = Magnum::Shaders::Generic3D::Position;
-    // using Normal = Magnum::Shaders::Generic3D::Normal;
-    // using TextureCoordinates = Magnum::Shaders::Generic3D::TextureCoordinates;
-
-    enum {
-        AlbedoOutput = 0,
-        PositionsOutput = 1,
-        NormalsOutput = 2,
+    enum class Flag : UnsignedInt {
+        DrawAmbientOcclusion = 1,
     };
 
-    explicit YarnShader(Magnum::NoCreateT) : Magnum::GL::AbstractShaderProgram{Magnum::NoCreate} {};
+    explicit SsaoApplyShader(Flag flag = {});
 
-    explicit YarnShader();
+    explicit SsaoApplyShader(Magnum::NoCreateT) : Magnum::GL::AbstractShaderProgram{Magnum::NoCreate} {};
 
-    YarnShader& setTransformation(const Matrix4& transformation);
+    SsaoApplyShader& bindAlbedoTexture(Magnum::GL::Texture2D&);
 
-    // YarnShader& setNormalMatrix(const Matrix3x3& normalMatrix);
+    SsaoApplyShader& bindOcclusionTexture(Magnum::GL::Texture2D&);
 
-    YarnShader& setProjection(const Matrix4& projection);
+    SsaoApplyShader& bindPositionTexture(Magnum::GL::Texture2D&);
 
-    YarnShader& setDiffuseColor(const Color4& color);
+    SsaoApplyShader& bindNormalTexture(Magnum::GL::Texture2D&);
+
+    SsaoApplyShader& setShininess(Float);
+
+    SsaoApplyShader& setLightPosition(const Vector3&);
+
+    SsaoApplyShader& setLightColor(const Color3&);
+
+    SsaoApplyShader& setSpecularColor(const Color3&);
+
+    SsaoApplyShader& setAOBlurRadius(Int);
     
-    YarnShader& setRadius(float radius);
+    SsaoApplyShader& setAOBlurFeature(Float);
 
-    YarnShader& bindTexture(GL::Texture2D& texture);
-
+    SsaoApplyShader& setAOPow(Float);
 private:
-    enum: Int { TextureUnit = 0 };
-
-    Int _transformationUniform,
-        _normalMatrixUniform,
-        _projectionUniform,
-        _diffuseColorUniform,
-        _radiusUniform;
-
+    Int _lightPositionUniform = 0,
+        _lightColorUniform = 1,
+        _shininessUniform = 2,
+        _specularColorUniform = 3,
+        _aoBlurRadiusUniform = 4,
+        _aoBlurFeatureUniform = 5,
+        _aoPowUniform = 6;
 };
 
-}}
+}
 
 #endif

@@ -89,17 +89,19 @@ void main() {
     // viewNormal = vec3( ca*b.x + sa*n.x,
     //                 ca*b.y + sa*n.y,
     //                 ca*b.z + sa*n.z );
-    viewNormal = vec3( ca*bv0.x + sa*nv0.x,
-                ca*bv0.y + sa*nv0.y,
-                ca*bv0.z + sa*nv0.z );
+
+    viewNormal = vec3( ca*nv1.x + sa*bv1.x,
+                ca*nv1.y + sa*bv1.y,
+                ca*nv1.z + sa*bv1.z );
+    viewPosition = V1.gl_Position.xyz + r2*viewNormal;
+    gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();   
+    
+    viewNormal = vec3( ca*nv0.x + sa*bv0.x,
+                ca*nv0.y + sa*bv0.y,
+                ca*nv0.z + sa*bv0.z );
     viewPosition = V0.gl_Position.xyz + r1*viewNormal;  
     gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();  
 
-    viewNormal = vec3( ca*bv1.x + sa*nv1.x,
-                ca*bv1.y + sa*nv1.y,
-                ca*bv1.z + sa*nv1.z );
-    viewPosition = V1.gl_Position.xyz + r2*viewNormal;
-    gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();   
   }
   EndPrimitive();  
 }

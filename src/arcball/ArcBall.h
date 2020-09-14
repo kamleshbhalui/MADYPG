@@ -36,7 +36,7 @@
 #include <Magnum/Math/Vector2.h>
 #include <Magnum/Math/Vector3.h>
 
-namespace Magnum { namespace Examples {
+namespace Magnum {
 
 /* Implementation of Ken Shoemake's arcball camera with smooth navigation
    feature: https://www.talisman.org/~erlkonig/misc/shoemake92-arcball.pdf */
@@ -127,6 +127,6 @@ class ArcBall {
         DualQuaternion _view, _inverseView;
 };
 
-}}
+}
 
 #endif

@@ -15,7 +15,7 @@
 
 #include <random>
 
-namespace Magnum { namespace Examples {
+namespace Magnum {
 
 namespace {
 enum {
@@ -107,4 +107,4 @@ SsaoShader& SsaoShader::setBias(Float bias) {
     return *this;
 }
 
-}}
+}

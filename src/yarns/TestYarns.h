@@ -5,7 +5,7 @@
 #include <numeric> // iota
 #include <iostream>
 #include <limits>
-#include "ThreadUtils.h"
+#include "../ThreadUtils.h"
 
 class TestYarns : public YarnInterface
 {
@@ -103,7 +103,7 @@ public:
 
   const std::vector<uint32_t> &getIndices() { return I; }
   // const Eigen::Matrix<float,-1,-1> & getVertexData() { return X; }
-  const Eigen::Matrix<float, -1, -1, Eigen::RowMajor> &getVertexData() { return X; }
+  const MatrixGLf &getVertexData() { return X; }
 
   // const MatrixXXs & getVertexData() { return X; }
   // const Eigen::Matrix<scalar,Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & getVertexData() { return X; }
@@ -111,10 +111,10 @@ public:
 private:
   float T;
   // Eigen::Matrix<float,-1,-1> X;
-  Eigen::Matrix<float, -1, -1, Eigen::RowMajor> X;
+  MatrixGLf X;
   // MatrixXXs  X;
   // Eigen::Matrix<scalar,Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>  X;
-  std::vector<unsigned int> I;
+  std::vector<uint32_t> I;
 };
 
 #endif // __TESTYARNS__H__

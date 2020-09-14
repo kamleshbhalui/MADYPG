@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.4)
 
 project(MagnumSSAOExample CXX)
 
+SET(CMAKE_CXX_STANDARD 14)
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pthread")
+
 # Add module path in case this is project root
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/../modules/" ${CMAKE_MODULE_PATH})
 
@@ -23,7 +26,7 @@ find_package(MagnumPlugins REQUIRED PngImporter JpegImporter)
 
 set_directory_properties(PROPERTIES CORRADE_USE_PEDANTIC_FLAGS ON)
 
-corrade_add_resource(SSAO_Rcs Shaders/resources.conf)
+corrade_add_resource(SSAO_Rcs render/shaders/resources.conf)
 
 
 file(GLOB_RECURSE glob_SRCS

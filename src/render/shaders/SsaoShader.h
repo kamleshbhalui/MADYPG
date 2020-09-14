@@ -1,14 +1,14 @@
 #ifndef Magnum_Examples_Ssao_SsaoShader_h
 #define Magnum_Examples_Ssao_SsaoShader_h
 
-#include "../magnum-master-changes.h"
+#include "../../magnum-master-changes.h"
 #include <Corrade/Containers/Array.h>
 
 #include <Magnum/GL/AbstractShaderProgram.h>
 #include <Magnum/Shaders/Generic.h>
 #include <Magnum/Math/Vector2.h>
 
-namespace Magnum { namespace Examples {
+namespace Magnum {
 
 class SsaoShader : public GL::AbstractShaderProgram {
 public:
@@ -42,6 +42,6 @@ private:
                 _samplesUniform = 3;
 };
 
-}}
+}
 
 #endif

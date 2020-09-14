@@ -13,7 +13,7 @@
 #include <Eigen/StdVector>
 #include <list>
 
-typedef double scalar; // Matrix elements
+typedef float scalar; // Matrix elements NOTE: float for opengl compatibility
 
 // Fixed size matrices
 typedef Eigen::Matrix<int, 2, 1> Vector2i;
@@ -32,6 +32,10 @@ typedef Eigen::Matrix<scalar, Eigen::Dynamic, 1> VectorXs;
 typedef Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> MatrixXXs;
 typedef Eigen::MatrixXi MatrixXXi;
 typedef Eigen::VectorXi VectorXi;
+
+// OpenGL specific
+typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixGLf;
+typedef Eigen::Matrix<uint32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixGLi;
 
 // Templated matrices
 template <int N, int M>

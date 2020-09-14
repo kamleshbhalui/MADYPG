@@ -32,7 +32,7 @@
 
 #include <Magnum/Math/Matrix3.h>
 
-namespace Magnum { namespace Examples {
+namespace Magnum {
 
 namespace {
 
@@ -176,4 +176,4 @@ Vector2 ArcBall::screenCoordToNDC(const Vector2i& mousePos) const {
             1.0f - 2.0f*mousePos.y()/ _windowSize.y()};
 }
 
-}}
+}

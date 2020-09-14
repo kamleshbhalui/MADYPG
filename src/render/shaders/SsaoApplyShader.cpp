@@ -42,7 +42,7 @@
 
 using namespace Magnum;
 
-namespace Magnum { namespace Examples {
+namespace Magnum {
 
 namespace {
 
@@ -73,7 +73,9 @@ SsaoApplyShader::SsaoApplyShader(Flag flag) {
 
     CORRADE_INTERNAL_ASSERT_OUTPUT(link());
 
-    _aoBlurRadiusUniform = uniformLocation("ao_blurr_radius");
+    _aoBlurRadiusUniform = uniformLocation("ao_blur_radius");
+    _aoBlurFeatureUniform = uniformLocation("ao_blur_feature");
+    
     _aoPowUniform = uniformLocation("ao_pow");
 
 
@@ -136,6 +138,11 @@ SsaoApplyShader& SsaoApplyShader::setAOBlurRadius(Int radius){
     return *this;
 }
 
+SsaoApplyShader& SsaoApplyShader::setAOBlurFeature(Float feature){
+    setUniform(_aoBlurFeatureUniform, feature);
+    return *this;
+}
+
 SsaoApplyShader& SsaoApplyShader::setAOPow(Float pow){
     setUniform(_aoPowUniform, pow);
     return *this;
@@ -143,4 +150,4 @@ SsaoApplyShader& SsaoApplyShader::setAOPow(Float pow){
 
 
 
-}}
+}
