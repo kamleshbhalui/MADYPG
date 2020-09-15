@@ -1,5 +1,7 @@
 #define DECLARE_UNUSED(x) ((void)x);
 
+#define HELPSCALE 1.0f
+
 #include <Magnum/Primitives/Axis.h>
 #include "arcball/ArcBall.h"
 #include "arcball/ArcBallCamera.h"
@@ -11,8 +13,7 @@
 #include "render/shaders/SsaoShader.h"
 #include "render/YarnDrawable.h"
 #include "render/MeshDrawable.h"
-#include "mesh/Mesh.h"
-#include "yarns/TestYarns.h"
+#include "yarns/YarnMapper.h"
 
 #include <Corrade/Containers/Optional.h>
 // #include <Corrade/Containers/String.h>
@@ -99,11 +100,12 @@ namespace Magnum
     void drawSettings();
 
     std::vector<YarnDrawable<YarnShader>> _lines;
-    Mesh _mesh;
     std::unique_ptr<MeshDrawable<MeshShader>> _meshdrawable;
-    TestYarns _interface;
+    std::unique_ptr<YarnMapper> _yarnMapper;
     GL::Texture2D _matcap{NoCreate};
     bool _paused = false;
+    bool _render_mesh = true;
+    bool _render_yarns = true;
     Color4 _bgColor = Color4(Color3(0.2f), 1.0f);
 
     // std::unique_ptr<ArcBallCamera> _arcballCamera;
@@ -120,8 +122,10 @@ namespace Magnum
     Containers::Optional<ArcBall> _arcball;
     Matrix4 _projection;
     Deg _proj_fov = 45.0_degf;
-    float _proj_near = 0.01f;
-    float _proj_far = 10000.0f; // TODO reduce far/near to proper scale
+    // float _proj_near = 0.01f;//0.001f *HELPSCALE;
+    // float _proj_far = 10000.0f;//50.0f*HELPSCALE; // TODO reduce far/near to proper scale
+    float _proj_near = 0.0001f * HELPSCALE;//0.001f *HELPSCALE;
+    float _proj_far = 100.0f* HELPSCALE;//50.0f*HELPSCALE; // TODO reduce far/near to proper scale
 
     GL::Mesh _screenAlignedTriangle{NoCreate};
 
@@ -139,11 +143,11 @@ namespace Magnum
     DebugTools::GLFrameProfiler _profiler;
 
     Color4 _specularColor{0.3};
-    Float _radius = 1.5f;
-    Float _bias = 0.5f;
+    Float _ao_radius = 0.004f* HELPSCALE;//1.5f;
+    Float _ao_bias = 0.0003f;//0.5f;
     int _ao_blur_radius = 0;
-    float _ao_blur_feature = 3.0f;
-    Float _ao_pow = 4.0f;
+    float _ao_blur_feature = 25.0f / HELPSCALE;
+    Float _ao_pow = 2.0f;
 
     SsaoApplyShader::Flag _ssaoApplyFlag = {};
 
@@ -217,12 +221,18 @@ namespace Magnum
       _screenAlignedTriangle = GL::Mesh{};
       _screenAlignedTriangle.setCount(3);
 
+      Containers::Array<Vector4> noise(Containers::NoInit, 16);
       std::random_device device;
       std::default_random_engine engine(device());
-      std::uniform_real_distribution<float> distr(-1, 1);
-      Containers::Array<Vector4> noise(Containers::NoInit, 16);
-      for (Vector4 &n : noise)
-        n = Vector4{distr(engine), distr(engine), 0, 0};
+      // uniform sampling: square
+      // std::uniform_real_distribution<float> distr(-1, 1);
+      // for (Vector4 &n : noise)
+      //   n = Vector4{distr(engine), distr(engine), 0, 0};
+      // uniform sampling: circle
+      std::normal_distribution<float> ndistr(0.0f, 0.4f);
+      for (Vector4 &n : noise) {
+        n = Vector4{ndistr(engine), ndistr(engine), 0, 0}.normalized();
+      }
 
       _noise = GL::Texture2D{};
       ImageView2D view{PixelFormat::RGBA32F, {4, 4}, noise};
@@ -248,14 +258,15 @@ namespace Magnum
       _phong = Magnum::Shaders::Phong{};
 
       {
+        _yarnMapper = std::make_unique<YarnMapper>();
         _lines.emplace_back(_yarnGeometryShader);
-        _lines.back().setIndices(_interface.getIndices());
-        _lines.back().setVertices(_interface.getVertexData());
+        _lines.back().setIndices(_yarnMapper->getIndices());
+        _lines.back().setVertices(_yarnMapper->getVertexData());
 
-        _mesh.setTestMesh(); // DEBUG
         _meshdrawable = std::make_unique<MeshDrawable<MeshShader>>(_meshShader);
-        _meshdrawable->setIndices(_mesh.F);
-        _meshdrawable->setVertices(_mesh.X);
+        const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
+        _meshdrawable->setIndices(mesh.F);
+        _meshdrawable->setVertices(mesh.X);
       }
 
       PluginManager::Manager<Trade::AbstractImporter> manager;
@@ -277,7 +288,7 @@ namespace Magnum
 
     /* Set up the arcball and projection */
     {
-      const Vector3 eye = Vector3::zAxis(500.0f);
+      const Vector3 eye = Vector3::zAxis(1.0f)  *HELPSCALE;
       const Vector3 center{};
       const Vector3 up = Vector3::yAxis();
       _arcball.emplace(eye, center, up, 45.0_degf, windowSize());
@@ -304,21 +315,25 @@ namespace Magnum
 
     if (!_paused)
     { // SIM
-      _interface.step();
+      _yarnMapper->step();
       // assume no update to yarn indices
-      _lines.back().setVertices(_interface.getVertexData());
-      // assume no update to mesh indices
-      _meshdrawable->setVertices(_mesh.X);
+      _lines.back().setVertices(_yarnMapper->getVertexData());
+
+      const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
+      if (_yarnMapper->getMeshSimulation()->meshIndicesDirty())
+        _meshdrawable->setIndices(mesh.F);
+      // always assume changes to vertices
+      _meshdrawable->setVertices(mesh.X);
     }
 
     const bool camChanged = _arcball->updateTransformation();
     DECLARE_UNUSED(camChanged);
 
+    GL::defaultFramebuffer.clear(GL::FramebufferClear::Color |
+                                  GL::FramebufferClear::Depth);
     bool require_redraw = !_paused || camChanged;
     if (require_redraw)
     {
-      GL::defaultFramebuffer.clear(GL::FramebufferClear::Color |
-                                   GL::FramebufferClear::Depth);
 
       const Matrix4 tf = _arcball->viewMatrix();
 
@@ -337,41 +352,44 @@ namespace Magnum
           .clearDepth(1.0)
           .bind();
 
-      _yarnGeometryShader.bindTexture(_matcap);
-      _yarnGeometryShader.setProjection(_projection);
-      for (auto &line : _lines)
-        line.draw(tf);
+      if (_render_yarns) {
+        _yarnGeometryShader.bindTexture(_matcap);
+        _yarnGeometryShader.setProjection(_projection);
+        for (auto &line : _lines)
+          line.draw(tf);
+      }
 
+      if (_render_mesh) {
       _meshShader.setProjection(_projection);
       _meshdrawable->draw(tf);
+      }
 
       _ssaoShader.bindNormalTexture(_normals)
           .bindNoiseTexture(_noise)
           .bindPositionTexture(_positions)
           .setProjectionMatrix(_projection)
-          .setSampleRadius(_radius)
-          .setBias(_bias);
+          .setSampleRadius(_ao_radius)
+          .setBias(_ao_bias);
 
       _framebuffer
           .mapForDraw({{SsaoShader::AmbientOcclusionOutput,
                         GL::Framebuffer::ColorAttachment{3}}})
           .clear(GL::FramebufferClear::Color);
       _ssaoShader.draw(_screenAlignedTriangle);
-
-      GL::defaultFramebuffer.bind();
-      _ssaoApplyShader.bindAlbedoTexture(_albedo)
-          .bindOcclusionTexture(_occlusion)
-          .bindNormalTexture(_normals)
-          .bindPositionTexture(_positions)
-          .setLightPosition({5.0f, 5.0f, 7.0f})
-          .setLightColor(Color3{1.f})
-          .setShininess(80)
-          .setSpecularColor(_specularColor.rgb())
-          .setAOBlurRadius(_ao_blur_radius)
-          .setAOBlurFeature(_ao_blur_feature)
-          .setAOPow(_ao_pow)
-          .draw(_screenAlignedTriangle);
     }
+    GL::defaultFramebuffer.bind();
+    _ssaoApplyShader.bindAlbedoTexture(_albedo)
+        .bindOcclusionTexture(_occlusion)
+        .bindNormalTexture(_normals)
+        .bindPositionTexture(_positions)
+        .setLightPosition({5.0f, 5.0f, 7.0f})
+        .setLightColor(Color3{1.f})
+        .setShininess(80)
+        .setSpecularColor(_specularColor.rgb())
+        .setAOBlurRadius(_ao_blur_radius)
+        .setAOBlurFeature(_ao_blur_feature)
+        .setAOPow(_ao_pow)
+        .draw(_screenAlignedTriangle);
 
     _profiler.endFrame();
 
@@ -441,28 +459,53 @@ namespace Magnum
 
   void SsaoExample::drawSettings()
   {
-    ImGui::Begin("SSAO Options");
+    ImGui::Begin("Render Options");
     const float spacing = 10;
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
 
-    ImGui::SliderFloat("SSAO radius", &_radius, 0.001f, 5.0f);
-    ImGui::SliderFloat("SSAO bias", &_bias, 0.001f, 1.0f);
-    ImGui::SliderInt("SSAO blur radius", &_ao_blur_radius, 0, 5);
-    ImGui::SliderFloat("SSAO blur feature", &_ao_blur_feature, 0.0f, 5.0f);
-    ImGui::SliderFloat("SSAO pow", &_ao_pow, 0.0f, 10.0f);
+
+    if (ImGui::CollapsingHeader("SSAO",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+      ImGui::Indent();
+      ImGui::PushItemWidth(100.0f);
+      {
+        float val = _ao_radius * 100.0f;
+        if (ImGui::SliderFloat("radius (cm)", &val, 0.001f, 5.0f))
+          _ao_radius = val * 0.01f;
+      }
+      {
+        float val = _ao_bias * 100.0f;
+        if (ImGui::SliderFloat("bias (cm)", &val, 0.001f, 0.5f))
+          _ao_bias = val * 0.01f;
+      }
+      ImGui::SliderInt("blur radius", &_ao_blur_radius, 0, 5);
+    //  (ImGui::DragFloat("blur feature (cm)", &_ao_blur_feature, 0.01f, 0.0f,100.0f,"%.2e"));
+      {
+        float val = _ao_blur_feature * 0.01f;
+        if (ImGui::SliderFloat("blur feature (1/cm)", &val, 0.0f, 50.0f))
+          _ao_blur_feature = val * 100.0f;
+      }
+      ImGui::SliderFloat("strength", &_ao_pow, 0.0f, 10.0f);
+      ImGui::PopItemWidth();
+      ImGui::Unindent();
+    }
+    
+    ImGui::Checkbox("Yarns", &_render_yarns);
+    ImGui::SameLine();
+    ImGui::Checkbox("Mesh", &_render_mesh);
 
     if (_lines.size() > 0)
     {
-      float rad = _lines[0].m_radius;
-      if (ImGui::DragFloat("yarn radius", &rad, 0.1f, 0.001f, 10.0f))
+      float rad = _lines[0].m_radius * 100 / HELPSCALE;
+      if (ImGui::DragFloat("yarn radius (cm)", &rad, 0.01f, 0.01f, 1.0f))
       {
         for (auto &line : _lines)
         {
-          line.m_radius = rad;
+          line.m_radius = rad * 0.01f * HELPSCALE;
         }
       }
     }
-
+    
     ImGui::Checkbox("Pause", &_paused);
 
     ImGui::SameLine();
@@ -591,7 +634,7 @@ namespace Magnum
     if (Math::abs(delta) < 1.0e-2f)
       return;
 
-    _arcball->zoom(delta * 50); /* the Aramdillo is in mm */
+    _arcball->zoom(delta * 0.1f *HELPSCALE); 
 
     event.setAccepted();
     redraw();

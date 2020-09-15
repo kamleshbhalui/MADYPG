@@ -26,22 +26,36 @@ enum {
 };
 }
 
+float lerp(float a, float b, float f)
+{
+    return a + f * (b - a);
+} 
+
 SsaoShader::SsaoShader(UnsignedInt sampleCount) {
-
-    constexpr Float mean = 0.f;
-    constexpr Float std = 0.4f;
-
     Containers::Array<Vector3> randomSamples(Containers::NoInit, sampleCount);
     std::default_random_engine engine;
-    std::normal_distribution<float> normalDistr(mean, std);
+    std::normal_distribution<float> ndistr(0.0f, 0.4f);
+    std::uniform_real_distribution<float> distr(0.01f, 1.0f);
+    constexpr float c = 0.1f; // minimum z value of random sample, to avoid self shadowing of inclined planes
 
     for (UnsignedInt i = 0; i < sampleCount; ++i) {
-        Vector3 p{normalDistr(engine), normalDistr(engine), normalDistr(engine)};
+        Vector3 p{ndistr(engine), ndistr(engine), ndistr(engine)};
         if(p.z() < 0)
             p.z() *= -1.f;
-        p = Math::fmod(p, Vector3{1});
+        // p = Math::fmod(p, Vector3{1});
+        // randomSamples[i] = p;
+        // continue;
+        p = p.normalized();
+        if (p.z() < c) { // minimum cosine / z value
+            Vector2 p2 = Vector2{ndistr(engine), ndistr(engine)}.normalized() * (1 - c*c);
+            p = Vector3{p2.x(), p2.y(), c};
+        }
+        p *= distr(engine); // hemisphere volume
+        float scale = float(i) / (sampleCount-1); 
+        p *= lerp(0.1f, 1.0f, scale * scale); // sample closer to origin // artistically, this concentrates AO to obj edges compared to spreading darkness along the entire radius distance
         randomSamples[i] = p;
     }
+
     Utility::Resource rs{"ssao-data"};
 
     MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL330);

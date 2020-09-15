@@ -12,6 +12,7 @@
 #include <Eigen/Sparse>
 #include <Eigen/StdVector>
 #include <list>
+#include <deque>
 
 typedef float scalar; // Matrix elements NOTE: float for opengl compatibility
 
@@ -35,7 +36,11 @@ typedef Eigen::VectorXi VectorXi;
 
 // OpenGL specific
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixGLf;
+typedef Eigen::Matrix<float, 1, Eigen::Dynamic, Eigen::RowMajor> VectorGLf;
+typedef Eigen::Matrix<float, 1, 2, Eigen::RowMajor> VectorGL2f;
+typedef Eigen::Matrix<float, 1, 3, Eigen::RowMajor> VectorGL3f;
 typedef Eigen::Matrix<uint32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixGLi;
+typedef Eigen::Matrix<uint32_t, 1, Eigen::Dynamic, Eigen::RowMajor> VectorGLi;
 
 // Templated matrices
 template <int N, int M>
@@ -48,6 +53,8 @@ template <class T>
 using AlignedVector = std::vector<T, Eigen::aligned_allocator<T>>;
 template <class T>
 using AlignedList = std::list<T, Eigen::aligned_allocator<T>>;
+template <class T>
+using AlignedDeque = std::deque<T, Eigen::aligned_allocator<T>>;
 
 // sparse matrices
 typedef Eigen::Triplet<scalar> Triplet;

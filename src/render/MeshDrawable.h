@@ -74,8 +74,8 @@ namespace Magnum
     GL::Buffer m_indexBuffer, m_vertexBuffer;
     Shader &m_shader;
     GL::Mesh m_glmesh;
-    Color4 m_color = Color4(1.0);
-    float m_linewidth = 4.0f;
+    Color4 m_color = Color4(Color3(0.9f),1.0f);
+    float m_linewidth = 2.0f;
   };
 
 } // namespace Magnum

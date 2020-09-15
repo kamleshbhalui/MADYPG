@@ -53,7 +53,7 @@ uniform float ao_pow = 4.0;
 // joint bilateral filter: ubstead if using main signal difference in weight, use other signal's dif
 // If(xi) = 1/W sum_j ( I(xj) w(xi,xj) )
 //          w: wx(i,j) wy(zi,zj)  instead of wy(xi,xj)
-
+//https://bartwronski.com/2019/09/22/local-linear-models-guided-filter/
 // w: exp( - (dij)^2/(2 sigd^2) - dz^2/(2 sigr^2) ) 
 
 float bilateral_weight() {
@@ -101,6 +101,7 @@ void main()
                 float w = 1.0;
                 float exponent = (i*i+j*j)*BlurFalloff;
                 if (ao_blur_feature > 0.00001) {
+                    // TODO gl_FragCoord.z ?
                     float dz = texture(positionTexture, uvij).z - position.z;
                     exponent -= dz*dz*BlurFeatureFalloff;
                 }
@@ -143,6 +144,8 @@ void main()
 #else
     fragmentColor.rgb = vec3(blurredOcclusion);
 #endif
+
+
 
 // TODO WHEN USING MATCAPS NO NEED TO DO
 // fragmentColor.rgb =albedo; 

@@ -35,8 +35,8 @@ uniform sampler2D normals;
 uniform sampler2D noise;
 
 uniform mat4 projection;
-uniform float bias = 0.025;//0.2; // TODO UNIFORM
-uniform float radius = 0.5;//1.; // TODO UNIFORM 
+uniform float bias = 0.025;//0.2;
+uniform float radius = 0.5;//1.;
 uniform vec3 samples[SAMPLE_COUNT];
 
 out float ambientOcclusion;
@@ -46,6 +46,7 @@ vec2 noiseScale = vec2(textureSize(positions,0))/vec2(textureSize(noise,0));
 void main()
 {
     vec3 position = texture(positions, textureCoordinate).xyz;
+
     // if(position.z == 0) {
     //     ambientOcclusion = 1;
     //     return;
@@ -74,6 +75,9 @@ void main()
 
         /* range check & accumulate */
         float rangeCheck = smoothstep(0.0, 1.0, radius/abs(position.z - sampleDepth));
+
+    // rangeCheck=1.0;
+
         occlusion += (sampleDepth >= randomSample.z + bias ? 1.0 : 0.0)*rangeCheck;
     }
 
