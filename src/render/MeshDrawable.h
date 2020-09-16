@@ -6,6 +6,7 @@
 #include <Magnum/GL/Mesh.h>
 #include <Magnum/Shaders/Generic.h>
 #include <Magnum/Magnum.h>
+#include <Magnum/Math/Color.h>
 #include <vector>
 #include <iostream>
 #include "../EigenDefinitions.h"

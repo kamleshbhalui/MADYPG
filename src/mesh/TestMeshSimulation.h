@@ -13,6 +13,7 @@ public:
     m_indicesDirty = true;
 
     std::string fname = "presim/cube10cm.obj";
+    // std::string fname = "presim/0100_00.obj";
     m_mesh = load_obj_mesh(fname);
 
     // m_mesh.X.resize(4, 3);

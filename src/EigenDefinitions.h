@@ -14,6 +14,21 @@
 #include <list>
 #include <deque>
 
+template <typename S, int _options = Eigen::ColMajor>
+Eigen::Matrix<S, 2, 1, _options> MakeVec(S x, S y)
+{
+  Eigen::Matrix<S, 2, 1, _options> v;
+  v << x, y;
+  return v;
+}
+template <typename S, int _options = Eigen::ColMajor>
+Eigen::Matrix<S, 3, 1, _options> MakeVec(S x, S y, S z)
+{
+  Eigen::Matrix<S, 3, 1, _options> v;
+  v << x, y, z;
+  return v;
+}
+
 typedef float scalar; // Matrix elements NOTE: float for opengl compatibility
 
 // Fixed size matrices
@@ -34,6 +49,8 @@ typedef Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> MatrixXXs;
 typedef Eigen::MatrixXi MatrixXXi;
 typedef Eigen::VectorXi VectorXi;
 
+typedef Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixXXRMi; // signed integer rowmajor
+
 // OpenGL specific
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixGLf;
 typedef Eigen::Matrix<float, 1, Eigen::Dynamic, Eigen::RowMajor> VectorGLf;
@@ -43,10 +60,10 @@ typedef Eigen::Matrix<uint32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
 typedef Eigen::Matrix<uint32_t, 1, Eigen::Dynamic, Eigen::RowMajor> VectorGLi;
 
 // Templated matrices
-template <int N, int M>
-using MatrixNMs = Eigen::Matrix<scalar, N, M>; // e.g. MatrixNMs<6,3>
-template <int N>
-using VectorNs = Eigen::Matrix<scalar, N, 1>; // e.g. VectorNs<10>
+template <int N, int M, int _options=Eigen::ColMajor>
+using MatrixNMs = Eigen::Matrix<scalar, N, M, _options>; // e.g. MatrixNMs<6,3>
+template <int N, int _options=Eigen::ColMajor>
+using VectorNs = Eigen::Matrix<scalar, N, 1, _options>; // e.g. VectorNs<10>
 
 // STL of fixed size matrices // e.g. AlignedVector<Vector<11>>
 template <class T>

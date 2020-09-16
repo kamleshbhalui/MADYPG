@@ -34,7 +34,9 @@ namespace Magnum
           // .setPrimitive(GL::MeshPrimitive::LineStrip);
           .setPrimitive(GL::MeshPrimitive::LineStripAdjacency);
       m_mesh.addVertexBuffer(
-          this->m_vertexBuffer, 0, Shaders::Generic3D::Position{}); // something about memory layout of data in vertex buffer
+          this->m_vertexBuffer, 0, Shaders::Generic3D::Position{},
+          4 // skip twist variable for now
+          ); // something about memory layout of data in vertex buffer
 
       // enable breaking of linestrips within single index buffer by using the index GLuint::max
       glEnable(GL_PRIMITIVE_RESTART);

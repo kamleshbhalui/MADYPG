@@ -1,13 +1,12 @@
 #ifndef __TESTYARNS__H__
 #define __TESTYARNS__H__
 
-#include "YarnInterface.h"
 #include <numeric> // iota
 #include <iostream>
 #include <limits>
-#include "../ThreadUtils.h"
+#include "../utils/threadutils.h"
 
-class TestYarns : public YarnInterface
+class TestYarns
 {
 public:
   int boost = 1;
