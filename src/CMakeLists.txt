@@ -62,5 +62,15 @@ target_link_libraries(magnum-ssao PRIVATE
 find_package(Eigen3 CONFIG REQUIRED)
 target_link_libraries(magnum-ssao PUBLIC Eigen3::Eigen)
 
-find_package(TBB CONFIG REQUIRED)
-target_link_libraries(magnum-ssao PUBLIC TBB::tbb)
+# optional cpu parallelism
+# compile with NO_PARALLEL fo threadutils to ignore threading
+set (NO_PARALLEL FALSE CACHE BOOL "no parallel")
+if (${NO_PARALLEL})
+  message("Compiling without multithreading support")
+  target_compile_definitions(magnum-ssao PUBLIC NO_PARALLEL)
+  target_compile_definitions(magnum-ssao PUBLIC EIGEN_DONT_PARALLELIZE)
+else()
+  message("Compiling with multithreading support")
+  find_package(TBB CONFIG REQUIRED)
+  target_link_libraries(magnum-ssao PUBLIC TBB::tbb)
+endif()

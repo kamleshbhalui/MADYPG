@@ -107,8 +107,12 @@ void PYP::deserialize(const std::string &filename)
       deserialize_matrix_chunk(chunk, this->RL);
     }
   }
+
+  // set min Q because used a couple of times
+  Qmin = Q.leftCols<2>().colwise().minCoeff();
 }
 
+#include "../utils/debug_logging.h"
 void PYP::rectangulize() // NOTE: untested, currently all the pyp files should satisfy this by default
 {
   MatrixXXRMi VE = MatrixXXRMi::Constant(Q.rows(), 2, -1); // vertex edge table: vix -> [eix_prev, eix_next]
@@ -119,12 +123,14 @@ void PYP::rectangulize() // NOTE: untested, currently all the pyp files should s
 
   // for each vert find di dj such that its position + di*py dj px is within [minx,minx+px) etc
   // apply its new position and apply di dj depending on order to its incident edges
-  Vector2s minxy = Q.leftCols<2>().colwise().minCoeff();
+  Vector2s minxy = Qmin;
+  // minxy << 0,0;
+
   for (int i = 0; i < int(Q.rows()); i++)
   {
     Vector2s xy = Q.row(i).head<2>();
-    int dx = int((xy[0] - minxy[0]) / px);
-    int dy = int((xy[1] - minxy[1]) / py);
+    int dx = int(std::floor((xy[0] - minxy[0]) / px));
+    int dy = int(std::floor((xy[1] - minxy[1]) / py));
 
     if (dx != 0 || dy != 0)
     {

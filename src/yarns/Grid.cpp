@@ -9,7 +9,10 @@
 // 2D version of https://stackoverflow.com/a/17503268
 bool intersect_box_tri(const Matrix2s& box,
                        const Eigen::Matrix<scalar, 3, 2, Eigen::RowMajor>& tri,
-                       bool check_aabb, float eps) {
+                       bool check_aabb);
+bool intersect_box_tri(const Matrix2s& box,
+                       const Eigen::Matrix<scalar, 3, 2, Eigen::RowMajor>& tri,
+                       bool check_aabb) {
   // box: [[xmin, xmax],[ymin,ymax]]
   // tri: [xyz xyz xyz]
 
@@ -17,10 +20,11 @@ bool intersect_box_tri(const Matrix2s& box,
     for (int i = 0; i < 2; ++i) {
       scalar t0 = tri.col(i).minCoeff();
       scalar t1 = tri.col(i).maxCoeff();
-      if (t0 > box(i, 1) + eps || t1 < box(i, 0) - eps)
+      if (t0 > box(i, 1) || t1 < box(i, 0))
         return false;
     }
   }
+
   // for each triangle edge
   // project onto its normal a: the two samey verts of the edge, the
   // opposing vert -> [t0, t1] # project box half-lengths to compute a
@@ -42,9 +46,8 @@ bool intersect_box_tri(const Matrix2s& box,
     t1 = tri.row(i).dot(a);  // projected incident vertex (same for both)
     if (t0 > t1)
       std::swap(t0, t1);
-    r = hx * std::abs(a[0]) + hy * std::abs(a[1]) +
-        eps;       // projected box radius
-    c = m.dot(a);  // projected box center
+    r = hx * std::abs(a[0]) + hy * std::abs(a[1]);  // projected box radius
+    c = m.dot(a);                                   // projected box center
     if (t0 > c + r || t1 < c - r)
       return false;
   }
@@ -52,7 +55,7 @@ bool intersect_box_tri(const Matrix2s& box,
   return true;
 }
 
-Vector2s Grid::lowerLeft(int i, int j) {
+Vector2s Grid::lowerLeft(int i, int j) const {
   Vector2s ll;
   ll << cx * j, cy * i;
   ll += offset;
@@ -68,8 +71,7 @@ void Grid::fromTiling(const Mesh& mesh, const PYP& pyp) {
   uv_min -= 0.1f * MakeVec(pyp.px, pyp.py);
   uv_max += 0.1f * MakeVec(pyp.px, pyp.py);
 
-  Vector2s pivot;  // offset to cell centers
-  pivot << 0, 0;
+  pivot = pyp.Qmin; // offset to cell corners (e.g. to align with pyp)
 
   cx = pyp.px;
   cy = pyp.py;
@@ -86,6 +88,10 @@ void Grid::fromTiling(const Mesh& mesh, const PYP& pyp) {
   offset[1] = i_starty * cy + pivot[1];
 
   Debug::logf("Grid: [%d x %d]\n", ny, nx);
+  // Debug::log("grid from to",offset.transpose(), (offset +
+  // MakeVec(nx*cx,ny*cy)).transpose());
+  // Debug::log("uv from to", uv_min.transpose(),
+  // uv_max.transpose());
 }
 
 void Grid::overlap_triangles(const Mesh& mesh, float eps) {
@@ -96,9 +102,7 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
   // tri2cells.clear();
   tri2cells.resize(n_tris);
 
-  // TODO parallel
   threadutils::parallel_for(0, n_tris, [&](int tri) {
-    // for (int tri = 0; tri < n_tris; ++tri) {
     auto ixs = mesh.Fms.row(tri);
     // Vector2s uv0 = mesh.U.row(ixs[0]);
     // Vector2s uv1 = mesh.U.row(ixs[1]);
@@ -107,24 +111,11 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
     coords << mesh.U.row(ixs[0]), mesh.U.row(ixs[1]), mesh.U.row(ixs[2]);
 
     overlap_triangle(tri2cells[tri], coords, eps);
-
-    // }
   });
 
   // for (size_t i = 0; i < tri2cells[tri].size(); i++) {
   //   Debug::log(tri, ": ", tri2cells[tri]);
   // }
-
-  // TODO CONTINUE HERE: create filled[i,j] array: dense!
-  // grid.allocate_array("filled", dtype=np.bool, fill_value=False)
-  // filled = grid["filled"]
-  // for tri, cells in enumerate(tri2cells):
-  //     for i, j in cells:
-  //         filled[i, j] = True
-
-  // TODO PRINT nfilled cells / total cellsnxny
-
-  Debug::log("IDK");
 }
 
 void Grid::overlap_triangle(
@@ -138,28 +129,30 @@ void Grid::overlap_triangle(
   // potentially overlapping cell indices from triangle bounds
   auto tmin = coords.colwise().minCoeff();
   auto tmax = coords.colwise().maxCoeff();
+  // Vector2s tmin = coords.colwise().minCoeff();
+  // Vector2s tmax = coords.colwise().maxCoeff();
 
   auto ijmin = getIndex(tmin);
   auto ijmax = getIndex(tmax);
 
   for (int i = ijmin.first; i <= ijmax.first; ++i) {
     if (i < 0 || i >= ny) {
-      assert(false && "triangle out side of grid!");
+      assert(false && "triangle outside of grid!");
       continue;
     }
     for (int j = ijmin.second; j <= ijmax.second; ++j) {
       if (j < 0 || j >= nx) {
-        assert(false && "triangle out side of grid!");
+        assert(false && "triangle outside of grid!");
         continue;
       }
 
       auto ll = lowerLeft(i, j);
       Matrix2s cell_box;  // [[minx,maxx],
                           //  [miny,maxy]]
-      cell_box.row(0) << ll[0], ll[0] + cx;
-      cell_box.row(1) << ll[1], ll[1] + cy;
+      cell_box.row(0) << ll[0] - eps, ll[0] + cx + eps;
+      cell_box.row(1) << ll[1] - eps, ll[1] + cy + eps;
 
-      if (intersect_box_tri(cell_box, coords, false, eps))
+      if (intersect_box_tri(cell_box, coords, false))
         tri2cell.push_back(std::make_pair(i, j));
     }
   }

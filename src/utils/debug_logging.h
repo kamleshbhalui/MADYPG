@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <iostream>
 #include <vector>
+#include <deque>
 #include <stdarg.h>
 #include <Eigen/Sparse>
 #include "debug_macros.h"
@@ -12,17 +13,6 @@
 // #ifdef NDEBUG // release mode
 #define DEBUG_VERBOSE_LEVEL 3 // define from compiler
 #endif
-
-/* TODO 
-// #define assert_print(b, s)      \
-//   {                             \
-//     assert((b) && s);           \
-//     if (!(b))                   \
-//     {                           \
-//       std::cout << (s) << "\n"; \
-//     }                           \
-//   }
-*/
 
 namespace Debug {
 
@@ -65,6 +55,17 @@ template <typename... Args> void error(Args &&... args) {
 
 template <typename T>
 std::ostream& operator<< (std::ostream& stream, const std::vector<T>& vec) {
+  stream << "[";
+  if(vec.size() < 1)
+    return stream << "]";
+  for (int i = 0; i < int(vec.size()) - 1; i++) {
+    stream << vec[i] << ", ";
+  }
+  stream << vec.back() << "]";
+  return stream;
+}
+template <typename T>
+std::ostream& operator<< (std::ostream& stream, const std::deque<T>& vec) {
   stream << "[";
   if(vec.size() < 1)
     return stream << "]";

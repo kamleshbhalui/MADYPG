@@ -23,6 +23,7 @@ struct PeriodicYarnPattern
   MatrixGLf Q;  // vertex data [x y z t]
   MatrixXXRMi E;  // periodic edges [v0, v1, di, dj]
   MatrixGLf RL; // restlengths
+  Vector2s Qmin;
 };
 using PYP = PeriodicYarnPattern; // short alias
 
