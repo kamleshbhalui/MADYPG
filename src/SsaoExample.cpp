@@ -259,7 +259,7 @@ SsaoExample::SsaoExample(const Arguments &arguments)
     _phong              = Magnum::Shaders::Phong{};
 
     {
-      _yarnMapper = std::make_unique<YarnMapper>();
+      _yarnMapper = std::make_unique<YarnMapper>("models/model_rib/");
       _yarnDrawable.emplace_back(_yarnGeometryShader);
       _yarnDrawable.back().setIndices(_yarnMapper->getIndices());
       _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());

@@ -11,24 +11,9 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
   // generate mapping from cell i,j to incrementing k for filled cells
   // (overlapping any triangle) which will be used to tile the yarn pattern
   // and define its global memory layout
-  const auto& t2c  = grid.getTri2cell();
-  int nx           = grid.getNx();
-  int ny           = grid.getNy();
-  MatrixXXi cellix = MatrixXXi::Constant(ny, nx, -1);
-  std::vector<std::pair<int, int>>
-      ix2ij;               // inverse for efficient parallel iteration
-  ix2ij.reserve(nx * ny);  // conservative / naive upper bound
-  int k = 0;
-  for (const auto& cells : t2c) {
-    for (const auto& cell : cells) {
-      if (cellix(cell.first, cell.second) < 0) {
-        cellix(cell.first, cell.second) = k++;
-        ix2ij.push_back(cell);
-      }
-    }
-  }
-  int n_tiles = k;
-  Debug::logf("Grid filled %d/%d\n", n_tiles, ny * nx);
+  int n_tiles      = grid.numFilled();
+  const auto& ij2k = grid.get_ij2k();
+  const auto& k2ij = grid.get_k2ij();
 
   int n_verts_tile = pyp.Q.rows();
   int n_edges_tile = pyp.E.rows();  // NOTE: should be the same as Q
@@ -37,25 +22,14 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
   // ignore(/special case) periodic edges into nonexisting tiles
   int n_edges = n_tiles * n_edges_tile;
 
-  auto filled = [&](int i, int j) { return cellix(i, j) >= 0; };
-
-  // Debug::log("----------------------");
-  // for (int i = ny-1; i >= 0; i--) {
-  //   for (int j = 0; j < nx; j++) {
-  //     std::cout << (filled(i, j) ? "F" : ".") << " ";
-  //   }
-  //   std::cout << "\n";
-  // }
-  // Debug::log("----------------------");
-
   // maps from local pyp index to global index at cell i j
   auto global_vix = [&](int local_vix, int i, int j) {
-    int cix = cellix(i, j);
+    int cix = ij2k(i, j);
     assert(cix >= 0);
     return local_vix + n_verts_tile * cix;
   };
   // auto global_eix = [&](int local_eix, int i, int j) {
-  //   int cix = cellix(i, j);
+  //   int cix = ij2k(i, j);
   //   assert(cix >= 0);
   //   return local_eix + n_edges_tile * cix;
   // };
@@ -78,7 +52,7 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
   // parallel over filled grid cells
   threadutils::parallel_for(0, n_tiles, [&](int cix) {
     int i, j;
-    std::tie(i, j) = ix2ij[cix];
+    std::tie(i, j) = k2ij[cix];
 
     // copy and shift vertices
     int vix_shift       = n_verts_tile * cix;
@@ -106,7 +80,7 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
 
       // edge to filled tile ?
       if (neighbor_exists)
-        neighbor_exists = filled(i + di, j + dj);
+        neighbor_exists = grid.filled(i + di, j + dj);
 
       if (neighbor_exists) {
         gvix0 = global_vix(lv0, i, j);
@@ -121,6 +95,40 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
         // leaving edge as -1 to be removed, i.e. uv boundary
       }
     }
+  });
+}
+
+void YarnSoup::assign_triangles(const Grid& grid, const Mesh& mesh) {
+  m_v2tri.resize(X_ms.rows());
+
+  threadutils::parallel_for(0, int(X_ms.rows()), [&](int vix) {
+    m_v2tri[vix] = -1;
+
+    int i, j;
+    Vector2s p     = X_ms.row(vix).head<2>();
+    std::tie(i, j) = grid.getIndex(p);
+
+    if (!grid.inside(
+            i, j)) {  // NOTE this might happen after deforming reference
+                      // (vertex might get pushed outside of previous bounds)
+      Debug::log("WARNING NODE OUTSIDE");
+      Debug::log(i, grid.getNy(), j, grid.getNx());
+      // TODO fall back to closest grid node and check with its triangles!
+      i = std::min(std::max(0, i), grid.getNy() - 1);
+      j = std::min(std::max(0, j), grid.getNx() - 1);
+    }
+    const auto& tris = grid.cell2tris(i, j);
+
+    for (int tri : tris) {
+      Vector3s abc = mesh.barycentric_ms(tri, p);
+      if (barycentric_inside(abc)) {
+        m_v2tri[vix] = tri;
+        break;
+      }
+    }
+
+    // NOTE: for now no fallback closest triangle, or other stuff like
+    // 'use_previous' and 'default_previous' ...
   });
 }
 

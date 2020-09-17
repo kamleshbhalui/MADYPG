@@ -99,23 +99,54 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
 
   int n_tris = mesh.Fms.rows();
 
-  // tri2cells.clear();
+  // NOTE for now tri2cells is temporary, and used to construct its inverse
+  std::vector<std::vector<std::pair<int, int>>>
+      tri2cells;  // tri -> cells [(i0,j0),(i1,j1)]
   tri2cells.resize(n_tris);
 
   threadutils::parallel_for(0, n_tris, [&](int tri) {
     auto ixs = mesh.Fms.row(tri);
-    // Vector2s uv0 = mesh.U.row(ixs[0]);
-    // Vector2s uv1 = mesh.U.row(ixs[1]);
-    // Vector2s uv2 = mesh.U.row(ixs[2]);
     Eigen::Matrix<scalar, 3, 2, Eigen::RowMajor> coords;
     coords << mesh.U.row(ixs[0]), mesh.U.row(ixs[1]), mesh.U.row(ixs[2]);
 
     overlap_triangle(tri2cells[tri], coords, eps);
   });
 
-  // for (size_t i = 0; i < tri2cells[tri].size(); i++) {
-  //   Debug::log(tri, ": ", tri2cells[tri]);
+  // mark cells as filled
+  ij2k = MatrixXXi::Constant(ny, nx, -1);
+  k2ij.reserve(nx * ny);  // conservative / naive upper bound
+  int k = 0;
+  for (const auto& cells : tri2cells) { // cell list of triangle
+    for (const auto& cell : cells) { // cell in list
+      if (ij2k(cell.first, cell.second) < 0) {
+        ij2k(cell.first, cell.second) = k++;
+        k2ij.push_back(cell);
+      }
+    }
+  }
+  n_filled = k;
+
+  // finally invert to cell2tris
+  cellk2tris.resize(n_filled);
+  for (int tri = 0; tri < n_tris; ++tri) {
+    for (const auto& cell : tri2cells[tri]) {
+      int k = ij2k(cell.first, cell.second);
+      // Debug::log(cell.first, cell.second,"-->",k,"/",n_filled);
+      cellk2tris[k].push_back(tri);
+    }
+  }
+
+  
+  // Debug::log("----------------------");
+  // for (int i = ny-1; i >= 0; i--) {
+  //   for (int j = 0; j < nx; j++) {
+  //     std::cout << (filled(i, j) ? "F" : ".") << " ";
+  //   }
+  //   std::cout << "\n";
   // }
+  // Debug::log("----------------------");
+
+  Debug::logf("Grid filled %d/%d\n", n_filled, ny * nx);
 }
 
 void Grid::overlap_triangle(

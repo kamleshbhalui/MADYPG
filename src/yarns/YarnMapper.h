@@ -16,30 +16,25 @@
 
 class YarnMapper {
  public:
-  YarnMapper() {
+  YarnMapper(const std::string& modelfolder) {
     Debug::Timer timer;
 
     // set up mesh provider
     // TODO rename interface to provider?
-    // DEBUG
+    // DEBUG TODO ANIMATE
     m_meshSimulation = std::static_pointer_cast<AbstractMeshSimulation>(
         std::make_shared<TestMeshSimulation>());
 
     // Load model / pyp
-    // DEBUG hardcoded file
-    m_pyp.deserialize("models/model_stock/pyp");
-    // m_pyp.rectangulize(); // TODO potentially assume that this is true for new
+    m_pyp.deserialize(modelfolder + "/pyp");  // DEBUG hardcoded file
+    m_pyp.rectangulize();  // TODO potentially assume that this is true for new
     // pyp, but it should take only a millisecond anyway
 
     Debug::logf("Timer: startup %.3f ms\n", timer.tock<microseconds>() * 0.001);
 
-    const Mesh& mesh = m_meshSimulation->getMesh();
+    Mesh& mesh = m_meshSimulation->getMesh();
     m_grid.fromTiling(mesh, m_pyp);
     m_grid.overlap_triangles(mesh);
-    // Grid <--- mesh, pyp
-    //   get uv bounds + 0.1 * (px,py) robustness // OPT PARALLEL
-    //   build grid from uv bounds
-    //   tmp tri2cells: overlap v triangles and grid cells
 
     Debug::logf("Timer: grid setup %.3f ms\n",
                 timer.tock<microseconds>() * 0.001);
@@ -49,14 +44,45 @@ class YarnMapper {
 
     // fancy: do some random uv displacement with multi-level 3D displacement
     // noise (sth like n levels with n strength values) ?
-    // actually might be better to do in shader using a texture: meshuv->noise
+    // actually might be better to do in shader using a texture: meshuv->noise,
+    // actually no. still want to do that in uv space (and somehow account for
+    // yarns being pushed outside of uvmesh: tribary choose closest tri)
 
-    // .. cut prune etc ..
-
-    m_soup.generate_index_list();
-
-    Debug::logf("Timer: soup setup %.3f ms\n",
+    Debug::logf("Timer: soup tiling %.3f ms\n",
                 timer.tock<microseconds>() * 0.001);
+
+    // TODO cut outside / prune array (OR SHOULD I, NAIVE JUST KEEP MATRICES SAME SIZE AND SIMPLY NOT MAKE YARNLIST FOR OUTSIDE(tri=-1)) / ...
+    mesh.compute_invDm();
+    m_soup.assign_triangles(m_grid, mesh); // TODO consider split into subfunctions
+    //. soup.cut_outside
+
+    Debug::logf("Timer: mesh invdm & soup triangles %.3f ms\n",
+                timer.tock<microseconds>() * 0.001);
+    m_soup.generate_index_list(); // TODO prune by length while assembling! @ first parallel count: also sum up RL and prune (by not adding their indices and also deleting their edges), or just prune before assembly but that means I need to pass through yarns before.. (i guess if this happens once it doesnt matter, and its nicer however the code is more readable!!)
+
+    Debug::logf("Timer: soup index list %.3f ms\n",
+                timer.tock<microseconds>() * 0.001);
+
+    // NOTE about soup matrices: keep as 'good' matrix only the things needed for gpu, the rest of the stuff could be joint into a vector of structs of vertexdata ? dep on how its used ?
+    // . shader might want per vertex:
+    //    x y z (t)
+    //    u_mesh v_mesh ; for meshspace texturing
+    //    parametric_t(=acc.rest length) for yarnspace texturing/twist
+    //    geom shader promotes and additionally produces parametric_c (around circle)
+    
+
+    // TODO  ms change / ... / shell-map / ...
+    // mesh.v2f (NEW!)
+    // mesh.facenormals
+    // mesh.face2vertex(normals)
+    // thisclasshere.shellmap
+
+
+    // TODO load model (model class <--- pyp) / ws change / ... / masm / ...
+    // mesh.strains_face
+    // mesh.face2vertex(strains)
+    // thisclasshere.masm
+    // soup.assign_triangles again (at least redo bary)
 
     // Debug::logf("Timer: yarnmapper setup %.3f ms\n",
     //             timer.tock<microseconds>() * 0.001);
@@ -64,11 +90,11 @@ class YarnMapper {
 
   ~YarnMapper() {}
 
-  void step() {
-    m_meshSimulation->update();
-  }
+  void step() { m_meshSimulation->update(); }
 
-  const std::vector<uint32_t>& getIndices() const { return m_soup.getIndices(); }
+  const std::vector<uint32_t>& getIndices() const {
+    return m_soup.getIndices();
+  }
   const MatrixGLf& getVertexData() const { return m_soup.getVertexData(); }
   const std::shared_ptr<AbstractMeshSimulation> getMeshSimulation() {
     return m_meshSimulation;
