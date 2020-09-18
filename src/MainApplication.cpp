@@ -1,64 +1,4 @@
-#define DECLARE_UNUSED(x) ((void)x);
-
-#define HELPSCALE 1.0f
-
-#include <Magnum/Primitives/Axis.h>
-
-#include "arcball/ArcBall.h"
-#include "arcball/ArcBallCamera.h"
-
-// #include "configure.h"
-#include <Corrade/Containers/Optional.h>
-
-#include "render/MeshDrawable.h"
-#include "render/YarnDrawable.h"
-#include "render/shaders/MeshShader.h"
-#include "render/shaders/SsaoApplyShader.h"
-#include "render/shaders/SsaoShader.h"
-#include "render/shaders/YarnShader.h"
-#include "yarns/YarnMapper.h"
-// #include <Corrade/Containers/String.h>
-// #include <Corrade/Containers/StringStl.h> /* until Corrade/Directory can
-// handle Containers::String */
-#include <Corrade/PluginManager/Manager.h>
-#include <Corrade/Utility/Arguments.h>
-#include <Corrade/Utility/Directory.h>
-#include <Corrade/Utility/Resource.h>
-#include <Magnum/DebugTools/FrameProfiler.h>
-#include <Magnum/GL/DefaultFramebuffer.h>
-#include <Magnum/GL/Framebuffer.h>
-#include <Magnum/GL/Mesh.h>
-#include <Magnum/GL/Renderbuffer.h>
-#include <Magnum/GL/Renderer.h>
-#include <Magnum/GL/Texture.h>
-#include <Magnum/GL/TextureFormat.h>
-#include <Magnum/ImageView.h>
-#include <Magnum/Math/Color.h>
-#include <Magnum/Math/Matrix3.h>
-#include <Magnum/Math/Matrix4.h>
-#include <Magnum/MeshTools/Compile.h>
-#include <Magnum/PixelFormat.h>
-#include <Magnum/Platform/Sdl2Application.h>
-#include <Magnum/Shaders/Phong.h>
-// #include <Magnum/Shaders/VertexColor.h>
-#include <Magnum/Trade/AbstractImporter.h>
-#include <Magnum/Trade/ImageData.h>
-#include <Magnum/Trade/MeshData.h>
-#include <MagnumPlugins/AnyImageImporter/AnyImageImporter.h>
-#include <MagnumPlugins/JpegImporter/JpegImporter.h>
-#include <MagnumPlugins/PngImporter/PngImporter.h>
-
-// #include <Magnum/SceneGraph/Camera.h>
-// #include <Magnum/SceneGraph/Drawable.h>
-// #include <Magnum/SceneGraph/MatrixTransformation3D.h>
-// #include <Magnum/SceneGraph/Object.h>
-// #include <Magnum/SceneGraph/Scene.h>
-
-#include <imgui.h>
-
-#include <Magnum/ImGuiIntegration/Context.hpp>
-#include <memory>
-#include <random>
+#include "MainApplication.h"
 
 namespace Magnum {
 void setupTexture(GL::Texture2D &texture, Vector2i const &size,
@@ -71,94 +11,32 @@ void setupTexture(GL::Texture2D &texture, Vector2i const &size,
       .setWrapping(GL::SamplerWrapping::ClampToEdge)
       .setStorage(1, format, size);
 }
+}
 
+using namespace Magnum;
 using namespace Math::Literals;
 
-class SsaoExample : public Platform::Application {
- public:
-  explicit SsaoExample(const Arguments &arguments);
+void MainApplication::reset_simulation() {
+  if (!_yarnMapper)
+    _yarnMapper = std::make_unique<YarnMapper>();
+  else
+    _yarnMapper.reset(new YarnMapper());
 
- private:
-  void drawEvent() override;
+  _yarnMapper->m_settings = _yarnMapperSettings;
 
-  void viewportEvent(ViewportEvent &event) override;
+  ::Debug::log(_yarnMapper->m_settings.modelfolder);
+  _yarnMapper->initialize();
+  _yarnDrawable.back().setIndices(_yarnMapper->getIndices());
+  _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
+  _yarnDrawable.back().m_radius =
+      _yarnMapper->getRadius() * _render_radius_mult;
 
-  void keyPressEvent(KeyEvent &event) override;
-  void keyReleaseEvent(KeyEvent &event) override;
+  const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
+  _meshdrawable->setIndices(mesh.F);
+  _meshdrawable->setVertices(mesh.X);
+}
 
-  void mousePressEvent(MouseEvent &event) override;
-  void mouseReleaseEvent(MouseEvent &event) override;
-  void mouseMoveEvent(MouseMoveEvent &event) override;
-  void mouseScrollEvent(MouseScrollEvent &event) override;
-  void textInputEvent(TextInputEvent &event) override;
-
-  void setupFramebuffer(const Vector2i &size);
-  void drawSettings();
-
-  std::vector<YarnDrawable<YarnShader>> _yarnDrawable;
-  std::unique_ptr<MeshDrawable<MeshShader>> _meshdrawable;
-  std::unique_ptr<YarnMapper> _yarnMapper;
-  GL::Texture2D _matcap{NoCreate};
-  bool _paused              = false;
-  bool _render_mesh         = true;
-  bool _render_yarns        = true;
-  float _render_radius_mult = 1.0f;
-  Color4 _bgColor           = Color4(Color3(0.2f), 1.0f);
-
-  // std::unique_ptr<ArcBallCamera> _arcballCamera;
-
-  MeshShader _meshShader{NoCreate};
-  YarnShader _yarnGeometryShader{NoCreate};
-  SsaoApplyShader _ssaoApplyShader{NoCreate};
-  SsaoShader _ssaoShader{NoCreate};
-
-  Magnum::Shaders::Phong _phong{NoCreate};
-  // Magnum::Shaders::VertexColor3D _vcShader{NoCreate};
-  // GL::Mesh _axes = MeshTools::compile(Primitives::axis3D());
-
-  Containers::Optional<ArcBall> _arcball;
-  Matrix4 _projection;
-  Deg _proj_fov = 45.0_degf;
-  // float _proj_near = 0.01f;//0.001f *HELPSCALE;
-  // float _proj_far = 10000.0f;//50.0f*HELPSCALE; // TODO reduce far/near to
-  // proper scale
-  float _proj_near = 0.0001f * HELPSCALE;  // 0.001f *HELPSCALE;
-  float _proj_far =
-      100.0f *
-      HELPSCALE;  // 50.0f*HELPSCALE; // TODO reduce far/near to proper scale
-
-  GL::Mesh _screenAlignedTriangle{NoCreate};
-
-  GL::Framebuffer _framebuffer{NoCreate};
-
-  GL::Texture2D _albedo{NoCreate};
-  GL::Texture2D _positions{NoCreate};
-  GL::Texture2D _normals{NoCreate};
-  GL::Texture2D _occlusion{NoCreate};
-  GL::Texture2D _noise{NoCreate};
-
-  GL::Texture2D _depth{NoCreate};
-
-  /* Profiling */
-  DebugTools::GLFrameProfiler _profiler;
-
-  // TODO hotkeys for various camera views and/or distances (with modifiers: no
-  // mod both, ctrl view, alt dist)!
-  // TODO make a rendersettings struct with default init
-  // which can the also be used to reset the settings!
-  Color4 _specularColor{0.3};
-  Float _ao_radius       = 0.004f * HELPSCALE;  // 1.5f;
-  Float _ao_bias         = 0.0003f;             // 0.5f;
-  int _ao_blur_radius    = 0;
-  float _ao_blur_feature = 25.0f / HELPSCALE;
-  Float _ao_pow          = 2.0f;
-
-  SsaoApplyShader::Flag _ssaoApplyFlag = {};
-
-  ImGuiIntegration::Context _imgui{NoCreate};
-};
-
-SsaoExample::SsaoExample(const Arguments &arguments)
+MainApplication::MainApplication(const Arguments &arguments)
     : Platform::Application{arguments, NoCreate} {
   std::string meshPath;
   {
@@ -193,6 +71,7 @@ SsaoExample::SsaoExample(const Arguments &arguments)
   {
     const Vector2 dpiScaling = this->dpiScaling({});
     Configuration conf;
+    conf.setSize({1200,800}, dpiScaling);
     conf.setTitle("Magnum SSAO Example")
         .setSize(conf.size(), dpiScaling)
         .setWindowFlags(Configuration::WindowFlag::Resizable);
@@ -256,21 +135,16 @@ SsaoExample::SsaoExample(const Arguments &arguments)
     _meshShader         = MeshShader{};
     _ssaoShader         = SsaoShader{};
     _ssaoApplyShader    = SsaoApplyShader{};
-    _phong              = Magnum::Shaders::Phong{};
 
-    {
-      _yarnMapper = std::make_unique<YarnMapper>("models/model_rib/");
-      _yarnDrawable.emplace_back(_yarnGeometryShader);
-      _yarnDrawable.back().setIndices(_yarnMapper->getIndices());
-      _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
-      _yarnDrawable.back().m_radius =
-          _yarnMapper->getRadius() * _render_radius_mult;
-
-      _meshdrawable = std::make_unique<MeshDrawable<MeshShader>>(_meshShader);
-      const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
-      _meshdrawable->setIndices(mesh.F);
-      _meshdrawable->setVertices(mesh.X);
+    {  // default settings
+      _yarnMapperSettings.modelfolder = "models/model_rib/";
     }
+    {
+      _yarnDrawable.emplace_back(_yarnGeometryShader);
+      _meshdrawable = std::make_unique<MeshDrawable<MeshShader>>(_meshShader);
+    }
+
+    reset_simulation();
 
     PluginManager::Manager<Trade::AbstractImporter> manager;
     Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
@@ -293,7 +167,7 @@ SsaoExample::SsaoExample(const Arguments &arguments)
 
   /* Set up the arcball and projection */
   {
-    const Vector3 eye = Vector3::zAxis(1.0f) * HELPSCALE;
+    const Vector3 eye = Vector3::zAxis(1.0f);
     const Vector3 center{};
     const Vector3 up = Vector3::yAxis();
     _arcball.emplace(eye, center, up, 45.0_degf, windowSize());
@@ -315,19 +189,21 @@ SsaoExample::SsaoExample(const Arguments &arguments)
   setMinimalLoopPeriod(16);
 }
 
-void SsaoExample::drawEvent() {
+void MainApplication::drawEvent() {
   _profiler.beginFrame();
 
   if (!_paused) {  // SIM
-    _yarnMapper->step();
-    // assume no update to yarn indices
-    _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
+    if (_yarnMapper->initialized()) {
+      _yarnMapper->step();
+      // assume no update to yarn indices
+      _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
 
-    const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
-    if (_yarnMapper->getMeshSimulation()->meshIndicesDirty())
-      _meshdrawable->setIndices(mesh.F);
-    // always assume changes to vertices
-    _meshdrawable->setVertices(mesh.X);
+      const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
+      if (_yarnMapper->getMeshSimulation()->meshIndicesDirty())
+        _meshdrawable->setIndices(mesh.F);
+      // always assume changes to vertices
+      _meshdrawable->setVertices(mesh.X);
+    }
   }
 
   const bool camChanged = _arcball->updateTransformation();
@@ -352,7 +228,7 @@ void SsaoExample::drawEvent() {
         .clearDepth(1.0)
         .bind();
 
-    if (_render_yarns) {
+    if (_render_yarns && _yarnMapper->initialized()) {
       _yarnGeometryShader.bindTexture(_matcap);
       _yarnGeometryShader.setProjection(_projection);
       _yarnDrawable.back().m_radius =
@@ -362,6 +238,7 @@ void SsaoExample::drawEvent() {
 
     if (_render_mesh) {
       _meshShader.setProjection(_projection);
+      _meshShader.setDZ(_mesh_dz);
       _meshdrawable->draw(tf);
     }
 
@@ -420,7 +297,7 @@ void SsaoExample::drawEvent() {
   redraw();
 }
 
-void SsaoExample::viewportEvent(ViewportEvent &event) {
+void MainApplication::viewportEvent(ViewportEvent &event) {
   const Vector2i fbSize = event.framebufferSize();
   const Vector2i wSize  = event.windowSize();
 
@@ -438,7 +315,7 @@ void SsaoExample::viewportEvent(ViewportEvent &event) {
                   fbSize);
 }
 
-void SsaoExample::setupFramebuffer(const Vector2i &size) {
+void MainApplication::setupFramebuffer(const Vector2i &size) {
   setupTexture(_albedo, size, GL::TextureFormat::RGBA32F);
   setupTexture(_positions, size, GL::TextureFormat::RGBA32F);
   setupTexture(_normals, size, GL::TextureFormat::RGBA32F);
@@ -457,14 +334,14 @@ void SsaoExample::setupFramebuffer(const Vector2i &size) {
       GL::Framebuffer::Status::Complete);
 }
 
-void SsaoExample::drawSettings() {
+void MainApplication::drawSettings() {
   ImGui::Begin("Render Options");
   const float spacing = 10;
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
+  ImGui::PushItemWidth(100.0f);
 
   if (ImGui::CollapsingHeader("SSAO", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui::Indent();
-    ImGui::PushItemWidth(100.0f);
     {
       float val = _ao_radius * 100.0f;
       if (ImGui::SliderFloat("radius (cm)", &val, 0.001f, 5.0f))
@@ -484,67 +361,89 @@ void SsaoExample::drawSettings() {
         _ao_blur_feature = val * 100.0f;
     }
     ImGui::SliderFloat("strength", &_ao_pow, 0.0f, 10.0f);
-    ImGui::PopItemWidth();
     ImGui::Unindent();
   }
 
-  ImGui::Checkbox("Yarns", &_render_yarns);
-  ImGui::SameLine();
-  ImGui::Checkbox("Mesh", &_render_mesh);
+  if (ImGui::CollapsingHeader("Other", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Indent();
 
-  {
-    ImGui::PushItemWidth(100.0f);
-    ImGui::DragFloat("yarn radius mult", &_render_radius_mult, 0.01f, 0.0f,
-                     2.0f);
-    ImGui::PopItemWidth();
-  }
+    ImGui::Checkbox("Yarns", &_render_yarns);
+    ImGui::SameLine();
+    ImGui::Checkbox("Mesh", &_render_mesh);
 
-  ImGui::Checkbox("Pause", &_paused);
-
-  ImGui::SameLine();
-
-  static bool drawOcclusion = false;
-  if (ImGui::Checkbox("Show Occlusion Factor", &drawOcclusion)) {
-    if (drawOcclusion)
-      _ssaoApplyFlag = SsaoApplyShader::Flag::DrawAmbientOcclusion;
-    else
-      _ssaoApplyFlag = {};
-    _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
-  }
-
-  if (ImGui::Button("Hot Reload Shader")) {
-    Utility::Resource::overrideGroup("ssao-data",
-                                     "src/render/shaders/resources.conf");
-    _ssaoShader      = SsaoShader{};
-    _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
-  }
-
-  if (ImGui::Button("Reset Camera"))
-    _arcball->reset();
-
-  ImGui::SameLine();
-  static bool lagging = true;
-  if (ImGui::Checkbox("Camera Lagging", &lagging)) {
-    _arcball->setLagging(float(lagging) * 0.75f);
-  }
-
-  {
-    static float col[3] = {_bgColor.r(), _bgColor.g(), _bgColor.b()};
-    if (ImGui::ColorEdit3("BG Color", col)) {
-      _bgColor = Color4(col[0], col[1], col[2], 1.0f);
-      // GL::Renderer::setClearColor(_bgColor);
+    {
+      ImGui::PushItemWidth(100.0f);
+      ImGui::DragFloat("yarn radius mult", &_render_radius_mult, 0.01f, 0.0f,
+                       2.0f);
+      ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
+      ImGui::PopItemWidth();
     }
+
+    ImGui::Checkbox("Pause", &_paused);
+
+    ImGui::SameLine();
+
+    static bool drawOcclusion = false;
+    if (ImGui::Checkbox("Show Occlusion Factor", &drawOcclusion)) {
+      if (drawOcclusion)
+        _ssaoApplyFlag = SsaoApplyShader::Flag::DrawAmbientOcclusion;
+      else
+        _ssaoApplyFlag = {};
+      _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
+    }
+
+    if (ImGui::Button("Hot Reload Shader")) {
+      Utility::Resource::overrideGroup("ssao-data",
+                                       "src/render/shaders/resources.conf");
+      _ssaoShader      = SsaoShader{};
+      _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
+    }
+
+    if (ImGui::Button("Reset Camera"))
+      _arcball->reset();
+
+    ImGui::SameLine();
+    static bool lagging = true;
+    if (ImGui::Checkbox("Camera Lagging", &lagging)) {
+      _arcball->setLagging(float(lagging) * 0.75f);
+    }
+
+    {
+      static float col[3] = {_bgColor.r(), _bgColor.g(), _bgColor.b()};
+      if (ImGui::ColorEdit3("BG Color", col)) {
+        _bgColor = Color4(col[0], col[1], col[2], 1.0f);
+        // GL::Renderer::setClearColor(_bgColor);
+      }
+    }
+    ImGui::Unindent();
   }
 
   std::string stats = _profiler.statistics();
   // ImGui::TextUnformatted(stats.begin(), stats.end());
   ImGui::TextUnformatted(stats.c_str());
 
+  ImGui::PopItemWidth();
+  ImGui::PopStyleVar();
+  ImGui::End();
+
+  ///
+
+  ImGui::Begin("Sim Options");
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
+  ImGui::PushItemWidth(100.0f);
+  ImGui::Checkbox("Flat Normals", &_yarnMapperSettings.flat_normals);
+  if (_yarnMapperSettings.flat_normals) {
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+  }
+  ImGui::Checkbox("Shepard Weights", &_yarnMapperSettings.shepard_weights);
+  if (_yarnMapperSettings.flat_normals)
+    ImGui::PopStyleVar();
+  ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
 }
 
-void SsaoExample::keyPressEvent(KeyEvent &event) {
+void MainApplication::keyPressEvent(KeyEvent &event) {
   if (_imgui.handleKeyPressEvent(event))
     return;
 
@@ -555,22 +454,25 @@ void SsaoExample::keyPressEvent(KeyEvent &event) {
     case KeyEvent::Key::Space:
       _paused = !_paused;
       break;
+    case KeyEvent::Key::R:
+      reset_simulation();
+      break;
     default:
       break;
   }
 }
 
-void SsaoExample::keyReleaseEvent(KeyEvent &event) {
+void MainApplication::keyReleaseEvent(KeyEvent &event) {
   if (_imgui.handleKeyReleaseEvent(event))
     return;
 }
 
-void SsaoExample::textInputEvent(TextInputEvent &event) {
+void MainApplication::textInputEvent(TextInputEvent &event) {
   if (_imgui.handleTextInputEvent(event))
     return;
 }
 
-void SsaoExample::mousePressEvent(MouseEvent &event) {
+void MainApplication::mousePressEvent(MouseEvent &event) {
   if (_imgui.handleMousePressEvent(event))
     return;
   /* Enable mouse capture so the mouse can drag outside of the window */
@@ -581,7 +483,7 @@ void SsaoExample::mousePressEvent(MouseEvent &event) {
   redraw();
 }
 
-void SsaoExample::mouseReleaseEvent(MouseEvent &event) {
+void MainApplication::mouseReleaseEvent(MouseEvent &event) {
   if (_imgui.handleMouseReleaseEvent(event))
     return;
   /* Disable mouse capture again */
@@ -589,7 +491,7 @@ void SsaoExample::mouseReleaseEvent(MouseEvent &event) {
   SDL_CaptureMouse(SDL_FALSE);
 }
 
-void SsaoExample::mouseMoveEvent(MouseMoveEvent &event) {
+void MainApplication::mouseMoveEvent(MouseMoveEvent &event) {
   if (_imgui.handleMouseMoveEvent(event))
     return;
   if (!event.buttons())
@@ -604,7 +506,7 @@ void SsaoExample::mouseMoveEvent(MouseMoveEvent &event) {
   redraw();
 }
 
-void SsaoExample::mouseScrollEvent(MouseScrollEvent &event) {
+void MainApplication::mouseScrollEvent(MouseScrollEvent &event) {
   if (_imgui.handleMouseScrollEvent(event)) {
     /* Prevent scrolling the page */
     event.setAccepted();
@@ -615,11 +517,9 @@ void SsaoExample::mouseScrollEvent(MouseScrollEvent &event) {
   if (Math::abs(delta) < 1.0e-2f)
     return;
 
-  _arcball->zoom(delta * 0.1f * HELPSCALE);
+  _arcball->zoom(delta * 0.1f);
 
   event.setAccepted();
   redraw();
 }
-}  // namespace Magnum
-
-MAGNUM_APPLICATION_MAIN(Magnum::SsaoExample)
+MAGNUM_APPLICATION_MAIN(Magnum::MainApplication)

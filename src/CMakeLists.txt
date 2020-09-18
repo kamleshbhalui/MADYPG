@@ -32,7 +32,7 @@ corrade_add_resource(SSAO_Rcs render/shaders/resources.conf)
 file(GLOB_RECURSE glob_SRCS
   *.cpp)
 
-add_executable(magnum-ssao
+add_executable(mesh2yarns
         # SsaoExample.cpp
         # arcball/ArcBall.cpp
         # Shaders/SsaoShader.cpp
@@ -42,7 +42,7 @@ add_executable(magnum-ssao
         ${glob_SRCS}
         ${SSAO_Rcs})
 
-target_link_libraries(magnum-ssao PRIVATE
+target_link_libraries(mesh2yarns PRIVATE
     Corrade::Main
     Magnum::Application
     Magnum::GL
@@ -60,17 +60,17 @@ target_link_libraries(magnum-ssao PRIVATE
     )
 
 find_package(Eigen3 CONFIG REQUIRED)
-target_link_libraries(magnum-ssao PUBLIC Eigen3::Eigen)
+target_link_libraries(mesh2yarns PUBLIC Eigen3::Eigen)
 
 # optional cpu parallelism
 # compile with NO_PARALLEL fo threadutils to ignore threading
 set (NO_PARALLEL FALSE CACHE BOOL "no parallel")
 if (${NO_PARALLEL})
   message("Compiling without multithreading support")
-  target_compile_definitions(magnum-ssao PUBLIC NO_PARALLEL)
-  target_compile_definitions(magnum-ssao PUBLIC EIGEN_DONT_PARALLELIZE)
+  target_compile_definitions(mesh2yarns PUBLIC NO_PARALLEL)
+  target_compile_definitions(mesh2yarns PUBLIC EIGEN_DONT_PARALLELIZE)
 else()
   message("Compiling with multithreading support")
   find_package(TBB CONFIG REQUIRED)
-  target_link_libraries(magnum-ssao PUBLIC TBB::tbb)
+  target_link_libraries(mesh2yarns PUBLIC TBB::tbb)
 endif()

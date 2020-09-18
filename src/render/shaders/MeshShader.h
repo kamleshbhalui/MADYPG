@@ -26,13 +26,10 @@ public:
     explicit MeshShader();
 
     MeshShader& setTransformation(const Matrix4& transformation);
-
     // MeshShader& setNormalMatrix(const Matrix3x3& normalMatrix);
-
     MeshShader& setProjection(const Matrix4& projection);
-
     MeshShader& setDiffuseColor(const Color4& color);
-    
+    MeshShader& setDZ(float dz);
     // MeshShader& setRadius(float radius);
     // MeshShader& bindTexture(GL::Texture2D& texture);
 
@@ -42,7 +39,8 @@ private:
     Int _transformationUniform,
         _normalMatrixUniform,
         _projectionUniform,
-        _diffuseColorUniform;
+        _diffuseColorUniform,
+        _dzUniform;
         // _radiusUniform;
 
 };

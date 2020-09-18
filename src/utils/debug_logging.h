@@ -88,7 +88,7 @@ std::ostream& operator<< (std::ostream& stream, const std::pair<A, B>& pair) {
   return stream;
 }
 
-void msgassert(const std::string& msg, bool cond);
+bool msgassert(const std::string& msg, bool cond);
 
 } // namespace Debug
 

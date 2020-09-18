@@ -111,25 +111,6 @@ Mesh load_obj_mesh(const std::string &filename, float scale) {
 
   // TODO triangulate quad faces using a mesh.method
 
-
-  // copy ms into ws // DEBUG
-  mesh.F = mesh.Fms;
-  mesh.X.resize(mesh.U.rows(), 3);
-  mesh.X.col(0) = mesh.U.col(0);
-  mesh.X.col(1) = mesh.U.col(1);
-  mesh.X.col(2).setZero();
-
-  // mesh.X.resize(4, 3);
-  // mesh.X << 0.0f, 0.0f, 0.0f,
-  //     1.0f, 0.0f, 0.0f,
-  //     1.0f, 1.0f, 0.0f,
-  //     0.0f, 1.0f, 0.0f;
-  // mesh.X *= 0.1;
-  // mesh.U = mesh.X;
-  // mesh.F.resize(2, 3);
-  // mesh.F << 0, 1, 2,
-  //     0, 2, 3;
-
   Debug::msgassert(
       "OBJ: v and vt data size inconsistent!",
       v.size() <=

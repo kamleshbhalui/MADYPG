@@ -1,12 +1,12 @@
-#ifndef __ABSTRACTMESHSIMULATION__H__
-#define __ABSTRACTMESHSIMULATION__H__
+#ifndef __ABSTRACTMESHPROVIDER__H__
+#define __ABSTRACTMESHPROVIDER__H__
 
 #include "Mesh.h"
-class AbstractMeshSimulation
+class AbstractMeshProvider
 {
 public:
-  AbstractMeshSimulation() {}
-  virtual ~AbstractMeshSimulation() {}
+  AbstractMeshProvider() {}
+  virtual ~AbstractMeshProvider() {}
 
   // update/step the simulation/replay/animation
   virtual void update() = 0;
@@ -26,4 +26,4 @@ protected:
   Mesh m_mesh;
 };
 
-#endif // __ABSTRACTMESHSIMULATION__H__
+#endif // __ABSTRACTMESHPROVIDER__H__

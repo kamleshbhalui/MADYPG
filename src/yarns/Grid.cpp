@@ -135,7 +135,6 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
       cellk2tris[k].push_back(tri);
     }
   }
-
   
   // Debug::log("----------------------");
   // for (int i = ny-1; i >= 0; i--) {

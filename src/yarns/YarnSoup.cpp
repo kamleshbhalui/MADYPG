@@ -63,6 +63,16 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
       X_ms.row(vix_shift + lvix) = pyp.Q.row(lvix);
       X_ms.row(vix_shift + lvix).head<2>() += vpos_shift;
       // self.v_pp_id[vix_shift + lvix] = lvix TODO IGNORE UNTIL USED
+
+      // optionally check if due to floating point precision ij match the
+      // shifted position, and if not try a heuristic of shrinking the copy away
+      // from its cell boundaries if even this would fail, then the vertex
+      // should get no triangle assigned and thus be marked for cutting
+      auto testij = grid.getIndex(X_ms.row(vix_shift + lvix).head<2>());
+      if (testij.first != i || testij.second != j) {
+        X_ms.row(vix_shift + lvix) = pyp.Q.row(lvix) * scalar(0.99);
+        X_ms.row(vix_shift + lvix).head<2>() += vpos_shift;
+      }
     }
 
     int eix_shift = n_edges_tile * cix;
@@ -100,6 +110,7 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
 
 void YarnSoup::assign_triangles(const Grid& grid, const Mesh& mesh) {
   m_v2tri.resize(X_ms.rows());
+  m_vbary.resize(X_ms.rows());
 
   threadutils::parallel_for(0, int(X_ms.rows()), [&](int vix) {
     m_v2tri[vix] = -1;
@@ -117,18 +128,48 @@ void YarnSoup::assign_triangles(const Grid& grid, const Mesh& mesh) {
       i = std::min(std::max(0, i), grid.getNy() - 1);
       j = std::min(std::max(0, j), grid.getNx() - 1);
     }
+
+    // - due to floating point precision, it might be that the translated tiled
+    // vertex is numerically shifted to an adjacent grid cell
+    // - this can be fixed by either finding those cases and adapting positions
+    // to be inside the prescribed cell, or by cutting them (set tri=-1), since
+    // this would happen only at boundaries where there is no neighbor or the
+    // neighbor is not filled
+    // - this might also happen after deforming ms, in which case there should
+    // be an option to use the previously assigned cell (TODO other method
+    // "reassign_triangles"?)
+    if (!grid.filled(i, j))
+      return;  // fallback: ignore/cut vertex
+
     const auto& tris = grid.cell2tris(i, j);
 
     for (int tri : tris) {
       Vector3s abc = mesh.barycentric_ms(tri, p);
       if (barycentric_inside(abc)) {
         m_v2tri[vix] = tri;
+        m_vbary[vix] = abc;
         break;
       }
     }
 
     // NOTE: for now no fallback closest triangle, or other stuff like
     // 'use_previous' and 'default_previous' ...
+  });
+}
+
+void YarnSoup::cut_outside() {
+  // remove edges if any of its vertices is not assigned to some triangle
+  threadutils::parallel_for(0, int(E.rows()), [&](int eix) {
+    int v0 = E(eix, 0);
+    int v1 = E(eix, 1);
+    bool cut;
+    if (v0 < 0 || v1 < 0) {  // bad edge (already marked for deletion somehow)
+      cut = true;
+    } else {
+      cut = m_v2tri[v0] < 0 || m_v2tri[v1] < 0;  // any vertex unassigned
+    }
+    if (cut)
+      E.row(eix) << -1, -1;  // "delete"
   });
 }
 

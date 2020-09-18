@@ -18,16 +18,22 @@ public:
 
   void compute_invDm();
   Vector3s barycentric_ms(int tri, const Vector2s& p) const;
-
-
-    //     a,b,c = mesh.barycentric(tri, point)
-    //     if barycentric_inside(abc) @ mesh.h
+  void compute_face_normals();
+  void compute_v2f_map(bool shepard_weights = true);
+  void compute_vertex_normals();
 
   // private:
   MatrixGLf X, U;   // vertex positions and uv coordinates
   MatrixGLi F, Fms; // tri or quad faces {[v0, v1, v2(, v3)],...} for worldspace faces and material space faces
 
   AlignedVector<Matrix2s> invDm; // FEM-matrix (inverse of (e1, e2))
+  AlignedVector<Vector3s> normals; // world-space face normals
+  AlignedVector<Vector3s> vertex_normals; // world-space vertex normals
+  std::vector<std::deque<std::pair<int, scalar>>> v2f;
+
+private:
+
+
 };
 
 #endif // __MESH__H__

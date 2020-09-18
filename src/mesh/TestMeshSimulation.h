@@ -1,18 +1,19 @@
 #ifndef __TESTMESHSIMULATION__H__
 #define __TESTMESHSIMULATION__H__
 
-#include "AbstractMeshSimulation.h"
+#include "AbstractMeshProvider.h"
 
 
 #include "meshio.h"
 
-class TestMeshSimulation : public AbstractMeshSimulation
+class TestMeshSimulation : public AbstractMeshProvider
 {
 public:
   TestMeshSimulation() {
     m_indicesDirty = true;
 
-    std::string fname = "presim/cube10cm.obj";
+    // std::string fname = "presim/cube10cm.obj";
+    std::string fname = "presim/suzanne_t.obj";
     // std::string fname = "presim/0100_00.obj";
     m_mesh = load_obj_mesh(fname);
 

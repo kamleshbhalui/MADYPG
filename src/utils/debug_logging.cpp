@@ -52,10 +52,11 @@ void Debug::errorf(const char *format, ...) {
 }
 
 
-void Debug::msgassert(const std::string& msg, bool cond) {
+bool Debug::msgassert(const std::string& msg, bool cond) {
   if(!cond)
     std::cerr << "Assert failed: " << msg << "\n";
   #ifndef NDEBUG // debug mode
   assert(cond);
   #endif
+  return cond;
 }
