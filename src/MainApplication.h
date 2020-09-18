@@ -78,6 +78,7 @@ class MainApplication : public Platform::Application {
   YarnMapper::Settings _yarnMapperSettings;
   GL::Texture2D _matcap{NoCreate};
   bool _paused              = false;
+  bool _single_step         = false;
   bool _render_mesh         = true;
   bool _render_yarns        = true;
   float _render_radius_mult = 1.0f;
@@ -116,7 +117,7 @@ class MainApplication : public Platform::Application {
   // mod both, ctrl view, alt dist)!
   // TODO make a rendersettings struct with default init
   // which can the also be used to reset the settings!
-  Color4 _specularColor{0.3}; // TODO remove
+  Color4 _specularColor{0.3};        // TODO remove
   Float _ao_radius       = 0.004f;   // m
   Float _ao_bias         = 0.0003f;  // m
   int _ao_blur_radius    = 0;        // pixels

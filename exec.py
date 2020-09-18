@@ -34,6 +34,8 @@ ap.add_argument("-d", "--debug", action='store_true',
                 help="...")
 ap.add_argument("-b", "--build", default="1",
                 help="...")
+ap.add_argument("-p", "--with_parallel", default="1",
+                help="...")
 ap.add_argument("-c", "--clean", action='store_true',
                 help="...")
 ap.add_argument("-r", "--run", default="1",
@@ -44,9 +46,10 @@ ap.add_argument("-r", "--run", default="1",
 args = vars(ap.parse_args())
 args['build'] = args['build'] != "0"
 args['run'] = args['run'] != "0"
+args['with_parallel'] = args['with_parallel'] != "0"
 
 if len(args['targets']) == 0:
-    args['targets'] = ['magnum-ssao']
+    args['targets'] = ["mesh2yarns"] # in case multiple targets exist, set default
 target = ' '.join(args['targets'])
 
 # BUILD
@@ -54,10 +57,15 @@ sourcedir = os.path.join(os.getcwd(),"src")  # where the main CMakeLists.txt is
 builddir = os.path.join(
     os.getcwd(), "build", "build-Debug" if args['debug'] else "build-Release")
 
+if not args['with_parallel']:
+    builddir += "_NP"
+
 if args['clean']:
     shutil.rmtree(builddir)
 
 cflags=[]
+if not args['with_parallel']:
+    cflags.append(["NO_PARALLEL", "TRUE"])
 
 toolchain = "../vcpkg/scripts/buildsystems/vcpkg.cmake" # relative to build dir
 if args['build']:

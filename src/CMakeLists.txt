@@ -2,8 +2,9 @@ cmake_minimum_required(VERSION 3.4)
 
 project(MagnumSSAOExample CXX)
 
-SET(CMAKE_CXX_STANDARD 14)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -pthread")
+SET(CMAKE_CXX_STANDARD 17) # NOTE: c++17 e.g. for filesystem iteration
+SET(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS} -Wall -pthread")
+# set(CMAKE_CXX_FLAGS "-std=c++17 -lstdc++fs") 
 
 # Add module path in case this is project root
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/../modules/" ${CMAKE_MODULE_PATH})
@@ -74,3 +75,6 @@ else()
   find_package(TBB CONFIG REQUIRED)
   target_link_libraries(mesh2yarns PUBLIC TBB::tbb)
 endif()
+
+# <filesystem> not working on gcc/g++ 8.4
+target_link_libraries(mesh2yarns PUBLIC stdc++fs)

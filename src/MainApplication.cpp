@@ -11,7 +11,7 @@ void setupTexture(GL::Texture2D &texture, Vector2i const &size,
       .setWrapping(GL::SamplerWrapping::ClampToEdge)
       .setStorage(1, format, size);
 }
-}
+}  // namespace Magnum
 
 using namespace Magnum;
 using namespace Math::Literals;
@@ -71,7 +71,7 @@ MainApplication::MainApplication(const Arguments &arguments)
   {
     const Vector2 dpiScaling = this->dpiScaling({});
     Configuration conf;
-    conf.setSize({1200,800}, dpiScaling);
+    conf.setSize({1200, 800}, dpiScaling);
     conf.setTitle("Magnum SSAO Example")
         .setSize(conf.size(), dpiScaling)
         .setWindowFlags(Configuration::WindowFlag::Resizable);
@@ -192,7 +192,8 @@ MainApplication::MainApplication(const Arguments &arguments)
 void MainApplication::drawEvent() {
   _profiler.beginFrame();
 
-  if (!_paused) {  // SIM
+  bool simChanged = false;
+  if (!_paused || _single_step) {  // SIM
     if (_yarnMapper->initialized()) {
       _yarnMapper->step();
       // assume no update to yarn indices
@@ -204,6 +205,8 @@ void MainApplication::drawEvent() {
       // always assume changes to vertices
       _meshdrawable->setVertices(mesh.X);
     }
+    _single_step = false;
+    simChanged   = true;
   }
 
   const bool camChanged = _arcball->updateTransformation();
@@ -211,7 +214,7 @@ void MainApplication::drawEvent() {
 
   GL::defaultFramebuffer.clear(GL::FramebufferClear::Color |
                                GL::FramebufferClear::Depth);
-  bool require_redraw = !_paused || camChanged;
+  bool require_redraw = simChanged || camChanged;
   if (require_redraw) {
     const Matrix4 tf = _arcball->viewMatrix();
 
@@ -380,6 +383,10 @@ void MainApplication::drawSettings() {
     }
 
     ImGui::Checkbox("Pause", &_paused);
+    if (ImGui::Button("[S]tep")) {
+      _single_step = true;
+      _paused      = true;
+    }
 
     ImGui::SameLine();
 
@@ -456,6 +463,10 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       break;
     case KeyEvent::Key::R:
       reset_simulation();
+      break;
+    case KeyEvent::Key::S:
+      _single_step = true;
+      _paused      = true;
       break;
     default:
       break;

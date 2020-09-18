@@ -25,8 +25,8 @@ int count_words(const std::string &str) {
 //   return count;
 // }
 
-Mesh load_obj_mesh(const std::string &filename, float scale) {
-  Mesh mesh;
+void load_obj_mesh(const std::string &filename, Mesh &mesh,
+                   bool with_uv, float scale) {
   std::deque<VectorGLi> f;      // polygonal faces (world-space)
   std::deque<VectorGLi> fms;    // polygonal faces (material-space)
   AlignedDeque<VectorGL3f> v;   // world coordinates
@@ -35,7 +35,7 @@ Mesh load_obj_mesh(const std::string &filename, float scale) {
   std::fstream ifs(filename.c_str(), std::ios::in);
   if (!ifs) {
     std::cerr << "Error: failed to open file " << filename << "\n";
-    return mesh;
+    return;
   }
 
   std::string line;
@@ -48,7 +48,7 @@ Mesh load_obj_mesh(const std::string &filename, float scale) {
     std::stringstream linestream(line);
     linestream >> kw;
 
-    if (kw == "vt") {
+    if (kw == "vt" && with_uv) {
       VectorGL2f vec;
       linestream >> vec[0] >> vec[1];
       vt.push_back(vec * scale);
@@ -84,39 +84,48 @@ Mesh load_obj_mesh(const std::string &filename, float scale) {
         ixs_ws[j] = wsix - 1;
         ++j;
       }
+
+      // TODO triangulate quad faces using a mesh.method
+
       assert(j == nprimverts);
       f.push_back(ixs_ws);
-      fms.push_back(ixs_ms);
+      if (with_uv)
+        fms.push_back(ixs_ms);
     }
   }
 
   // allocate
   mesh.X.resize(v.size(), 3);
-  mesh.U.resize(vt.size(), 2);
+  if (with_uv)
+    mesh.U.resize(vt.size(), 2);
   if (f.size() > 0) {
     mesh.F.resize(f.size(), f.back().size());
-    mesh.Fms.resize(fms.size(), f.back().size());
+    if (with_uv)
+      mesh.Fms.resize(fms.size(), f.back().size());
   }
 
   // fill
   threadutils::parallel_for(size_t(0), v.size(),
                             [&](size_t i) { mesh.X.row(i) = v[i]; });
-  threadutils::parallel_for(size_t(0), vt.size(),
-                            [&](size_t i) { mesh.U.row(i) = vt[i]; });
+  if (with_uv) {
+    threadutils::parallel_for(size_t(0), vt.size(),
+                              [&](size_t i) { mesh.U.row(i) = vt[i]; });
+    threadutils::parallel_for(size_t(0), fms.size(),
+                              [&](size_t i) { mesh.Fms.row(i) = fms[i]; });
+    Debug::msgassert(
+        "OBJ: v and vt data size inconsistent!",
+        v.size() <=
+            vt.size());  // NOTE: one worldspace vertex can have multiple uvs
+  }
+
   threadutils::parallel_for(size_t(0), f.size(),
                             [&](size_t i) { mesh.F.row(i) = f[i]; });
-  threadutils::parallel_for(size_t(0), fms.size(),
-                            [&](size_t i) { mesh.Fms.row(i) = fms[i]; });
-
-
-  // TODO triangulate quad faces using a mesh.method
-
-  Debug::msgassert(
-      "OBJ: v and vt data size inconsistent!",
-      v.size() <=
-          vt.size());  // NOTE: one worldspace vertex can have multiple uvs
 
   // TODO optionally: assert each index in faces is in [0,nvertices)
-
-  return mesh;
 }
+
+// Mesh load_obj_mesh(const std::string &filename, float scale) {
+//   Mesh mesh;
+//   load_obj_mesh(filename, mesh, true, scale);
+//   return mesh;
+// }

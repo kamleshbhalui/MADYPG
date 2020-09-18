@@ -9,7 +9,6 @@
 #include <memory>
 #include <numeric>  // iota
 
-#include "../mesh/TestMeshSimulation.h" // TODO REMOVE
 #include "../mesh/ObjSeqAnimation.h"
 #include "Grid.h"
 #include "PeriodicYarnPattern.h"
@@ -21,92 +20,114 @@ class YarnMapper {
     std::string modelfolder = "";
     bool flat_normals       = false;
     bool shepard_weights    = true;
+    // TODO objmeshprovider settings (and use those in its constructor)
+    // TODO xpbdmeshprovider settings
   } m_settings;
 
   YarnMapper() : m_initialized(false) {}
 
-  void initialize() {
+  void initialize() { step(); }
+
+  ~YarnMapper() {}
+
+  void step() {
     Debug::Timer timer_2;
     Debug::Timer timer;
 
-    // set up mesh provider
-    // TODO rename interface to provider?
-    // DEBUG TODO ANIMATE
-    m_meshSimulation = std::static_pointer_cast<AbstractMeshProvider>(
-        std::make_shared<TestMeshSimulation>());
+    if (m_initialized) {
+      // step the mesh provider
+      m_meshProvider->update();
+      Debug::logf("Timer: meshProvider update %.3f ms\n",
+                  timer.tock<microseconds>() * 0.001);
+    } else {
+      // set up mesh provider
+      m_meshProvider = std::static_pointer_cast<AbstractMeshProvider>(
+          std::make_shared<ObjSeqAnimation>("presim/test", true, true));
 
-    // Load model / pyp
-    m_pyp.deserialize(m_settings.modelfolder + "/pyp");  // DEBUG hardcoded file
-    m_pyp.rectangulize();  // TODO potentially assume that this is true for new
-    // pyp, but it should take only a millisecond anyway
+      // Load model / pyp
+      m_pyp.deserialize(m_settings.modelfolder +
+                        "/pyp");  // DEBUG hardcoded file
+      m_pyp
+          .rectangulize();  // TODO potentially assume that this is true for new
+      // pyp, but it should take only a millisecond anyway
 
-    Debug::logf("Timer: startup %.3f ms\n", timer.tock<microseconds>() * 0.001);
-
-    Mesh& mesh = m_meshSimulation->getMesh();
-
-    if (false)  //
-    {
-      // copy ms into ws // DEBUG
-      mesh.F = mesh.Fms;
-      mesh.X.resize(mesh.U.rows(), 3);
-      mesh.X.col(0) = mesh.U.col(0);
-      mesh.X.col(1) = mesh.U.col(1);
-      mesh.X.col(2).setZero();
+      Debug::logf("Timer: meshProvider & pyp init %.3f ms\n",
+                  timer.tock<microseconds>() * 0.001);
     }
 
-    m_grid.fromTiling(mesh, m_pyp);
-    m_grid.overlap_triangles(mesh);
+    Mesh& mesh = m_meshProvider->getMesh();
+    // if (false)  //
+    // {
+    //   // copy ms into ws // DEBUG
+    //   mesh.F = mesh.Fms;
+    //   mesh.X.resize(mesh.U.rows(), 3);
+    //   mesh.X.col(0) = mesh.U.col(0);
+    //   mesh.X.col(1) = mesh.U.col(1);
+    //   mesh.X.col(2).setZero();
+    // }
 
-    Debug::logf("Timer: grid setup %.3f ms\n",
-                timer.tock<microseconds>() * 0.001);
+    if (m_meshProvider->materialSpaceChanged() || !m_initialized) {
+      m_grid.fromTiling(mesh, m_pyp);
+      m_grid.overlap_triangles(mesh);
 
-    // ... soup
-    m_soup.fill_from_grid(m_pyp, m_grid);
+      Debug::logf("Timer: grid setup %.3f ms\n",
+                  timer.tock<microseconds>() * 0.001);
 
-    // fancy: do some random uv displacement with multi-level 3D displacement
-    // noise (sth like n levels with n strength values) ?
-    // actually might be better to do in shader using a texture: meshuv->noise,
-    // actually no. still want to do that in uv space (and somehow account for
-    // yarns being pushed outside of uvmesh: tribary choose closest tri)
+      if (!m_initialized) {
+        // ... soup
+        // NOTE about soup matrices: keep as 'good' matrix only the things
+        // needed for gpu, the rest of the stuff could be joint into a vector of
+        // structs of vertexdata ? dep on how its used ? . shader might want per
+        // vertex:
+        //    x y z (t)
+        //    u_mesh v_mesh ; for meshspace texturing
+        //    parametric_t(=acc.rest length) for yarnspace texturing/twist
+        //    geom shader promotes and additionally produces parametric_c
+        //    (around circle)
 
-    Debug::logf("Timer: soup tiling %.3f ms\n",
-                timer.tock<microseconds>() * 0.001);
+        m_soup.fill_from_grid(m_pyp, m_grid);
 
-    mesh.compute_invDm();
-    m_soup.assign_triangles(m_grid, mesh);
-    m_soup.cut_outside();  // 'delete' unassigned vertices
+        // fancy: do some random uv displacement with multi-level 3D
+        // displacement noise (sth like n levels with n strength values) ?
+        // actually might be better to do in shader using a texture:
+        // meshuv->noise, actually no. still want to do that in uv space (and
+        // somehow account for yarns being pushed outside of uvmesh: tribary
+        // choose closest tri)
 
-    // NOTE/TODO: currently skipping deleting by restlength and pruning arrays
+        Debug::logf("Timer: soup tiling %.3f ms\n",
+                    timer.tock<microseconds>() * 0.001);
+      }
 
-    Debug::logf("Timer: mesh invdm & soup triangles %.3f ms\n",
-                timer.tock<microseconds>() * 0.001);
-    m_soup
-        .generate_index_list();  // TODO prune by length while assembling! @
-                                 // first parallel count: also sum up RL and
-                                 // prune (by not adding their indices and also
-                                 // deleting their edges), or just prune before
-                                 // assembly but that means I need to pass
-                                 // through yarns before.. (i guess if this
-                                 // happens once it doesnt matter, and its nicer
-                                 // however the code is more readable!!)
+      mesh.compute_invDm();
+      m_soup.assign_triangles(m_grid, mesh);
+      Debug::logf("Timer: mesh invdm & soup triangles %.3f ms\n",
+                  timer.tock<microseconds>() * 0.001);
+      if (!m_initialized) {
+        m_soup.cut_outside();  // 'delete' unassigned vertices
 
-    Debug::logf("Timer: soup index list %.3f ms\n",
-                timer.tock<microseconds>() * 0.001);
+        // NOTE/TODO: currently skipping deleting by restlength and pruning
+        // arrays
 
-    // NOTE about soup matrices: keep as 'good' matrix only the things needed
-    // for gpu, the rest of the stuff could be joint into a vector of structs of
-    // vertexdata ? dep on how its used ? . shader might want per vertex:
-    //    x y z (t)
-    //    u_mesh v_mesh ; for meshspace texturing
-    //    parametric_t(=acc.rest length) for yarnspace texturing/twist
-    //    geom shader promotes and additionally produces parametric_c (around
-    //    circle)
+        m_soup.generate_index_list();  // TODO prune by length while assembling!
+                                       // @ first parallel count: also sum up RL
+                                       // and prune (by not adding their indices
+                                       // and also deleting their edges), or
+                                       // just prune before assembly but that
+                                       // means I need to pass through yarns
+                                       // before.. (i guess if this happens once
+                                       // it doesnt matter, and its nicer
+                                       // however the code is more readable!!)
 
-    // TODO  ms change / ... / shell-map / ...
-    mesh.compute_v2f_map(m_settings.shepard_weights);
+        Debug::logf("Timer: soup cut & index list %.3f ms\n",
+                    timer.tock<microseconds>() * 0.001);
+      }
 
-    Debug::logf("Timer: ms change (incomplete) %.3f ms\n",
-                timer.tock<microseconds>() * 0.001);
+      mesh.compute_v2f_map(m_settings.shepard_weights);
+
+      Debug::logf("Timer: ms change %.3f ms\n",
+                  timer.tock<microseconds>() * 0.001);
+
+    }  // end of MS change
 
     // @ WORLD SPACE MESH CHANGES
 
@@ -115,6 +136,11 @@ class YarnMapper {
     mesh.compute_vertex_normals();
 
     // DEBUG in lieu of masm for now just copy soup ms to ws
+    // TODO load model (model class <--- pyp) / ws change / ... / masm / ...
+    // mesh.strains_face
+    // mesh.face2vertex(strains)
+    // thisclasshere.masm
+    // soup.assign_triangles again (at least redo bary)
     {
       int n     = m_soup.num_vertices();
       auto& Xms = m_soup.get_Xms();
@@ -128,20 +154,9 @@ class YarnMapper {
     Debug::logf("Timer: ws change %.3f ms\n",
                 timer.tock<microseconds>() * 0.001);
 
-    // TODO load model (model class <--- pyp) / ws change / ... / masm / ...
-    // mesh.strains_face
-    // mesh.face2vertex(strains)
-    // thisclasshere.masm
-    // soup.assign_triangles again (at least redo bary)
-
-    // Debug::logf("Timer: yarnmapper setup %.3f ms\n",
-    //             timer.tock<microseconds>() * 0.001);
     Debug::logf("Timer all: %.3f ms\n", timer_2.tock<microseconds>() * 0.001);
-
     m_initialized = true;
   }
-
-  ~YarnMapper() {}
 
   void shell_map(const Mesh& mesh, bool flat_normals = false) {
     // x = phi(xi1, xi2) + h n(xi1, xi2); where xi1 xi2 h are pre-deformed
@@ -179,14 +194,12 @@ class YarnMapper {
     });
   }
 
-  void step() { m_meshSimulation->update(); }
-
   const std::vector<uint32_t>& getIndices() const {
     return m_soup.getIndices();
   }
   const MatrixGLf& getVertexData() const { return m_soup.get_Xws(); }
   const std::shared_ptr<AbstractMeshProvider> getMeshSimulation() {
-    return m_meshSimulation;
+    return m_meshProvider;
   }
   float getRadius() { return m_pyp.r; }
 
@@ -199,7 +212,7 @@ class YarnMapper {
   YarnSoup m_soup;
 
   // simulation mesh stuff
-  std::shared_ptr<AbstractMeshProvider> m_meshSimulation;
+  std::shared_ptr<AbstractMeshProvider> m_meshProvider;
 
   // yarn stuff
   std::vector<uint32_t> I;
