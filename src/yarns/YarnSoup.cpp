@@ -227,6 +227,16 @@ void YarnSoup::generate_index_list() {
     total += len + 1;  // inc delim
   }
 
+  int n_vertices_total = total - int(lengths.size());
+  
+  // if (n_vertices_total > 1e6)
+  //   Debug::logf("# yarn vertices: %d,%03d,%03d\n",n_vertices_total/1000000,(n_vertices_total%1000000)/1000,(n_vertices_total%1000));
+  // else if (n_vertices_total > 1e3)
+  //   Debug::logf("# yarn vertices: %d,%03d\n",n_vertices_total/1000,(n_vertices_total%1000));
+  // else 
+  //   Debug::logf("# yarn vertices: %d\n",n_vertices_total);
+  Debug::log("# yarn vertices:",Debug::format_locale(n_vertices_total, "en_US.UTF-8"));
+
   // use accum. lengths to set indices per yarn in parallel
   m_indices.resize(total);
   threadutils::parallel_for(0, int(starts.size()), [&](int i) {

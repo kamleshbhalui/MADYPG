@@ -29,6 +29,7 @@
 #include <MagnumPlugins/JpegImporter/JpegImporter.h>
 #include <MagnumPlugins/PngImporter/PngImporter.h>
 #include <imgui.h>
+#include "imfilebrowser/imfilebrowser.h"
 
 #include <Magnum/ImGuiIntegration/Context.hpp>
 #include <memory>
@@ -76,8 +77,10 @@ class MainApplication : public Platform::Application {
   std::unique_ptr<MeshDrawable<MeshShader>> _meshdrawable;
   std::unique_ptr<YarnMapper> _yarnMapper;
   YarnMapper::Settings _yarnMapperSettings;
+  std::unique_ptr<ImGui::FileBrowser> _fileDialog;
   GL::Texture2D _matcap{NoCreate};
   bool _paused              = false;
+  int _min_loop_ms = 16;
   bool _single_step         = false;
   bool _render_mesh         = true;
   bool _render_yarns        = true;

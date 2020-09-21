@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.4)
 
-project(MagnumSSAOExample CXX)
+project(MESH2YARNS CXX)
 
 SET(CMAKE_CXX_STANDARD 17) # NOTE: c++17 e.g. for filesystem iteration
 SET(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS} -Wall -pthread")
@@ -34,12 +34,6 @@ file(GLOB_RECURSE glob_SRCS
   *.cpp)
 
 add_executable(mesh2yarns
-        # SsaoExample.cpp
-        # arcball/ArcBall.cpp
-        # Shaders/SsaoShader.cpp
-        # Shaders/SsaoShader.h
-        # Shaders/SsaoApplyShader.cpp
-        # Shaders/SsaoApplyShader.h
         ${glob_SRCS}
         ${SSAO_Rcs})
 

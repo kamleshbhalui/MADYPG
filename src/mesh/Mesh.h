@@ -29,6 +29,8 @@ public:
   AlignedVector<Matrix2s> invDm; // FEM-matrix (inverse of (e1, e2))
   AlignedVector<Vector3s> normals; // world-space face normals
   AlignedVector<Vector3s> vertex_normals; // world-space vertex normals
+  AlignedVector<Vector6s> strains;
+  AlignedVector<Vector6s> vertex_strains;
   std::vector<std::deque<std::pair<int, scalar>>> v2f;
 
 private:

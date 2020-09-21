@@ -1,5 +1,7 @@
 #include "MainApplication.h"
 
+#include <imgui_stdlib.h>
+
 namespace Magnum {
 void setupTexture(GL::Texture2D &texture, Vector2i const &size,
                   GL::TextureFormat format);
@@ -72,7 +74,7 @@ MainApplication::MainApplication(const Arguments &arguments)
     const Vector2 dpiScaling = this->dpiScaling({});
     Configuration conf;
     conf.setSize({1200, 800}, dpiScaling);
-    conf.setTitle("Magnum SSAO Example")
+    conf.setTitle("Mesh 2 Yarns")
         .setSize(conf.size(), dpiScaling)
         .setWindowFlags(Configuration::WindowFlag::Resizable);
     GLConfiguration glConf;
@@ -137,8 +139,14 @@ MainApplication::MainApplication(const Arguments &arguments)
     _ssaoApplyShader    = SsaoApplyShader{};
 
     {  // default settings
-      _yarnMapperSettings.modelfolder = "models/model_rib/";
+      _yarnMapperSettings.modelfolder            = "models/model_rib";
+      _yarnMapperSettings.objseq_settings.folder = "objseqs/sxsy";
+      _yarnMapperSettings.objseq_settings.constant_material_space = true;
     }
+    _fileDialog = std::make_unique<ImGui::FileBrowser>(
+        ImGuiFileBrowserFlags_SelectDirectory |
+        ImGuiFileBrowserFlags_CloseOnEsc);
+    _fileDialog->SetTitle("File Dialog");
     {
       _yarnDrawable.emplace_back(_yarnGeometryShader);
       _meshdrawable = std::make_unique<MeshDrawable<MeshShader>>(_meshShader);
@@ -185,8 +193,8 @@ MainApplication::MainApplication(const Arguments &arguments)
       60};
 
   /* Loop at 60 Hz max */
-  setSwapInterval(1);
-  setMinimalLoopPeriod(16);
+  setSwapInterval(0);  // 0 no vsync, 1 vsync
+  setMinimalLoopPeriod(_min_loop_ms);
 }
 
 void MainApplication::drawEvent() {
@@ -382,14 +390,6 @@ void MainApplication::drawSettings() {
       ImGui::PopItemWidth();
     }
 
-    ImGui::Checkbox("Pause", &_paused);
-    if (ImGui::Button("[S]tep")) {
-      _single_step = true;
-      _paused      = true;
-    }
-
-    ImGui::SameLine();
-
     static bool drawOcclusion = false;
     if (ImGui::Checkbox("Show Occlusion Factor", &drawOcclusion)) {
       if (drawOcclusion)
@@ -425,10 +425,6 @@ void MainApplication::drawSettings() {
     ImGui::Unindent();
   }
 
-  std::string stats = _profiler.statistics();
-  // ImGui::TextUnformatted(stats.begin(), stats.end());
-  ImGui::TextUnformatted(stats.c_str());
-
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
@@ -438,14 +434,97 @@ void MainApplication::drawSettings() {
   ImGui::Begin("Sim Options");
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(100.0f);
-  ImGui::Checkbox("Flat Normals", &_yarnMapperSettings.flat_normals);
-  if (_yarnMapperSettings.flat_normals) {
-    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+  ImGui::Checkbox("Pause", &_paused);
+  ImGui::SameLine();
+  if (ImGui::Button("[S]tep")) {
+    _single_step = true;
+    _paused      = true;
   }
+  if (ImGui::DragInt("Min. Loop", &_min_loop_ms, 1, 4, 100, "%d (ms)"))
+    setMinimalLoopPeriod(_min_loop_ms);
+  ImGui::SameLine();
+  if (ImGui::Button("(16)##loop16")) {
+    _min_loop_ms = 16;
+    setMinimalLoopPeriod(_min_loop_ms);
+  }
+  ImGui::Separator();
+  ImGui::Checkbox("Flat Normals", &_yarnMapperSettings.flat_normals);
+  // if (_yarnMapperSettings.flat_normals) {
+  //   ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+  // }
   ImGui::Checkbox("Shepard Weights", &_yarnMapperSettings.shepard_weights);
-  if (_yarnMapperSettings.flat_normals)
-    ImGui::PopStyleVar();
+  // if (_yarnMapperSettings.flat_normals)
+  //   ImGui::PopStyleVar();
+
+  {
+    std::string &txt = _yarnMapperSettings.modelfolder;
+    ImGui::PushID(&txt);
+    ImGui::PushItemWidth(150);
+    ImGui::InputText("##txt", &txt);
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    if (ImGui::Button("Browse")) {
+      _fileDialog->SetPwd(std::filesystem::path(txt).parent_path());
+      _fileDialog->Open();
+    }
+    _fileDialog->Display();
+    if (_fileDialog->HasSelected()) {
+      txt = std::filesystem::relative(_fileDialog->GetSelected().string());
+      _fileDialog->ClearSelected();
+    }
+    ImGui::PopID();
+  }
+  {
+    std::string &txt = _yarnMapperSettings.objseq_settings.folder;
+    ImGui::PushID(&txt);
+    ImGui::PushItemWidth(150);
+    ImGui::InputText("##txt", &txt);
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    if (ImGui::Button("Browse")) {
+      _fileDialog->SetPwd(std::filesystem::path(txt).parent_path());
+      _fileDialog->Open();
+    }
+    _fileDialog->Display();
+    if (_fileDialog->HasSelected()) {
+      txt = std::filesystem::relative(_fileDialog->GetSelected().string());
+      _fileDialog->ClearSelected();
+    }
+    ImGui::PopID();
+  }
+
   ImGui::PopItemWidth();
+  ImGui::PopStyleVar();
+  ImGui::End();
+
+  ///
+
+  ImGui::Begin("Stats");
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
+  // ImGui::PushItemWidth(100.0f);
+
+  if (_profiler.isMeasurementAvailable(0)) {
+    double fps = 1e9 / _profiler.frameTimeMean();
+    ImGui::Text("FPS: %.1f", fps);
+    ImGui::Separator();
+    std::string stats = _profiler.statistics();
+    ImGui::TextUnformatted(stats.c_str());
+    ImGui::Separator();
+  }
+  {
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
+    ImGui::Columns(2, NULL, false);
+    auto averages          = _yarnMapper->m_timer.getAverageList();
+    constexpr double scale = 0.001;
+    for (const auto &avg : averages) ImGui::Text("%s:", avg.first.c_str());
+    ImGui::NextColumn();
+    for (const auto &avg : averages)
+      ImGui::Text("%8.2f ms", scale * avg.second);
+    ImGui::PopStyleVar();
+    ImGui::Columns(1);
+  }
+
+  // ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
 }

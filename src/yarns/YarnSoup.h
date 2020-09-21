@@ -1,9 +1,9 @@
 #ifndef __YARNSOUP__H__
 #define __YARNSOUP__H__
 
-#include "../EigenDefinitions.h"
 #include "PeriodicYarnPattern.h"
 #include "Grid.h"
+// #include "../EigenDefinitions.h"
 
 class YarnSoup {
  public:

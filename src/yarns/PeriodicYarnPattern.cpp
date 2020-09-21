@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include "../utils/threadutils.h"
+#include "../utils/debug_logging.h"
 
 // trim string from left and right (inc. comments)
 
@@ -33,7 +34,7 @@ std::deque<std::deque<std::string>> preload_chunks(
   std::ifstream ifs(filename);
   if (!ifs)
   {
-    // TODO assert bad & print message
+    Debug::msgassert("Couldn't load pyp file!", bool(ifs));
     return chunks;
   }
 

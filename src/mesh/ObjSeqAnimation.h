@@ -19,14 +19,18 @@ namespace fs = std::filesystem;
 
 class ObjSeqAnimation : public AbstractMeshProvider {
  public:
-  ObjSeqAnimation(const std::string& folder, bool repeat = true,
-                  bool constant_material_space = false)
-      : m_repeat(repeat), m_const_material_space(constant_material_space) {
+  struct Settings {
+    std::string folder;
+    bool repeat                  = true;
+    bool constant_material_space = false;
+  } m_settings;
+
+  ObjSeqAnimation(const Settings& settings) : m_settings(settings) {
     m_indicesDirty = true;
 
     // get sorted list of files
     m_iter = 0;
-    for (auto& p : fs::directory_iterator(folder)) {
+    for (auto& p : fs::directory_iterator(m_settings.folder)) {
       m_files.push_back(p.path());
     }
     std::sort(m_files.begin(), m_files.end());
@@ -41,14 +45,15 @@ class ObjSeqAnimation : public AbstractMeshProvider {
 
   void update() {
     // repeat
-    if (m_iter >= m_files.size() && m_repeat) {
+    if (m_iter >= m_files.size() && m_settings.repeat) {
       m_iter = 0;
     }
 
     // load next
     if (m_iter < m_files.size()) {
       // load mesh, with material space data if non-constant or uninitialized
-      bool load_uv   = !m_const_material_space || m_mesh.Fms.rows() == 0;
+      bool load_uv =
+          !m_settings.constant_material_space || m_mesh.Fms.rows() == 0;
       m_indicesDirty = load_uv;
       load_obj_mesh(m_files[m_iter], m_mesh, load_uv);
 
@@ -57,9 +62,6 @@ class ObjSeqAnimation : public AbstractMeshProvider {
   }
 
  private:
-  bool m_repeat;
-  bool m_const_material_space;
-
   std::vector<std::string> m_files;
   size_t m_iter;
 };

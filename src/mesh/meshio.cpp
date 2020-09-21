@@ -26,7 +26,7 @@ int count_words(const std::string &str) {
 // }
 
 void load_obj_mesh(const std::string &filename, Mesh &mesh,
-                   bool with_uv, float scale) {
+                   bool with_uv_or_topology, float scale) {
   std::deque<VectorGLi> f;      // polygonal faces (world-space)
   std::deque<VectorGLi> fms;    // polygonal faces (material-space)
   AlignedDeque<VectorGL3f> v;   // world coordinates
@@ -48,7 +48,7 @@ void load_obj_mesh(const std::string &filename, Mesh &mesh,
     std::stringstream linestream(line);
     linestream >> kw;
 
-    if (kw == "vt" && with_uv) {
+    if (kw == "vt" && with_uv_or_topology) {
       VectorGL2f vec;
       linestream >> vec[0] >> vec[1];
       vt.push_back(vec * scale);
@@ -56,7 +56,7 @@ void load_obj_mesh(const std::string &filename, Mesh &mesh,
       VectorGL3f vec;
       linestream >> vec[0] >> vec[1] >> vec[2];
       v.push_back(vec * scale);
-    } else if (kw == "f") {
+    } else if (kw == "f" && with_uv_or_topology) {
       int nprimverts = count_words(line) - 1;
       // Debug::msgassert("OBJ: face has unexpected number of indices",
       //                  nprimverts == 3);
@@ -89,25 +89,25 @@ void load_obj_mesh(const std::string &filename, Mesh &mesh,
 
       assert(j == nprimverts);
       f.push_back(ixs_ws);
-      if (with_uv)
+      if (with_uv_or_topology)
         fms.push_back(ixs_ms);
     }
   }
 
   // allocate
   mesh.X.resize(v.size(), 3);
-  if (with_uv)
+  if (with_uv_or_topology)
     mesh.U.resize(vt.size(), 2);
   if (f.size() > 0) {
     mesh.F.resize(f.size(), f.back().size());
-    if (with_uv)
+    if (with_uv_or_topology)
       mesh.Fms.resize(fms.size(), f.back().size());
   }
 
   // fill
   threadutils::parallel_for(size_t(0), v.size(),
                             [&](size_t i) { mesh.X.row(i) = v[i]; });
-  if (with_uv) {
+  if (with_uv_or_topology) {
     threadutils::parallel_for(size_t(0), vt.size(),
                               [&](size_t i) { mesh.U.row(i) = vt[i]; });
     threadutils::parallel_for(size_t(0), fms.size(),
@@ -116,10 +116,10 @@ void load_obj_mesh(const std::string &filename, Mesh &mesh,
         "OBJ: v and vt data size inconsistent!",
         v.size() <=
             vt.size());  // NOTE: one worldspace vertex can have multiple uvs
+    threadutils::parallel_for(size_t(0), f.size(),
+                              [&](size_t i) { mesh.F.row(i) = f[i]; });
   }
 
-  threadutils::parallel_for(size_t(0), f.size(),
-                            [&](size_t i) { mesh.F.row(i) = f[i]; });
 
   // TODO optionally: assert each index in faces is in [0,nvertices)
 }

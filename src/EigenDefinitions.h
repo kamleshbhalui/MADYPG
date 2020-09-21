@@ -14,6 +14,8 @@
 #include <list>
 #include <deque>
 
+// TODO CLEAN UP THIS FILE ONCE PROGRAM IS RUNNING
+
 template <typename S, int _options = Eigen::ColMajor>
 Eigen::Matrix<S, 2, 1, _options> MakeVec(S x, S y)
 {
@@ -38,6 +40,7 @@ typedef Eigen::Matrix<int, 4, 1> Vector4i;
 typedef Eigen::Matrix<scalar, 2, 1> Vector2s;
 typedef Eigen::Matrix<scalar, 3, 1> Vector3s;
 typedef Eigen::Matrix<scalar, 4, 1> Vector4s;
+typedef Eigen::Matrix<scalar, 6, 1> Vector6s;
 typedef Eigen::Matrix<scalar, 2, 2> Matrix2s;
 typedef Eigen::Matrix<scalar, 3, 3> Matrix3s;
 typedef Eigen::Matrix<scalar, 4, 4> Matrix4s;
