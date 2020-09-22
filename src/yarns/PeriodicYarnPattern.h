@@ -11,19 +11,23 @@ struct PeriodicYarnPattern
 
   bool isPeriodicEdge(int eix);
 
+  void recompute_VE_table();
+
   // debugging functionality to generate uint32_t::max separated yarnlists of yarns without periodic edges
   std::vector<uint32_t> compute_simple_yarns();
 
-
-  // compute_periodic_yarns() USED IN MODEL FOR DEFO LOOKUP
+  void compute_parametric(); // TODO maybe do this in python model creation
 
   float px = 0;
   float py = 0;
   float r = 0;
   MatrixGLf Q;  // vertex data [x y z t]
   MatrixXXRMi E;  // periodic edges [v0, v1, di, dj]
-  MatrixGLf RL; // restlengths
+  std::vector<scalar> RL; // restlengths
   Vector2s Qmin;
+  std::vector<int> param_yarn;
+  std::vector<scalar> param_t;
+  MatrixXXRMi VE; // vertex edge table [eix_prev, eix_next]
 };
 using PYP = PeriodicYarnPattern; // short alias
 

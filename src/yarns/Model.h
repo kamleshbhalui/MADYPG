@@ -12,6 +12,7 @@ class Model {
     m_pyp.deserialize(folder + "/pyp");  // DEBUG hardcoded file
     m_pyp.rectangulize();  // TODO potentially assume that this is true for new
     // pyp, but it should take only a millisecond anyway
+    m_pyp.compute_parametric(); // TODO potentially cache
 
     // TODO compute periodic yarns
 

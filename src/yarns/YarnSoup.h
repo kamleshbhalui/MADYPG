@@ -10,6 +10,7 @@ class YarnSoup {
   void fill_from_grid(const PYP& pyp, const Grid& grid);
   void cut_outside();
   void assign_triangles(const Grid& grid, const Mesh& mesh);
+  void reassign_triangles(const Grid& grid, const Mesh& mesh, bool default_same = false);
   void generate_index_list();
   const std::vector<uint32_t>& getIndices() const { return m_indices; }
   MatrixGLf& get_Xms() { return X_ms; }

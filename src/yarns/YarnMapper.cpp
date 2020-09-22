@@ -66,9 +66,13 @@ void YarnMapper::step() {
     }
 
     mesh.compute_invDm();
+    mesh.compute_v2f_map(m_settings.shepard_weights);
+    mesh.compute_face_adjacency();  // TODO cache in obj file / or binary cache
+    m_timer.tock("mesh invdm v2f adjacency");
+
     m_soup.assign_triangles(m_grid, mesh);
 
-    m_timer.tock("mesh invdm & soup triangles");
+    m_timer.tock("soup tri bary");
 
     if (!m_initialized) {
       m_soup.cut_outside();  // 'delete' unassigned vertices
@@ -88,29 +92,23 @@ void YarnMapper::step() {
 
       m_timer.tock("soup cut & index list");
     }
-
-    mesh.compute_v2f_map(m_settings.shepard_weights);
-
-    m_timer.tock("mesh v2f");
   }  // end of MS change
 
   // @ WORLD SPACE MESH CHANGES
 
-  mesh.compute_face_normals();  // TODO make optional in case obj file has
-                                // normals
-  mesh.compute_vertex_normals();
+  mesh.compute_face_data();  // TODO make normals optional in case obj file has
+                             // normals ? actually might not matter since
+                             // strains need area(=normal)
+  if (!m_settings.flat_normals)
+    mesh.compute_vertex_normals();
+  if (!m_settings.flat_strains)
+    mesh.compute_vertex_strains();
 
-  // DEBUG in lieu of masm for now just copy soup ms to ws
-  // TODO load model (model class <--- pyp) / ws change / ... / masm / ...
-  // TODO mesh.strains_face
-  // TODO mesh.face2vertex(strains)
+  m_timer.tock("mesh normals & strains");
 
-  if (false) {
-    // TODO // face_strains, vertex_strains @ mesh
+  if (true) {
     deform_reference(mesh, m_settings.flat_strains);
-
-    // TODO soup.assign_triangles again (at least redo bary)
-    // ... maybe soup.reassign_triangles (default_prev, find_closest, ....) 
+    m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
   } else {
     int n     = m_soup.num_vertices();
     auto& Xms = m_soup.get_Xms();
@@ -119,10 +117,40 @@ void YarnMapper::step() {
     threadutils::parallel_for(0, n, [&](int i) { Xws.row(i) = Xms.row(i); });
   }
 
+  m_timer.tock("deform & bary");
+
   shell_map(mesh, m_settings.flat_normals);
 
-  m_timer.tock("ws change");
+  m_timer.tock("shell map");
   m_initialized = true;
+}
+
+void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
+  int nverts = m_soup.num_vertices();
+  auto& Xms  = m_soup.get_Xms();
+  auto& Xws  = m_soup.get_Xws();
+  Xws.resize(Xms.rows(), Xms.cols());
+  threadutils::parallel_for(0, nverts, [&](int vix) {
+    int tri = m_soup.get_tri(vix);
+    if (tri < 0)  // skip unassigned vertex
+      return;
+
+    const auto& abc = m_soup.get_bary(vix);
+
+    Vector6s s;
+    if (flat_strains) {
+      s = mesh.strains[tri];
+    } else {
+      auto ms_ixs = mesh.Fms.row(tri);
+      s           = mesh.vertex_strains[ms_ixs[0]] * abc[0] +
+          mesh.vertex_strains[ms_ixs[1]] * abc[1] +
+          mesh.vertex_strains[ms_ixs[2]] * abc[2];
+    }
+
+    Vector4s g = m_model->deformation(s, vix);
+    // store deformed ms coordinates intm. in ws coords
+    Xws.row(vix) = Vector4s(Xms.row(vix)) + g;
+  });
 }
 
 void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {

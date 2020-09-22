@@ -157,6 +157,72 @@ void YarnSoup::assign_triangles(const Grid& grid, const Mesh& mesh) {
   });
 }
 
+void YarnSoup::reassign_triangles(const Grid& grid, const Mesh& mesh,
+                                  bool default_same) {
+  // for reassigning triangles of yarn vertices (that where not cut, i.e. at the
+  // beginning they where inside some triangle) the following issues can happen
+  // a) the vertex has moved such that it moved outside of the mesh bounds, and
+  // is not inside any triangle any more b) if a) then it could have been pushed
+  // into a non-filled grid cell or even outside of the grid for those cases the
+  // ideal solution would be to find the closest triangle by distance however
+  // for now we simply implemented a fallback to the previously assigned
+  // triangle in that case, which makes sense, since its deformation didn't push
+  // it into some other existing one, and assuming that the deformation is not
+  // too large to jump across multiple triangles. if there are artifacts near
+  // mesh boundaries, then looking into closest-triangle checks makes sense
+
+  if (default_same) { // just use previous triangle
+    threadutils::parallel_for(0, int(X_ms.rows()), [&](int vix) {
+      int tri = m_v2tri[vix];
+      if (tri < 0)
+        return;  // skip unassigned
+      Vector2s p     = X_ms.row(vix).head<2>();
+      Vector3s abc = mesh.barycentric_ms(tri, p);
+      m_v2tri[vix] = tri;
+      m_vbary[vix] = abc;
+    });
+    return;
+  }
+
+  threadutils::parallel_for(0, int(X_ms.rows()), [&](int vix) {
+    int tri = m_v2tri[vix];
+    if (tri < 0)
+      return;  // skip unassigned
+
+    Vector2s p     = X_ms.row(vix).head<2>();
+
+    Vector3s abc;
+    int i, j;
+    std::tie(i, j) = grid.getIndex(p);
+
+    bool empty_cell;
+    if (grid.inside(i, j))
+      empty_cell = grid.filled(i, j);
+    else
+      empty_cell = false;
+
+    if (empty_cell) {  // fall back to previous, see notes above
+      abc = mesh.barycentric_ms(tri, p);
+    } else {
+      const auto& tris = grid.cell2tris(i, j);
+      bool found = false;
+      for (int tri_ : tris) {
+        abc = mesh.barycentric_ms(tri_, p);
+        if (barycentric_inside(abc)) {
+          found = true;
+          tri = tri_;
+          break;
+        }
+      }
+      if (!found) { // didnt hit any triangle, see notes above
+        abc = mesh.barycentric_ms(tri, p);
+      }
+    }
+    m_v2tri[vix] = tri;
+    m_vbary[vix] = abc;
+  });
+}
+
 void YarnSoup::cut_outside() {
   // remove edges if any of its vertices is not assigned to some triangle
   threadutils::parallel_for(0, int(E.rows()), [&](int eix) {
@@ -228,14 +294,17 @@ void YarnSoup::generate_index_list() {
   }
 
   int n_vertices_total = total - int(lengths.size());
-  
+
   // if (n_vertices_total > 1e6)
-  //   Debug::logf("# yarn vertices: %d,%03d,%03d\n",n_vertices_total/1000000,(n_vertices_total%1000000)/1000,(n_vertices_total%1000));
+  //   Debug::logf("# yarn vertices:
+  //   %d,%03d,%03d\n",n_vertices_total/1000000,(n_vertices_total%1000000)/1000,(n_vertices_total%1000));
   // else if (n_vertices_total > 1e3)
-  //   Debug::logf("# yarn vertices: %d,%03d\n",n_vertices_total/1000,(n_vertices_total%1000));
-  // else 
+  //   Debug::logf("# yarn vertices:
+  //   %d,%03d\n",n_vertices_total/1000,(n_vertices_total%1000));
+  // else
   //   Debug::logf("# yarn vertices: %d\n",n_vertices_total);
-  Debug::log("# yarn vertices:",Debug::format_locale(n_vertices_total, "en_US.UTF-8"));
+  Debug::log("# yarn vertices:",
+             Debug::format_locale(n_vertices_total, "en_US.UTF-8"));
 
   // use accum. lengths to set indices per yarn in parallel
   m_indices.resize(total);

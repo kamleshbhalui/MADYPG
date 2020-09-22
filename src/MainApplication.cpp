@@ -449,6 +449,7 @@ void MainApplication::drawSettings() {
   }
   ImGui::Separator();
   ImGui::Checkbox("Flat Normals", &_yarnMapperSettings.flat_normals);
+  ImGui::Checkbox("Flat Strains", &_yarnMapperSettings.flat_strains);
   // if (_yarnMapperSettings.flat_normals) {
   //   ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
   // }
@@ -513,7 +514,8 @@ void MainApplication::drawSettings() {
   }
   {
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
-    ImGui::Columns(2, NULL, false);
+    ImGui::Columns(2, NULL, true);
+    ImGui::SetColumnWidth(1, 100);
     auto averages          = _yarnMapper->m_timer.getAverageList();
     constexpr double scale = 0.001;
     for (const auto &avg : averages) ImGui::Text("%s:", avg.first.c_str());

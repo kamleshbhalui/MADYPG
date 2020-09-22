@@ -4,18 +4,20 @@
 #include <deque>
 #include <fstream>
 #include <iostream>
-#include "../utils/threadutils.h"
+#include <limits>
+
 #include "../utils/debug_logging.h"
+#include "../utils/threadutils.h"
 
 // trim string from left and right (inc. comments)
 
-static inline void trim(std::string &, const std::string &, const std::string &, const std::string &);
-static inline void trim(std::string &str, const std::string &lchars = "\t\n\v\f\r ",
-                        const std::string &rchars = "\t\n\v\f\r ",
-                        const std::string &comment = "#")
-{
-  if (!comment.empty())
-  {
+static inline void trim(std::string &, const std::string &, const std::string &,
+                        const std::string &);
+static inline void trim(std::string &str,
+                        const std::string &lchars  = "\t\n\v\f\r ",
+                        const std::string &rchars  = "\t\n\v\f\r ",
+                        const std::string &comment = "#") {
+  if (!comment.empty()) {
     auto cpos = str.find(comment);
     if (cpos != str.npos)
       str.erase(cpos);
@@ -24,30 +26,26 @@ static inline void trim(std::string &str, const std::string &lchars = "\t\n\v\f\
   str.erase(0, str.find_first_not_of(lchars));
 }
 
-// load a file consisting of blocks separated by empty lines into deque(blocks) of deques(block) of strings(line)
+// load a file consisting of blocks separated by empty lines into deque(blocks)
+// of deques(block) of strings(line)
 std::deque<std::deque<std::string>> preload_chunks(const std::string &);
 std::deque<std::deque<std::string>> preload_chunks(
-    const std::string &filename)
-{
+    const std::string &filename) {
   std::deque<std::deque<std::string>> chunks;
 
   std::ifstream ifs(filename);
-  if (!ifs)
-  {
+  if (!ifs) {
     Debug::msgassert("Couldn't load pyp file!", bool(ifs));
     return chunks;
   }
 
   std::string line;
-  while (std::getline(ifs, line))
-  {
+  while (std::getline(ifs, line)) {
     trim(line);
-    if (!line.empty())
-    {
+    if (!line.empty()) {
       chunks.push_back({});
       chunks.back().push_back(line);
-      while (std::getline(ifs, line))
-      {
+      while (std::getline(ifs, line)) {
         trim(line);
         if (line.empty())
           break;
@@ -61,51 +59,50 @@ std::deque<std::deque<std::string>> preload_chunks(
 template <typename value_type, int ncols, int options>
 void deserialize_matrix_chunk(
     const std::deque<std::string> &chunk,
-    Eigen::Matrix<value_type, Eigen::Dynamic, ncols, options> &M)
-{
-  assert(M.cols() > 0); // need to set size of M before calling this
-  for (int i = 0; i < int(chunk.size()) - 1; i++)
-  {
+    Eigen::Matrix<value_type, Eigen::Dynamic, ncols, options> &M) {
+  assert(M.cols() > 0);  // need to set size of M before calling this
+  for (int i = 0; i < int(chunk.size()) - 1; i++) {
     std::stringstream ss(chunk[i + 1]);
-    for (int j = 0; j < M.cols(); j++)
-    {
+    for (int j = 0; j < M.cols(); j++) {
       ss >> M(i, j);
     }
   }
 }
 
-template void deserialize_matrix_chunk<float, Eigen::Dynamic, Eigen::RowMajor>(const std::deque<std::string> &, MatrixGLf &);
-template void deserialize_matrix_chunk<int, Eigen::Dynamic, Eigen::RowMajor>(const std::deque<std::string> &, MatrixXXRMi &);
+template void deserialize_matrix_chunk<float, Eigen::Dynamic, Eigen::RowMajor>(
+    const std::deque<std::string> &, MatrixGLf &);
+template void deserialize_matrix_chunk<int, Eigen::Dynamic, Eigen::RowMajor>(
+    const std::deque<std::string> &, MatrixXXRMi &);
+void deserialize_vector_chunk(const std::deque<std::string> &,
+                              std::vector<scalar> &);
+void deserialize_vector_chunk(const std::deque<std::string> &chunk,
+                              std::vector<scalar> &V) {
+  for (int i = 0; i < int(chunk.size()) - 1; i++) {
+    std::stringstream ss(chunk[i + 1]);
+    ss >> V[i];
+  }
+}
 
-void PYP::deserialize(const std::string &filename)
-{
+void PYP::deserialize(const std::string &filename) {
   auto chunks = preload_chunks(filename);
 
-  for (auto &chunk : chunks)
-  {
-    std::string &header = chunk[0]; // assume trimmed
+  for (auto &chunk : chunks) {
+    std::string &header = chunk[0];  // assume trimmed
     trim(header);
-    if (header == "*pattern")
-    {
+    if (header == "*pattern") {
       std::stringstream ss(chunk[1]);
       int n;
       ss >> this->px >> this->py >> this->r;
       ss >> n;
       this->Q.resize(n, 4);
       this->E.resize(n, 4);
-      this->RL.resize(n, 1);
-    }
-    else if (header == "*Q")
-    {
+      this->RL.resize(n);
+    } else if (header == "*Q") {
       deserialize_matrix_chunk(chunk, this->Q);
-    }
-    else if (header == "*E")
-    {
+    } else if (header == "*E") {
       deserialize_matrix_chunk(chunk, this->E);
-    }
-    else if (header == "*RL")
-    {
-      deserialize_matrix_chunk(chunk, this->RL);
+    } else if (header == "*RL") {
+      deserialize_vector_chunk(chunk, this->RL);
     }
   }
 
@@ -113,31 +110,27 @@ void PYP::deserialize(const std::string &filename)
   Qmin = Q.leftCols<2>().colwise().minCoeff();
 }
 
-#include "../utils/debug_logging.h"
-void PYP::rectangulize() // NOTE: untested, currently all the pyp files should satisfy this by default
+void PYP::rectangulize()  // NOTE: untested, currently all the pyp files should
+                          // satisfy this by default
 {
-  MatrixXXRMi VE = MatrixXXRMi::Constant(Q.rows(), 2, -1); // vertex edge table: vix -> [eix_prev, eix_next]
-  threadutils::parallel_for(0, int(E.rows()), [&](int i) {
-    VE(E(i, 0), 1) = i; // set as edge as next of its first vertex
-    VE(E(i, 1), 0) = i; // and as prev of its second vertex
-  });
+  if (VE.rows() != Q.rows())
+    recompute_VE_table();
 
-  // for each vert find di dj such that its position + di*py dj px is within [minx,minx+px) etc
-  // apply its new position and apply di dj depending on order to its incident edges
+  // for each vert find di dj such that its position + di*py dj px is within
+  // [minx,minx+px) etc apply its new position and apply di dj depending on
+  // order to its incident edges
   Vector2s minxy = Qmin;
   // minxy << 0,0;
 
-  for (int i = 0; i < int(Q.rows()); i++)
-  {
+  for (int i = 0; i < int(Q.rows()); i++) {
     Vector2s xy = Q.row(i).head<2>();
-    int dx = int(std::floor((xy[0] - minxy[0]) / px));
-    int dy = int(std::floor((xy[1] - minxy[1]) / py));
+    int dx      = int(std::floor((xy[0] - minxy[0]) / px));
+    int dy      = int(std::floor((xy[1] - minxy[1]) / py));
 
-    if (dx != 0 || dy != 0)
-    {
+    if (dx != 0 || dy != 0) {
       Q.row(i).head<2>() -= MakeVec(px * dx, py * dy);
-      E.row(VE(i, 0)).tail<2>() += MakeVec(dx, dy); // modify prev edge
-      E.row(VE(i, 1)).tail<2>() -= MakeVec(dx, dy); // modify next edge
+      E.row(VE(i, 0)).tail<2>() += MakeVec(dx, dy);  // modify prev edge
+      E.row(VE(i, 1)).tail<2>() -= MakeVec(dx, dy);  // modify next edge
     }
   }
 
@@ -149,42 +142,73 @@ void PYP::rectangulize() // NOTE: untested, currently all the pyp files should s
   }());
 }
 
-bool PYP::isPeriodicEdge(int eix)
-{
+bool PYP::isPeriodicEdge(int eix) {
   return !(E(eix, 2) == 0 && E(eix, 3) == 0);
 }
 
-#include <limits>
-
-std::vector<uint32_t> PYP::compute_simple_yarns()
-{
-  MatrixXXRMi VE = MatrixXXRMi::Constant(Q.rows(), 2, -1); // vertex edge table: vix -> [eix_prev, eix_next]
+void PYP::recompute_VE_table() {
+  VE = MatrixXXRMi::Constant(
+      Q.rows(), 2, -1);  // vertex edge table: vix -> [eix_prev, eix_next]
   threadutils::parallel_for(0, int(E.rows()), [&](int i) {
-    VE(E(i, 0), 1) = i; // set as edge as next of its first vertex
-    VE(E(i, 1), 0) = i; // and as prev of its second vertex
+    VE(E(i, 0), 1) = i;  // set as edge as next of its first vertex
+    VE(E(i, 1), 0) = i;  // and as prev of its second vertex
   });
+}
+
+std::vector<uint32_t> PYP::compute_simple_yarns() {
+  if (VE.rows() != Q.rows())
+    recompute_VE_table();
 
   std::vector<uint32_t> ixs;
   ixs.reserve(E.rows());
 
-  for (int i = 0; i < int(E.rows()); ++i)
-  {
+  for (int i = 0; i < int(E.rows()); ++i) {
     if (isPeriodicEdge(i)) {
       int eix = i;
-      int vix = E(eix,1);
+      int vix = E(eix, 1);
       ixs.push_back(vix);
-      eix = VE(vix,1);
+      eix = VE(vix, 1);
 
       while (!isPeriodicEdge(eix)) {
-        vix = E(eix,1);
+        vix = E(eix, 1);
         ixs.push_back(vix);
-        eix = VE(vix,1);
+        eix = VE(vix, 1);
       }
       ixs.push_back(std::numeric_limits<uint32_t>::max());
     }
   }
-  
-  // ixs = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
 
   return ixs;
+}
+
+// yarn index and restlength along-yarn-parameter t ϵ [0, L)
+void PYP::compute_parametric() {
+  if (VE.rows() != Q.rows())
+    recompute_VE_table();
+
+  std::deque<int> starts;
+  std::vector<bool> visited;
+  visited.resize(Q.rows(), false);
+
+  param_t.resize(Q.rows());
+  param_yarn.resize(Q.rows());
+  int y = 0;
+  for (int e = 0; e < int(E.rows()); ++e) {
+    if (isPeriodicEdge(e)) {
+      int vix = E(e, 1);
+      if (!visited[vix]) {
+        int eix  = VE(vix, 1);
+        scalar L = 0;
+        do {
+          visited[vix]    = true;
+          param_yarn[vix] = y;
+          param_t[vix]    = L;
+          L += RL[eix];
+          vix = E(eix, 1);
+          eix = VE(vix, 1);
+        } while (!visited[vix]);
+        ++y;
+      }
+    }
+  }
 }

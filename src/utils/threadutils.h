@@ -59,12 +59,15 @@ using vsize_type = typename std::vector<T, A>::size_type;
 #ifndef NO_PARALLEL
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
+#include <tbb/parallel_sort.h>
 // #include <tbb/parallel_for_each.h> // NOTE could use this instead of manual
 // for_each
 // #include <tbb/parallel_reduce.h>
-#include <thread>
 #include <time.h>
+
+#include <algorithm>
 #include <iostream>
+#include <thread>
 #endif
 
 namespace threadutils {
@@ -81,18 +84,28 @@ static void parallel_for(Index start, Index end, Callable func) {
 }
 
 template <typename Data, typename A, typename Callable>
-static void parallel_for_each(std::vector<Data, A> &vec, Callable func) {
-  for (auto &data : vec) {
+static void parallel_for_each(std::vector<Data, A>& vec, Callable func) {
+  for (auto& data : vec) {
     func(data);
   }
 }
 
 template <typename Data, typename A, typename Callable>
-static void parallel_for_each(const std::vector<Data, A> &vec, Callable func) {
-  for (const auto &data : vec) {
+static void parallel_for_each(const std::vector<Data, A>& vec, Callable func) {
+  for (const auto& data : vec) {
     func(data);
   }
 }
+
+template <typename Iterable, typename Compare>
+static void parallel_sort(Iterable& vec, const Compare& func) {
+  std::sort(vec.begin(), vec.end(), func);
+}
+
+// template <typename T, typename A>
+// static void parallel_sort(std::vector<T, A>& vec) {
+//   std::sort(vec.begin(), vec.end(), std::less<T>);
+// }
 
 #else  // PARALLEL =====================================
 
@@ -116,29 +129,47 @@ static void parallel_for(Index start, Index end, Callable func) {
 }
 
 template <typename Data, typename A, typename Callable>
-static void parallel_for_each(std::vector<Data, A> &vec, Callable func) {
+static void parallel_for_each(std::vector<Data, A>& vec, Callable func) {
 #if (defined(NDEBUG) || DEBUG_PARALLEL) && !NO_PARALLEL
   parallel_for(static_cast<vsize_type<Data, A> >(0), vec.size(),
                [&](vsize_type<Data, A> i) { func(vec[i]); });
 #else
-  for (auto &data : vec) {
+  for (auto& data : vec) {
     func(data);
   }
 #endif
 }
 
 template <typename Data, typename A, typename Callable>
-static void parallel_for_each(const std::vector<Data, A> &vec, Callable func) {
+static void parallel_for_each(const std::vector<Data, A>& vec, Callable func) {
 #if (defined(NDEBUG) || DEBUG_PARALLEL) && !NO_PARALLEL
   parallel_for(static_cast<vsize_type<Data, A> >(0), vec.size(),
                [&](vsize_type<Data, A> i) { func(vec[i]); });
 #else
-  for (const auto &data : vec) {
+  for (const auto& data : vec) {
     func(data);
   }
 #endif
 }
 
+template <typename Iterable, typename Compare>
+static void parallel_sort(Iterable& vec, const Compare& func) {
+#if (defined(NDEBUG) || DEBUG_PARALLEL) && !NO_PARALLEL
+  tbb::parallel_sort(vec.begin(), vec.end(), func);
+#else
+  std::sort(vec.begin(), vec.end(), func);
 #endif
-}     // namespace threadutils
+}
+
+// template <typename T, typename A>
+// static void parallel_sort(std::vector<T, A>& vec) {
+// #if (defined(NDEBUG) || DEBUG_PARALLEL) && !NO_PARALLEL
+// TODO
+// #else
+//   std::sort(vec.begin(), vec.end(), std::less<T>);
+// #endif
+// }
+
+#endif
+}  // namespace threadutils
 #endif /* THREAD_UTILS */
