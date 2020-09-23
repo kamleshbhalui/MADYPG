@@ -79,6 +79,7 @@ class MainApplication : public Platform::Application {
   YarnMapper::Settings _yarnMapperSettings;
   std::unique_ptr<ImGui::FileBrowser> _fileDialog;
   GL::Texture2D _matcap{NoCreate};
+  GL::Texture2D _clothTexture{NoCreate};
   bool _paused              = false;
   int _min_loop_ms = 16;
   bool _single_step         = false;
@@ -86,6 +87,7 @@ class MainApplication : public Platform::Application {
   bool _render_yarns        = true;
   float _render_radius_mult = 1.0f;
   float _mesh_dz            = 0.0f;
+  float _clothTexture_scale = 2.0f;
   Color4 _bgColor           = Color4(Color3(0.2f), 1.0f);
 
   // std::unique_ptr<ArcBallCamera> _arcballCamera;

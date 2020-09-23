@@ -17,6 +17,8 @@ class YarnMapper {
     bool flat_normals       = false;
     bool flat_strains       = false;
     bool shepard_weights    = true;
+    bool deform_reference   = true;
+    bool shell_map          = true;
     bool default_same_tri   = false;
     ObjSeqAnimation::Settings objseq_settings;
     // TODO XPBDMeshProvider::Settings xpbd_settings;

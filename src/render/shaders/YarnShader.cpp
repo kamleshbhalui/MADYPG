@@ -65,7 +65,7 @@ namespace Magnum
     CORRADE_INTERNAL_ASSERT_OUTPUT(link());
 
     bindAttributeLocation(Position::Location, "position");
-    // bindAttributeLocation(Normal::Location, "normal");
+    bindAttributeLocation(TextureCoordinates::Location, "uv");
 
     bindFragmentDataLocation(AlbedoOutput, "color");
     bindFragmentDataLocation(PositionsOutput, "position");
@@ -76,9 +76,11 @@ namespace Magnum
     _projectionUniform = uniformLocation("projection");
     _diffuseColorUniform = uniformLocation("diffuseColor");
     _radiusUniform = uniformLocation("radius");
+    _texscaleUniform = uniformLocation("tex_scale");
 
     // get uniform location and immediately use to set to textureunit
-    setUniform(uniformLocation("matcap"), TextureUnit);
+    setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
+    setUniform(uniformLocation("tex_cloth"), TextureUnit_ClothTexture);
   }
 
   YarnShader &YarnShader::setTransformation(const Matrix4 &transformation)
@@ -110,9 +112,20 @@ namespace Magnum
     return *this;
   }
 
-  YarnShader &YarnShader::bindTexture(GL::Texture2D &texture)
+  YarnShader &YarnShader::bindMatCap(GL::Texture2D &texture)
   {
-    texture.bind(TextureUnit);
+    texture.bind(TextureUnit_Matcap);
+    return *this;
+  }
+  YarnShader &YarnShader::bindClothTexture(GL::Texture2D &texture)
+  {
+    texture.bind(TextureUnit_ClothTexture);
+    return *this;
+  }
+
+  YarnShader &YarnShader::setTextureScale(float radius)
+  {
+    setUniform(_texscaleUniform, radius);
     return *this;
   }
 

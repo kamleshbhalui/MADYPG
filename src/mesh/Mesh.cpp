@@ -108,8 +108,10 @@ void Mesh::compute_face_adjacency() {
 
   Vector3i none;
   none << -1, -1, -1;
-  Fmsadj.resize(Fms.rows(),
-                none);  // NOTE as with many other inits, non parallel resize...
+  Fmsadj.resize(Fms.rows());  // NOTE as with many other inits, non parallel resize...
+  threadutils::parallel_for(size_t(0), Fmsadj.size(), [&](size_t f) {
+    Fmsadj[f].faces << -1, -1, -1; // init as having no neighbor
+  });
 
   // edge list: (ov1, ov2, f, fe)
   //  where ov1,ov2 are ordered vertex indices, f is the face index,
@@ -139,12 +141,18 @@ void Mesh::compute_face_adjacency() {
     const auto &ea = edge_list[i];
     const auto &eb = edge_list[i + 1];
     bool adj       = ea[0] == eb[0] && ea[1] == eb[1];  // matching vertices
-    if (adj) {  // faces ea[2] and eb[2] are adjacent
-      // store opposite vertex
+    if (adj) {
+      // faces ea[2] and eb[2] are adjacent
+      // -> store face and (local) opposite vertex
       // for a face with vertices 0,1,2, we have opposite vertices n0,n1,n2
       // where ni is opposite the edge(i,(i+1)%3), or -1 if it doesnt exist
-      Fmsadj[ea[2]][ea[3]] = int(Fms(eb[2], (eb[3] + 2) % 3));
-      Fmsadj[eb[2]][eb[3]] = int(Fms(ea[2], (ea[3] + 2) % 3));
+      Fmsadj[ea[2]].faces[ea[3]] = eb[2]; // adjacent face
+      Fmsadj[ea[2]].opp[ea[3]] = (eb[3] + 2) % 3; // opp vert ix
+      Fmsadj[eb[2]].faces[eb[3]] = ea[2];
+      Fmsadj[eb[2]].opp[eb[3]] = (ea[3] + 2) % 3;
+      // NOTE this assumes that the vertex order within Fms and F is the same!
+      // but given that we load faces from obj files as x0/u0 x1/u1 x2/u2
+      // this should be fine
     }
   });
 }
@@ -182,11 +190,11 @@ void Mesh::compute_face_data() {
     const auto &adj = Fmsadj[f];
     s.tail<3>().setZero();
     for (int i = 0; i < 3; ++i) {
-      if (adj[i] < 0)
+      if (adj.faces[i] < 0)
         continue;
       Vector3s ei = X.row(ixs[(i+1)%3])-X.row(ixs[i]);
       // NOTE alternatively could precompute normals and then just look up neighbor normal, but then might also want to precompute invA such as to not have to compute normal again 
-      Vector3s ni = Vector3s(X.row(adj[i])-X.row(ixs[i])).cross(ei);
+      Vector3s ni = Vector3s(X.row(F(adj.faces[i],adj.opp[i]))-X.row(ixs[i])).cross(ei);
       Vector2s FTti = F_.transpose() * ei.cross(n);
       scalar invli = 1 / ei.norm();
       scalar theta = -signed_angle(n,ni,ei * invli);

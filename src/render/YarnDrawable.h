@@ -35,7 +35,8 @@ namespace Magnum
           .setPrimitive(GL::MeshPrimitive::LineStripAdjacency);
       m_mesh.addVertexBuffer(
           this->m_vertexBuffer, 0, Shaders::Generic3D::Position{},
-          4 // skip twist variable for now
+          4, // skip twist variable for now
+          Shaders::Generic3D::TextureCoordinates{}
           ); // something about memory layout of data in vertex buffer
 
       // enable breaking of linestrips within single index buffer by using the index GLuint::max
@@ -51,8 +52,14 @@ namespace Magnum
     }
 
     template< typename Matrix>
-    void setVertices(const Matrix &M)
+    void setVertices(const Matrix &M) // assume row major M
     {
+      // for (int i = 0; i < std::min(int(M.rows()),100); i++)
+      // {
+      //   std::cout<<M.row(i)<<"\n";
+      // }
+      
+
       // assume row major ? or col major? 
 
       // Eigen::Map<Eigen::RowVectorXf> v({M.data()}, M.size());

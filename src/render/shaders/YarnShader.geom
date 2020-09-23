@@ -8,12 +8,17 @@ layout (lines_adjacency) in;
 // layout (lines) in;
 layout (triangle_strip, max_vertices = NVERTICES) out;
 
-// out VS_OUT {
-//     highp vec4 viewPosition_vert;
-// } gs_in[];
+in ExtraData {
+    highp vec2 uv;
+} gs_in[];
+
+out ExtraData {
+    highp vec2 uv;
+} gs_out;
 
 out highp vec3 viewPosition;
 out highp vec3 viewNormal;
+out highp vec2 uv;
 
 uniform float radius = 1.0;
 uniform mat4 projection;
@@ -81,6 +86,8 @@ void main() {
   // vec3 n = normalize(createPerp( t ));
   // vec3 b = normalize(cross( t, n ));
 
+  // TODO EMIT DEPENDING ONWHICH ONE
+
   int segs = NVERTICES/2;
   for(int i=0; i<segs; i++) {
     float a = i/float(segs-1) * 2.0 * 3.14159;
@@ -90,12 +97,14 @@ void main() {
     //                 ca*b.y + sa*n.y,
     //                 ca*b.z + sa*n.z );
 
+    gs_out.uv = gs_in[1].uv;
     viewNormal = vec3( ca*nv1.x + sa*bv1.x,
                 ca*nv1.y + sa*bv1.y,
                 ca*nv1.z + sa*bv1.z );
     viewPosition = V1.gl_Position.xyz + r2*viewNormal;
     gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();   
     
+    gs_out.uv = gs_in[0].uv;
     viewNormal = vec3( ca*nv0.x + sa*bv0.x,
                 ca*nv0.y + sa*bv0.y,
                 ca*nv0.z + sa*bv0.z );

@@ -21,6 +21,7 @@ class YarnSoup {
   int get_tri(int vix) const { return m_v2tri[vix]; }
   const Vector3s& get_bary(int vix) const { return m_vbary[vix]; }
 
+  int getParametric(int vix) { return m_pypix[vix]; }
 
  private:
   MatrixGLf X_ms;  // [u v h t] undeformed material space
@@ -28,6 +29,7 @@ class YarnSoup {
   MatrixXXRMi E;   // [v0 v1] edges
 
   std::vector<uint32_t> m_indices; // [ y0v0 y0v1 y0v2 ... delim y1v0 y1v1 ... ]
+  std::vector<int> m_pypix; // index in pyp // TODO replace with something parametric: y,t
   std::vector<int> m_v2tri; // triangle association per vertex
   AlignedVector<Vector3s> m_vbary; // tri barycentric coordinates per vertex
 };

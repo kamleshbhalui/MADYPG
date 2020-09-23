@@ -190,19 +190,23 @@ void PYP::compute_parametric() {
   std::vector<bool> visited;
   visited.resize(Q.rows(), false);
 
-  param_t.resize(Q.rows());
-  param_yarn.resize(Q.rows());
+  param_v2t.resize(Q.rows());
+  param_v2y.resize(Q.rows());
   int y = 0;
   for (int e = 0; e < int(E.rows()); ++e) {
     if (isPeriodicEdge(e)) {
       int vix = E(e, 1);
       if (!visited[vix]) {
+        param_y2v.push_back({});
+        auto &y2v = param_y2v.back();
         int eix  = VE(vix, 1);
         scalar L = 0;
         do {
           visited[vix]    = true;
-          param_yarn[vix] = y;
-          param_t[vix]    = L;
+          y2v.push_back(vix);
+          // y2t.push_back(L);
+          param_v2y[vix] = y;
+          param_v2t[vix]    = L;
           L += RL[eix];
           vix = E(eix, 1);
           eix = VE(vix, 1);
@@ -211,4 +215,14 @@ void PYP::compute_parametric() {
       }
     }
   }
+
+  param_y2t.resize(param_y2v.size());
+  threadutils::parallel_for(size_t(0),param_y2v.size(), [&](size_t i){
+      auto &y2t = param_y2t[i];
+      auto &y2v = param_y2v[i];
+      y2t.reserve(y2v.size());
+      for (int vix : y2v) {
+        y2t.push_back(param_v2t[vix]);
+      }
+  });
 }

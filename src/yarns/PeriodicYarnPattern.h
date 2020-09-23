@@ -25,8 +25,10 @@ struct PeriodicYarnPattern
   MatrixXXRMi E;  // periodic edges [v0, v1, di, dj]
   std::vector<scalar> RL; // restlengths
   Vector2s Qmin;
-  std::vector<int> param_yarn;
-  std::vector<scalar> param_t;
+  std::vector<int> param_v2y;
+  std::vector<scalar> param_v2t;
+  std::vector<std::deque<int>> param_y2v;
+  std::vector<std::vector<scalar>> param_y2t;
   MatrixXXRMi VE; // vertex edge table [eix_prev, eix_next]
 };
 using PYP = PeriodicYarnPattern; // short alias

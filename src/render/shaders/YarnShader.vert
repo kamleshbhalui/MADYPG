@@ -29,15 +29,19 @@
 */
 
 in highp vec4 position;
+in highp vec2 uv;
+
 
 uniform mat4 transformation;
 
-// out VS_OUT {
-//     highp vec4 viewPosition_vert;
-// } vs_out;
+out ExtraData {
+    highp vec2 uv;
+} vs_out;
 
 
 void main(){
     gl_Position = transformation * position;
+    // gl_Position = transformation * vec4(uv,0,1);
+    vs_out.uv = uv;
 //    vs_out.viewPosition_vert = transformation*position;
 }

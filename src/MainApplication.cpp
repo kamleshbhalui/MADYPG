@@ -40,34 +40,34 @@ void MainApplication::reset_simulation() {
 
 MainApplication::MainApplication(const Arguments &arguments)
     : Platform::Application{arguments, NoCreate} {
-  std::string meshPath;
-  {
-    // if(Utility::Directory::exists(SSAO_EXAMPLE_DIR))
-    //     meshPath = SSAO_EXAMPLE_DIR;
-    // else if(Utility::Directory::exists(SSAO_EXAMPLE_INSTALL_DIR))
-    //     meshPath = SSAO_EXAMPLE_INSTALL_DIR;
-    // else
-    meshPath =
-        Utility::Directory::path(Utility::Directory::executableLocation());
-    meshPath = Utility::Directory::join(meshPath, "../../src/Armadillo.ply");
-    // meshPath = Utility::Directory::join(meshPath, "Armadillo.ply");
+  // std::string meshPath;
+  // {
+  //   // if(Utility::Directory::exists(SSAO_EXAMPLE_DIR))
+  //   //     meshPath = SSAO_EXAMPLE_DIR;
+  //   // else if(Utility::Directory::exists(SSAO_EXAMPLE_INSTALL_DIR))
+  //   //     meshPath = SSAO_EXAMPLE_INSTALL_DIR;
+  //   // else
+  //   meshPath =
+  //       Utility::Directory::path(Utility::Directory::executableLocation());
+  //   meshPath = Utility::Directory::join(meshPath, "../../src/Armadillo.ply");
+  //   // meshPath = Utility::Directory::join(meshPath, "Armadillo.ply");
 
-    /* Finally, provide a way for the user to override the model directory */
-    Utility::Arguments args;
-    args.addFinalOptionalArgument("mesh", meshPath)
-        .setHelp("mesh", "Path to the mesh you want to import")
-        .addSkippedPrefix("magnum", "engine-specific options")
-        .setGlobalHelp(
-            "Press P to toggle between phong shading and phong shading + ssao\n"
-            "Press H in debug mode to hot reload the shaders\n"
-            "Press C in debug mode to use a compute shader in the ssao pass\n"
-            "Press R to reset the camera\n"
-            "Press L to toggle lagging for the camera controls\n")
-        .parse(arguments.argc, arguments.argv);
-    /* relative paths are brittle, so prepend CWD to them if needed */
-    meshPath = Utility::Directory::join(Utility::Directory::current(),
-                                        args.value("mesh"));
-  }
+  //   /* Finally, provide a way for the user to override the model directory */
+  //   Utility::Arguments args;
+  //   args.addFinalOptionalArgument("mesh", meshPath)
+  //       .setHelp("mesh", "Path to the mesh you want to import")
+  //       .addSkippedPrefix("magnum", "engine-specific options")
+  //       .setGlobalHelp(
+  //           "Press P to toggle between phong shading and phong shading +
+  //           ssao\n" "Press H in debug mode to hot reload the shaders\n"
+  //           "Press C in debug mode to use a compute shader in the ssao
+  //           pass\n" "Press R to reset the camera\n" "Press L to toggle
+  //           lagging for the camera controls\n")
+  //       .parse(arguments.argc, arguments.argv);
+  //   /* relative paths are brittle, so prepend CWD to them if needed */
+  //   meshPath = Utility::Directory::join(Utility::Directory::current(),
+  //                                       args.value("mesh"));
+  // }
 
   /* Setup window */
   {
@@ -156,28 +156,46 @@ MainApplication::MainApplication(const Arguments &arguments)
 
     PluginManager::Manager<Trade::AbstractImporter> manager;
     Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
-    if (!importer.openFile("matcaps/mcb.jpg"))
-      // if (!importer.openFile("matcaps/hughsk/00036.png"))
-      // if (!importer.openFile("matcaps/mua/test_gold.jpg"))
-      std::exit(2);
-    Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
-    CORRADE_INTERNAL_ASSERT(image);
-    _matcap = GL::Texture2D();
-    _matcap.setWrapping(GL::SamplerWrapping::ClampToEdge)
-        .setMagnificationFilter(GL::SamplerFilter::Linear)
-        .setMinificationFilter(GL::SamplerFilter::Linear,
-                               GL::SamplerMipmap::Linear)
-        .setStorage(Math::log2(image->size().min()) + 1,
-                    GL::textureFormat(image->format()), image->size())
-        .setSubImage(0, {}, *image)
-        .generateMipmap();
+    {
+      if (!importer.openFile("matcaps/lighting0.jpg"))
+        // if (!importer.openFile("matcaps/hughsk/00036.png"))
+        // if (!importer.openFile("matcaps/mua/test_gold.jpg"))
+        std::exit(2);
+      Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
+      CORRADE_INTERNAL_ASSERT(image);
+      _matcap = GL::Texture2D();
+      _matcap.setWrapping(GL::SamplerWrapping::ClampToEdge)
+          .setMagnificationFilter(GL::SamplerFilter::Linear)
+          .setMinificationFilter(GL::SamplerFilter::Linear,
+                                 GL::SamplerMipmap::Linear)
+          .setStorage(Math::log2(image->size().min()) + 1,
+                      GL::textureFormat(image->format()), image->size())
+          .setSubImage(0, {}, *image)
+          .generateMipmap();
+    }
+    {
+      if (!importer.openFile("textures/color.jpg"))
+        std::exit(2);
+      Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
+      CORRADE_INTERNAL_ASSERT(image);
+      _clothTexture = GL::Texture2D();
+      _clothTexture.setWrapping(GL::SamplerWrapping::Repeat)
+          .setMagnificationFilter(GL::SamplerFilter::Linear)
+          .setMinificationFilter(GL::SamplerFilter::Linear,
+                                 GL::SamplerMipmap::Linear)
+          .setStorage(Math::log2(image->size().min()) + 1,
+                      GL::textureFormat(image->format()), image->size())
+          .setSubImage(0, {}, *image)
+          .generateMipmap();
+    }
   }
 
   /* Set up the arcball and projection */
   {
-    const Vector3 eye = Vector3::zAxis(1.0f);
+    const Vector3 eye = Vector3::yAxis(1.0f);
     const Vector3 center{};
-    const Vector3 up = Vector3::yAxis();
+    const Vector3 up = Vector3::zAxis(-1.0f);
+    ;
     _arcball.emplace(eye, center, up, 45.0_degf, windowSize());
     _arcball->setLagging(0.85f);
 
@@ -203,6 +221,8 @@ void MainApplication::drawEvent() {
   bool simChanged = false;
   if (!_paused || _single_step) {  // SIM
     if (_yarnMapper->initialized()) {
+      // force update some settings
+      _yarnMapper->m_settings = _yarnMapperSettings; 
       _yarnMapper->step();
       // assume no update to yarn indices
       _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
@@ -240,8 +260,10 @@ void MainApplication::drawEvent() {
         .bind();
 
     if (_render_yarns && _yarnMapper->initialized()) {
-      _yarnGeometryShader.bindTexture(_matcap);
+      _yarnGeometryShader.bindMatCap(_matcap);
+      _yarnGeometryShader.bindClothTexture(_clothTexture);
       _yarnGeometryShader.setProjection(_projection);
+      _yarnGeometryShader.setTextureScale(_clothTexture_scale);
       _yarnDrawable.back().m_radius =
           _yarnMapper->getRadius() * _render_radius_mult;
       for (auto &line : _yarnDrawable) line.draw(tf);
@@ -372,23 +394,6 @@ void MainApplication::drawSettings() {
         _ao_blur_feature = val * 100.0f;
     }
     ImGui::SliderFloat("strength", &_ao_pow, 0.0f, 10.0f);
-    ImGui::Unindent();
-  }
-
-  if (ImGui::CollapsingHeader("Other", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Indent();
-
-    ImGui::Checkbox("Yarns", &_render_yarns);
-    ImGui::SameLine();
-    ImGui::Checkbox("Mesh", &_render_mesh);
-
-    {
-      ImGui::PushItemWidth(100.0f);
-      ImGui::DragFloat("yarn radius mult", &_render_radius_mult, 0.01f, 0.0f,
-                       2.0f);
-      ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
-      ImGui::PopItemWidth();
-    }
 
     static bool drawOcclusion = false;
     if (ImGui::Checkbox("Show Occlusion Factor", &drawOcclusion)) {
@@ -405,6 +410,26 @@ void MainApplication::drawSettings() {
       _ssaoShader      = SsaoShader{};
       _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
     }
+
+    ImGui::Unindent();
+  }
+
+  if (ImGui::CollapsingHeader("Other", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Indent();
+
+    ImGui::Checkbox("Yarns", &_render_yarns);
+    ImGui::SameLine();
+    ImGui::Checkbox("Mesh", &_render_mesh);
+
+    {
+      ImGui::PushItemWidth(100.0f);
+      ImGui::DragFloat("yarn radius mult", &_render_radius_mult, 0.01f, 0.0f,
+                       2.0f);
+      ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
+      ImGui::DragFloat("tex scale", &_clothTexture_scale, 0.1f, 0.0f, 100.0f);
+      ImGui::PopItemWidth();
+    }
+
 
     if (ImGui::Button("Reset Camera"))
       _arcball->reset();
@@ -456,7 +481,8 @@ void MainApplication::drawSettings() {
   ImGui::Checkbox("Shepard Weights", &_yarnMapperSettings.shepard_weights);
   // if (_yarnMapperSettings.flat_normals)
   //   ImGui::PopStyleVar();
-
+  ImGui::Checkbox("Deform Ref.", &_yarnMapperSettings.deform_reference);
+  ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);
   {
     std::string &txt = _yarnMapperSettings.modelfolder;
     ImGui::PushID(&txt);
@@ -548,6 +574,25 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
     case KeyEvent::Key::S:
       _single_step = true;
       _paused      = true;
+      break;
+    case KeyEvent::Key::M:
+      _render_mesh = !_render_mesh;
+      break;
+    case KeyEvent::Key::Y:
+      _render_yarns = !_render_yarns;
+      break;
+    case KeyEvent::Key::One:
+      _arcball->setViewParameters(Vector3(-0.4f, 0.3f, 0.5f), Vector3(0),
+                                  Vector3(0, 1, 0));
+      break;
+    case KeyEvent::Key::Zero:
+    case KeyEvent::Key::Two:
+      _arcball->setViewParameters(Vector3(0, 1, 0), Vector3(0),
+                                  Vector3(0, 0, -1));
+      break;
+    case KeyEvent::Key::Three:
+      _arcball->setViewParameters(Vector3(0, 0, 1), Vector3(0),
+                                  Vector3(0, 1, 0));
       break;
     default:
       break;

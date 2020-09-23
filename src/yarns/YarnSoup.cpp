@@ -37,6 +37,7 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
   // allocate memory for vertex data, vertex/edge topology
   X_ms.resize(n_verts, 4);
   X_ws.resize(n_verts, 4);
+  m_pypix.resize(n_verts);  // TODO parametric fake
   E = MatrixXXRMi::Constant(n_edges, 2,
                             -1);  // NOTE parallelizable? (or just set -1
                                   // explicitly in edge copy for borders)
@@ -63,6 +64,7 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
       X_ms.row(vix_shift + lvix) = pyp.Q.row(lvix);
       X_ms.row(vix_shift + lvix).head<2>() += vpos_shift;
       // self.v_pp_id[vix_shift + lvix] = lvix TODO IGNORE UNTIL USED
+      m_pypix[vix_shift + lvix] = lvix;  // TODO parametric fake
 
       // optionally check if due to floating point precision ij match the
       // shifted position, and if not try a heuristic of shrinking the copy away
@@ -171,12 +173,14 @@ void YarnSoup::reassign_triangles(const Grid& grid, const Mesh& mesh,
   // too large to jump across multiple triangles. if there are artifacts near
   // mesh boundaries, then looking into closest-triangle checks makes sense
 
-  if (default_same) { // just use previous triangle
-    threadutils::parallel_for(0, int(X_ms.rows()), [&](int vix) {
+  // NOTE: using X_ws here as predeformed ref coords!
+
+  if (default_same) {  // just use previous triangle
+    threadutils::parallel_for(0, int(X_ws.rows()), [&](int vix) {
       int tri = m_v2tri[vix];
       if (tri < 0)
         return;  // skip unassigned
-      Vector2s p     = X_ms.row(vix).head<2>();
+      Vector2s p   = X_ws.row(vix).head<2>();
       Vector3s abc = mesh.barycentric_ms(tri, p);
       m_v2tri[vix] = tri;
       m_vbary[vix] = abc;
@@ -184,12 +188,12 @@ void YarnSoup::reassign_triangles(const Grid& grid, const Mesh& mesh,
     return;
   }
 
-  threadutils::parallel_for(0, int(X_ms.rows()), [&](int vix) {
+  threadutils::parallel_for(0, int(X_ws.rows()), [&](int vix) {
     int tri = m_v2tri[vix];
     if (tri < 0)
       return;  // skip unassigned
 
-    Vector2s p     = X_ms.row(vix).head<2>();
+    Vector2s p = X_ws.row(vix).head<2>();
 
     Vector3s abc;
     int i, j;
@@ -197,24 +201,24 @@ void YarnSoup::reassign_triangles(const Grid& grid, const Mesh& mesh,
 
     bool empty_cell;
     if (grid.inside(i, j))
-      empty_cell = grid.filled(i, j);
+      empty_cell = !grid.filled(i, j);
     else
-      empty_cell = false;
+      empty_cell = true;
 
     if (empty_cell) {  // fall back to previous, see notes above
       abc = mesh.barycentric_ms(tri, p);
     } else {
       const auto& tris = grid.cell2tris(i, j);
-      bool found = false;
+      bool found       = false;
       for (int tri_ : tris) {
         abc = mesh.barycentric_ms(tri_, p);
         if (barycentric_inside(abc)) {
           found = true;
-          tri = tri_;
+          tri   = tri_;
           break;
         }
       }
-      if (!found) { // didnt hit any triangle, see notes above
+      if (!found) {  // didnt hit any triangle, see notes above
         abc = mesh.barycentric_ms(tri, p);
       }
     }

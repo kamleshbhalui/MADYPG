@@ -106,20 +106,32 @@ void YarnMapper::step() {
 
   m_timer.tock("mesh normals & strains");
 
-  if (true) {
+  if (m_settings.deform_reference) {
     deform_reference(mesh, m_settings.flat_strains);
     m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
   } else {
     int n     = m_soup.num_vertices();
     auto& Xms = m_soup.get_Xms();
     auto& Xws = m_soup.get_Xws();
-    Xws.resize(Xms.rows(), Xms.cols());
-    threadutils::parallel_for(0, n, [&](int i) { Xws.row(i) = Xms.row(i); });
+    Xws.resize(Xms.rows(), Xms.cols() + 2);
+    threadutils::parallel_for(
+        0, n, [&](int i) { 
+          Xws.row(i) << Xms.row(i), Xms.block<1, 2>(i, 0); 
+          });
+    m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
   }
 
   m_timer.tock("deform & bary");
 
-  shell_map(mesh, m_settings.flat_normals);
+  if (m_settings.shell_map)
+    shell_map(mesh, m_settings.flat_normals);
+  else {
+    int nverts = m_soup.num_vertices();
+    threadutils::parallel_for(0, nverts, [&](int vix) {
+      auto x = m_soup.get_Xws().row(vix);
+      x << x(0), x(2), -x(1), x(3);
+    });
+  }
 
   m_timer.tock("shell map");
   m_initialized = true;
@@ -129,7 +141,7 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
   int nverts = m_soup.num_vertices();
   auto& Xms  = m_soup.get_Xms();
   auto& Xws  = m_soup.get_Xws();
-  Xws.resize(Xms.rows(), Xms.cols());
+  Xws.resize(Xms.rows(), Xms.cols() + 2);
   threadutils::parallel_for(0, nverts, [&](int vix) {
     int tri = m_soup.get_tri(vix);
     if (tri < 0)  // skip unassigned vertex
@@ -147,9 +159,9 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
           mesh.vertex_strains[ms_ixs[2]] * abc[2];
     }
 
-    Vector4s g = m_model->deformation(s, vix);
+    Vector4s g = m_model->deformation(s, m_soup.getParametric(vix));
     // store deformed ms coordinates intm. in ws coords
-    Xws.row(vix) = Vector4s(Xms.row(vix)) + g;
+    Xws.row(vix) << Xms.row(vix) + g.transpose(), Xms.block<1, 2>(vix, 0);
   });
 }
 
