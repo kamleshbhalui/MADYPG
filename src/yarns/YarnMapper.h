@@ -20,6 +20,7 @@ class YarnMapper {
     bool deform_reference   = true;
     bool shell_map          = true;
     bool default_same_tri   = false;
+    bool repeat_frame       = false;
     ObjSeqAnimation::Settings objseq_settings;
     // TODO XPBDMeshProvider::Settings xpbd_settings;
   } m_settings;

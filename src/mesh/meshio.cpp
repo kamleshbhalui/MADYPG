@@ -58,8 +58,6 @@ void load_obj_mesh(const std::string &filename, Mesh &mesh,
       v.push_back(vec * scale);
     } else if (kw == "f" && with_uv_or_topology) {
       int nprimverts = count_words(line) - 1;
-      // Debug::msgassert("OBJ: face has unexpected number of indices",
-      //                  nprimverts == 3);
       VectorGLi ixs_ms(nprimverts);
       VectorGLi ixs_ws(nprimverts);
       std::string w;
@@ -77,20 +75,64 @@ void load_obj_mesh(const std::string &filename, Mesh &mesh,
           wstream >> wsix;
           msix = wsix;
           Debug::msgassert(
-              "OBJ: Couldn't read arcsim face indices: '" + line + "'",
+              "OBJ: Couldn't read face indices: '" + line + "'",
               !wstream.fail());
         }
         ixs_ms[j] = msix - 1;  // NOTE: obj files are 1-indexed
         ixs_ws[j] = wsix - 1;
         ++j;
       }
-
-      // TODO triangulate quad faces using a mesh.method
-
       assert(j == nprimverts);
-      f.push_back(ixs_ws);
-      if (with_uv_or_topology)
-        fms.push_back(ixs_ms);
+
+      Debug::msgassert("OBJ: polygonal face triangulation not implemented",
+                       nprimverts <= 4);
+
+      if (nprimverts == 3) {
+        f.push_back(ixs_ws);
+        if (with_uv_or_topology)
+          fms.push_back(ixs_ms);
+      } else if (nprimverts == 4) {
+        // triangulate
+        bool verts_loaded = true;
+        for (size_t k = 0; k < 3; ++k)
+          if (ixs_ms[k] >= vt.size()) {
+            verts_loaded = false;
+            break;
+          }
+        VectorGLi f0, f1;
+        if (verts_loaded) {  // find shortest diagonal
+          scalar diag02 = (vt[ixs_ms[0]] - vt[ixs_ms[2]]).squaredNorm();
+          scalar diag13 = (vt[ixs_ms[1]] - vt[ixs_ms[3]]).squaredNorm();
+          if (diag02 <= diag13) {
+            fms.emplace_back(3);
+            fms.back() << ixs_ms[0], ixs_ms[1], ixs_ms[2];
+            fms.emplace_back(3);
+            fms.back() << ixs_ms[0], ixs_ms[2], ixs_ms[3];
+            f.emplace_back(3);
+            f.back() << ixs_ws[0], ixs_ws[1], ixs_ws[2];
+            f.emplace_back(3);
+            f.back() << ixs_ws[0], ixs_ws[2], ixs_ws[3];
+          } else {
+            fms.emplace_back(3);
+            fms.back() << ixs_ms[0], ixs_ms[1], ixs_ms[3];
+            fms.emplace_back(3);
+            fms.back() << ixs_ms[1], ixs_ms[2], ixs_ms[3];
+            f.emplace_back(3);
+            f.back() << ixs_ws[0], ixs_ws[1], ixs_ws[3];
+            f.emplace_back(3);
+            f.back() << ixs_ws[1], ixs_ws[2], ixs_ws[3];
+          }
+        } else {  // fallback to fixed arbitrary (if vt not specified before f)
+          fms.emplace_back(3);
+          fms.back() << ixs_ms[0], ixs_ms[1], ixs_ms[2];
+          fms.emplace_back(3);
+          fms.back() << ixs_ms[0], ixs_ms[2], ixs_ms[3];
+          f.emplace_back(3);
+          f.back() << ixs_ws[0], ixs_ws[1], ixs_ws[2];
+          f.emplace_back(3);
+          f.back() << ixs_ws[0], ixs_ws[2], ixs_ws[3];
+        }
+      }
     }
   }
 
@@ -119,7 +161,6 @@ void load_obj_mesh(const std::string &filename, Mesh &mesh,
     threadutils::parallel_for(size_t(0), f.size(),
                               [&](size_t i) { mesh.F.row(i) = f[i]; });
   }
-
 
   // TODO optionally: assert each index in faces is in [0,nvertices)
 }

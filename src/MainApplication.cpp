@@ -2,21 +2,19 @@
 
 #include <imgui_stdlib.h>
 
-namespace Magnum {
-void setupTexture(GL::Texture2D &texture, Vector2i const &size,
-                  GL::TextureFormat format);
-void setupTexture(GL::Texture2D &texture, Vector2i const &size,
-                  GL::TextureFormat format) {
+using namespace Magnum;
+using namespace Math::Literals;
+
+void setupTexture(GL::Texture2D &texture, Magnum::Vector2i const &size,
+                          GL::TextureFormat format);
+void setupTexture(GL::Texture2D &texture, Magnum::Vector2i const &size,
+                          GL::TextureFormat format) {
   texture = GL::Texture2D{};
   texture.setMagnificationFilter(GL::SamplerFilter::Linear)
       .setMinificationFilter(GL::SamplerFilter::Linear)
       .setWrapping(GL::SamplerWrapping::ClampToEdge)
       .setStorage(1, format, size);
 }
-}  // namespace Magnum
-
-using namespace Magnum;
-using namespace Math::Literals;
 
 void MainApplication::reset_simulation() {
   if (!_yarnMapper)
@@ -188,6 +186,25 @@ MainApplication::MainApplication(const Arguments &arguments)
           .setSubImage(0, {}, *image)
           .generateMipmap();
     }
+    {
+      if (!importer.openFile("heatmaps/heatmap2D.png"))
+        std::exit(2);
+      Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
+      CORRADE_INTERNAL_ASSERT(image);
+      _heatMap = GL::Texture2D();
+      _heatMap.setWrapping(GL::SamplerWrapping::Repeat)
+          .setMagnificationFilter(GL::SamplerFilter::Linear)
+          .setMinificationFilter(GL::SamplerFilter::Linear,
+                                 GL::SamplerMipmap::Linear)
+          .setStorage(Math::log2(image->size().min()) + 1,
+                      GL::textureFormat(image->format()), image->size())
+          .setSubImage(0, {}, *image)
+          .generateMipmap();
+
+      // NOTE: in case of trying to load a 1D image:
+      //   make 1D view onto the first row of 2D-loaded jpg
+      //   ImageView1D img1D{img2D.format(), img2D.size().x(), img2D.data()};
+    }
   }
 
   /* Set up the arcball and projection */
@@ -222,7 +239,7 @@ void MainApplication::drawEvent() {
   if (!_paused || _single_step) {  // SIM
     if (_yarnMapper->initialized()) {
       // force update some settings
-      _yarnMapper->m_settings = _yarnMapperSettings; 
+      _yarnMapper->m_settings = _yarnMapperSettings;
       _yarnMapper->step();
       // assume no update to yarn indices
       _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
@@ -262,6 +279,7 @@ void MainApplication::drawEvent() {
     if (_render_yarns && _yarnMapper->initialized()) {
       _yarnGeometryShader.bindMatCap(_matcap);
       _yarnGeometryShader.bindClothTexture(_clothTexture);
+      _yarnGeometryShader.bindHeatMap(_heatMap);
       _yarnGeometryShader.setProjection(_projection);
       _yarnGeometryShader.setTextureScale(_clothTexture_scale);
       _yarnDrawable.back().m_radius =
@@ -373,7 +391,7 @@ void MainApplication::drawSettings() {
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(100.0f);
 
-  if (ImGui::CollapsingHeader("SSAO", ImGuiTreeNodeFlags_DefaultOpen)) {
+  if (ImGui::CollapsingHeader("SSAO" /*, ImGuiTreeNodeFlags_DefaultOpen*/)) {
     ImGui::Indent();
     {
       float val = _ao_radius * 100.0f;
@@ -404,11 +422,13 @@ void MainApplication::drawSettings() {
       _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
     }
 
-    if (ImGui::Button("Hot Reload Shader")) {
+    if (ImGui::Button("Hot Reload Shaders")) {
       Utility::Resource::overrideGroup("ssao-data",
                                        "src/render/shaders/resources.conf");
-      _ssaoShader      = SsaoShader{};
-      _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
+      _ssaoShader         = SsaoShader{};
+      _ssaoApplyShader    = SsaoApplyShader{_ssaoApplyFlag};
+      _yarnGeometryShader = YarnShader{};
+      _meshShader         = MeshShader{};
     }
 
     ImGui::Unindent();
@@ -429,7 +449,6 @@ void MainApplication::drawSettings() {
       ImGui::DragFloat("tex scale", &_clothTexture_scale, 0.1f, 0.0f, 100.0f);
       ImGui::PopItemWidth();
     }
-
 
     if (ImGui::Button("Reset Camera"))
       _arcball->reset();
@@ -473,8 +492,10 @@ void MainApplication::drawSettings() {
     setMinimalLoopPeriod(_min_loop_ms);
   }
   ImGui::Separator();
+  ImGui::Checkbox("Repeat Mesh Frame", &_yarnMapperSettings.repeat_frame);
   ImGui::Checkbox("Flat Normals", &_yarnMapperSettings.flat_normals);
   ImGui::Checkbox("Flat Strains", &_yarnMapperSettings.flat_strains);
+  ImGui::Checkbox("Def.SameTri", &_yarnMapperSettings.default_same_tri);
   // if (_yarnMapperSettings.flat_normals) {
   //   ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
   // }

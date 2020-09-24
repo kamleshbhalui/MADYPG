@@ -44,9 +44,11 @@ out highp vec3 normal;
 
 uniform vec4 diffuseColor;
 uniform sampler2D matcap;
+uniform sampler2D heatmap;
 uniform sampler2D tex_cloth;
 uniform float tex_scale = 1;
 
+// #define DEBUG_COLOR
 
 
 void main() {
@@ -58,5 +60,9 @@ void main() {
     position = viewPosition;
     normal = viewNormal; //;vec3(0.0,0.0,1.0);
 
-    color.rgb *= texture(tex_cloth, gs_out.uv * tex_scale).rgb;
+    // color.rgb *= texture(tex_cloth, gs_out.uv * tex_scale).rgb;
+
+#ifdef DEBUG_COLOR
+    color.rgb = texture(heatmap, gs_out.uv).rgb;
+#endif
 }

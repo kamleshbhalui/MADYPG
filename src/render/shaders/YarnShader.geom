@@ -86,8 +86,6 @@ void main() {
   // vec3 n = normalize(createPerp( t ));
   // vec3 b = normalize(cross( t, n ));
 
-  // TODO EMIT DEPENDING ONWHICH ONE
-
   int segs = NVERTICES/2;
   for(int i=0; i<segs; i++) {
     float a = i/float(segs-1) * 2.0 * 3.14159;

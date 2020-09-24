@@ -30,103 +30,99 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "YarnShader.h"
 
-#include <Corrade/Utility/Resource.h>
 #include <Corrade/Containers/Reference.h>
-
+#include <Corrade/Utility/Resource.h>
+#include <Magnum/GL/Context.h>
 #include <Magnum/GL/Shader.h>
 #include <Magnum/GL/Version.h>
-#include <Magnum/GL/Context.h>
-#include <Magnum/Math/Matrix4.h>
-#include <Magnum/Math/Matrix3.h>
 #include <Magnum/Math/Color.h>
+#include <Magnum/Math/Matrix3.h>
+#include <Magnum/Math/Matrix4.h>
 
-namespace Magnum
-{
-  YarnShader::YarnShader()
-  {
-    MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL330);
+using namespace Magnum;
 
-    const Utility::Resource rs{"ssao-data"};
+YarnShader::YarnShader() {
+  MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL330);
 
-    GL::Shader vert{GL::Version::GL330, GL::Shader::Type::Vertex};
-    GL::Shader geom{GL::Version::GL330, GL::Shader::Type::Geometry};
-    GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
+  const Utility::Resource rs{"ssao-data"};
 
-    vert.addSource(rs.get("YarnShader.vert"));
+  GL::Shader vert{GL::Version::GL330, GL::Shader::Type::Vertex};
+  GL::Shader geom{GL::Version::GL330, GL::Shader::Type::Geometry};
+  GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
 
-    geom.addSource(rs.get("YarnShader.geom"));
+  vert.addSource(rs.get("YarnShader.vert"));
 
-    frag.addSource(rs.get("YarnShader.frag"));
+  geom.addSource(rs.get("YarnShader.geom"));
 
-    CORRADE_INTERNAL_ASSERT_OUTPUT(GL::Shader::compile({vert, geom, frag}));
+  frag.addSource(rs.get("YarnShader.frag"));
 
-    attachShaders({vert, geom, frag});
+  CORRADE_INTERNAL_ASSERT_OUTPUT(GL::Shader::compile({vert, geom, frag}));
 
-    CORRADE_INTERNAL_ASSERT_OUTPUT(link());
+  attachShaders({vert, geom, frag});
 
-    bindAttributeLocation(Position::Location, "position");
-    bindAttributeLocation(TextureCoordinates::Location, "uv");
+  CORRADE_INTERNAL_ASSERT_OUTPUT(link());
 
-    bindFragmentDataLocation(AlbedoOutput, "color");
-    bindFragmentDataLocation(PositionsOutput, "position");
-    bindFragmentDataLocation(NormalsOutput, "normal");
+  bindAttributeLocation(Position::Location, "position");
+  bindAttributeLocation(TextureCoordinates::Location, "uv");
 
-    _transformationUniform = uniformLocation("transformation");
-    // _normalMatrixUniform = uniformLocation("normalMatrix");
-    _projectionUniform = uniformLocation("projection");
-    _diffuseColorUniform = uniformLocation("diffuseColor");
-    _radiusUniform = uniformLocation("radius");
-    _texscaleUniform = uniformLocation("tex_scale");
+  bindFragmentDataLocation(AlbedoOutput, "color");
+  bindFragmentDataLocation(PositionsOutput, "position");
+  bindFragmentDataLocation(NormalsOutput, "normal");
 
-    // get uniform location and immediately use to set to textureunit
-    setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
-    setUniform(uniformLocation("tex_cloth"), TextureUnit_ClothTexture);
-  }
+  _transformationUniform = uniformLocation("transformation");
+  // _normalMatrixUniform = uniformLocation("normalMatrix");
+  _projectionUniform   = uniformLocation("projection");
+  _diffuseColorUniform = uniformLocation("diffuseColor");
+  _radiusUniform       = uniformLocation("radius");
+  _texscaleUniform     = uniformLocation("tex_scale");
 
-  YarnShader &YarnShader::setTransformation(const Matrix4 &transformation)
-  {
-    setUniform(_transformationUniform, transformation);
-    return *this;
-  }
+  // get uniform location and immediately use to set to textureunit
+  setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
+  setUniform(uniformLocation("tex_cloth"), TextureUnit_ClothTexture);
+  setUniform(uniformLocation("heatmap"), TextureUnit_HeatMap);
+}
 
-  // YarnShader& YarnShader::setNormalMatrix(const Matrix3x3& normalMatrix){
-  //    setUniform(_normalMatrixUniform, normalMatrix);
-  //    return *this;
-  // }
+YarnShader &YarnShader::setTransformation(const Matrix4 &transformation) {
+  setUniform(_transformationUniform, transformation);
+  return *this;
+}
 
-  YarnShader &YarnShader::setProjection(const Matrix4 &projection)
-  {
-    setUniform(_projectionUniform, projection);
-    return *this;
-  }
+// YarnShader& YarnShader::setNormalMatrix(const Matrix3x3& normalMatrix){
+//    setUniform(_normalMatrixUniform, normalMatrix);
+//    return *this;
+// }
 
-  YarnShader &YarnShader::setDiffuseColor(const Color4 &color)
-  {
-    setUniform(_diffuseColorUniform, color);
-    return *this;
-  }
+YarnShader &YarnShader::setProjection(const Matrix4 &projection) {
+  setUniform(_projectionUniform, projection);
+  return *this;
+}
 
-  YarnShader &YarnShader::setRadius(float radius)
-  {
-    setUniform(_radiusUniform, radius);
-    return *this;
-  }
+YarnShader &YarnShader::setDiffuseColor(const Color4 &color) {
+  setUniform(_diffuseColorUniform, color);
+  return *this;
+}
 
-  YarnShader &YarnShader::bindMatCap(GL::Texture2D &texture)
-  {
-    texture.bind(TextureUnit_Matcap);
-    return *this;
-  }
-  YarnShader &YarnShader::bindClothTexture(GL::Texture2D &texture)
-  {
-    texture.bind(TextureUnit_ClothTexture);
-    return *this;
-  }
+YarnShader &YarnShader::setRadius(float radius) {
+  setUniform(_radiusUniform, radius);
+  return *this;
+}
 
-  YarnShader &YarnShader::setTextureScale(float radius)
-  {
-    setUniform(_texscaleUniform, radius);
-    return *this;
-  }
+YarnShader &YarnShader::bindMatCap(GL::Texture2D &texture) {
+  texture.bind(TextureUnit_Matcap);
+  return *this;
+}
 
-} // namespace Magnum
+YarnShader &YarnShader::bindClothTexture(GL::Texture2D &texture) {
+  texture.bind(TextureUnit_ClothTexture);
+  return *this;
+}
+
+YarnShader &YarnShader::bindHeatMap(GL::Texture2D &texture) {
+  texture.bind(TextureUnit_HeatMap);
+  return *this;
+}
+
+YarnShader &YarnShader::setTextureScale(float radius) {
+  setUniform(_texscaleUniform, radius);
+  return *this;
+}

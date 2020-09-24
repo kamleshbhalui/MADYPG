@@ -9,7 +9,8 @@
 #include <Magnum/Math/Matrix3.h>
 #include <Magnum/Math/Matrix4.h>
 
-namespace Magnum {
+using namespace Magnum;
+
 MeshShader::MeshShader() {
   MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL330);
 
@@ -42,7 +43,7 @@ MeshShader::MeshShader() {
   // _normalMatrixUniform = uniformLocation("normalMatrix");
   _projectionUniform   = uniformLocation("projection");
   _diffuseColorUniform = uniformLocation("diffuseColor");
-  _dzUniform = uniformLocation("dz");
+  _dzUniform           = uniformLocation("dz");
   // _radiusUniform = uniformLocation("radius");
   // setUniform(uniformLocation("matcap"), TextureUnit);
 }
@@ -82,5 +83,3 @@ MeshShader &MeshShader::setDZ(float dz) {
 //     texture.bind(TextureUnit);
 //     return *this;
 // }
-
-}  // namespace Magnum

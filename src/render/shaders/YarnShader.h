@@ -64,13 +64,15 @@ namespace Magnum
     YarnShader &setRadius(float radius);
     YarnShader &bindMatCap(GL::Texture2D &texture);
     YarnShader &bindClothTexture(GL::Texture2D &texture);
+    YarnShader &bindHeatMap(GL::Texture2D &texture);
     YarnShader &setTextureScale(float scale);
 
   private:
     enum : Int
     {
       TextureUnit_Matcap = 0,
-      TextureUnit_ClothTexture = 1
+      TextureUnit_HeatMap = 1,
+      TextureUnit_ClothTexture = 2
     };
 
     Int _transformationUniform,

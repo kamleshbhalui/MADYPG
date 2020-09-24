@@ -7,9 +7,11 @@ void YarnMapper::step() {
   m_timer.tick();
 
   if (m_initialized) {
-    // step the mesh provider
-    m_meshProvider->update();
-    m_timer.tock("mesh provider update");
+    if (!m_settings.repeat_frame) {
+      // step the mesh provider
+      m_meshProvider->update();
+      m_timer.tock("mesh provider update");
+    }
   } else {
     // set up mesh provider
     m_meshProvider = std::static_pointer_cast<AbstractMeshProvider>(
@@ -35,7 +37,7 @@ void YarnMapper::step() {
   //   mesh.X.col(2).setZero();
   // }
 
-  if (m_meshProvider->materialSpaceChanged() || !m_initialized) {
+  if ((m_meshProvider->materialSpaceChanged() && !m_settings.repeat_frame) || !m_initialized) {
     m_grid.fromTiling(mesh, m_model->getPYP());
     m_grid.overlap_triangles(mesh);
 
@@ -159,9 +161,14 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
           mesh.vertex_strains[ms_ixs[2]] * abc[2];
     }
 
-    Vector4s g = m_model->deformation(s, m_soup.getParametric(vix));
+    Vector4s g;
+    float dbg0,dbg1;
+
+    std::tie(g,dbg0,dbg1) = m_model->deformation(s, m_soup.getParametric(vix));
     // store deformed ms coordinates intm. in ws coords
-    Xws.row(vix) << Xms.row(vix) + g.transpose(), Xms.block<1, 2>(vix, 0);
+    // Xws.row(vix) << Xms.row(vix) + g.transpose(), Xms.block<1, 2>(vix, 0);
+    // Xws.row(vix) << Xms.row(vix) + g.transpose(), s[0],s[2]; // DEBUG: visualize strain
+    Xws.row(vix) << Xms.row(vix) + g.transpose(), dbg0,dbg1; // DEBUG: visualize other
   });
 }
 

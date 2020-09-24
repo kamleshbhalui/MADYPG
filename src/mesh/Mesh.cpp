@@ -95,6 +95,7 @@ void Mesh::compute_v2f_map(bool shepard_weights) {
       Wtotal += fw.second;
     }
     scalar wnorm = scalar(1) / Wtotal;
+
     assert(v2f[i].size() > 0);  // vertex without any incident face
     for (auto &fw : v2f[i]) {
       fw.second *= wnorm;

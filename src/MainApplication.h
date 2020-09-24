@@ -80,6 +80,7 @@ class MainApplication : public Platform::Application {
   std::unique_ptr<ImGui::FileBrowser> _fileDialog;
   GL::Texture2D _matcap{NoCreate};
   GL::Texture2D _clothTexture{NoCreate};
+  GL::Texture2D _heatMap{NoCreate};
   bool _paused              = false;
   int _min_loop_ms = 16;
   bool _single_step         = false;

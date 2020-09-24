@@ -30,124 +30,114 @@
 
 #include "SsaoApplyShader.h"
 
-#include <Magnum/GL/Texture.h>
-#include <Magnum/GL/Shader.h>
-#include <Magnum/GL/Version.h>
-#include <Magnum/GL/Context.h>
-#include <Magnum/GL/ImageFormat.h>
-#include <Magnum/Math/Matrix4.h>
-
 #include <Corrade/Containers/Reference.h>
 #include <Corrade/Utility/Resource.h>
+#include <Magnum/GL/Context.h>
+#include <Magnum/GL/ImageFormat.h>
+#include <Magnum/GL/Shader.h>
+#include <Magnum/GL/Texture.h>
+#include <Magnum/GL/Version.h>
+#include <Magnum/Math/Matrix4.h>
 
 using namespace Magnum;
 
-namespace Magnum {
-
-namespace {
-
 enum {
-    PositionUnit = 0,
-    NormalUnit = 1,
-    AlbedoUnit = 2,
-    AmbientOcclusionUnit = 3
+  PositionUnit         = 0,
+  NormalUnit           = 1,
+  AlbedoUnit           = 2,
+  AmbientOcclusionUnit = 3
 };
 
-}
-
 SsaoApplyShader::SsaoApplyShader(Flag flag) {
-    MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL330);
+  MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL330);
 
-    Utility::Resource rs{"ssao-data"};
+  Utility::Resource rs{"ssao-data"};
 
-    GL::Shader vert{GL::Version::GL330, GL::Shader::Type::Vertex};
-    GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
+  GL::Shader vert{GL::Version::GL330, GL::Shader::Type::Vertex};
+  GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
 
-    vert.addSource(rs.get("FullScreenTriangle.vert"));
-    frag.addSource(flag == Flag::DrawAmbientOcclusion ? "#define DRAW_OCCLUSION_FACTOR\n" : "")
-        .addSource(rs.get("SsaoApply.frag"));
+  vert.addSource(rs.get("FullScreenTriangle.vert"));
+  frag.addSource(flag == Flag::DrawAmbientOcclusion
+                     ? "#define DRAW_OCCLUSION_FACTOR\n"
+                     : "")
+      .addSource(rs.get("SsaoApply.frag"));
 
-    CORRADE_INTERNAL_ASSERT_OUTPUT(GL::Shader::compile({vert, frag}));
+  CORRADE_INTERNAL_ASSERT_OUTPUT(GL::Shader::compile({vert, frag}));
 
-    attachShaders({vert, frag});
+  attachShaders({vert, frag});
 
-    CORRADE_INTERNAL_ASSERT_OUTPUT(link());
+  CORRADE_INTERNAL_ASSERT_OUTPUT(link());
 
-    _aoBlurRadiusUniform = uniformLocation("ao_blur_radius");
-    _aoBlurFeatureUniform = uniformLocation("ao_blur_feature");
-    
-    _aoPowUniform = uniformLocation("ao_pow");
+  _aoBlurRadiusUniform  = uniformLocation("ao_blur_radius");
+  _aoBlurFeatureUniform = uniformLocation("ao_blur_feature");
 
+  _aoPowUniform = uniformLocation("ao_pow");
 
-    if(flag != Flag::DrawAmbientOcclusion) {
-        setUniform(uniformLocation("positionTexture"), PositionUnit);
-        setUniform(uniformLocation("normalTexture"), NormalUnit);
-        setUniform(uniformLocation("albedoTexture"), AlbedoUnit);
+  if (flag != Flag::DrawAmbientOcclusion) {
+    setUniform(uniformLocation("positionTexture"), PositionUnit);
+    setUniform(uniformLocation("normalTexture"), NormalUnit);
+    setUniform(uniformLocation("albedoTexture"), AlbedoUnit);
 
-        _shininessUniform = uniformLocation("shininess");
-        _lightPositionUniform = uniformLocation("lightPosition");
-        _lightColorUniform = uniformLocation("lightColor");
-        _specularColorUniform = uniformLocation("specularColor");
-    }
+    _shininessUniform     = uniformLocation("shininess");
+    _lightPositionUniform = uniformLocation("lightPosition");
+    _lightColorUniform    = uniformLocation("lightColor");
+    _specularColorUniform = uniformLocation("specularColor");
+  }
 
-    setUniform(uniformLocation("ambientOcclusionTexture"), AmbientOcclusionUnit);
+  setUniform(uniformLocation("ambientOcclusionTexture"), AmbientOcclusionUnit);
 }
 
-SsaoApplyShader& SsaoApplyShader::bindAlbedoTexture(GL::Texture2D& texture){
-    texture.bind(AlbedoUnit);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::bindAlbedoTexture(GL::Texture2D& texture) {
+  texture.bind(AlbedoUnit);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::bindOcclusionTexture(GL::Texture2D& texture){
-    texture.bind(AmbientOcclusionUnit);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::bindOcclusionTexture(GL::Texture2D& texture) {
+  texture.bind(AmbientOcclusionUnit);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::bindNormalTexture(GL::Texture2D& texture){
-    texture.bind(NormalUnit);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::bindNormalTexture(GL::Texture2D& texture) {
+  texture.bind(NormalUnit);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::bindPositionTexture(GL::Texture2D& texture){
-    texture.bind(PositionUnit);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::bindPositionTexture(GL::Texture2D& texture) {
+  texture.bind(PositionUnit);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::setLightPosition(const Vector3& position){
-    setUniform(_lightPositionUniform, position);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::setLightPosition(const Vector3& position) {
+  setUniform(_lightPositionUniform, position);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::setLightColor(const Color3& color){
-    setUniform(_lightColorUniform, color);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::setLightColor(const Color3& color) {
+  setUniform(_lightColorUniform, color);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::setShininess(Float shininess){
-    setUniform(_shininessUniform, shininess);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::setShininess(Float shininess) {
+  setUniform(_shininessUniform, shininess);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::setSpecularColor(const Color3& color){
-    setUniform(_specularColorUniform, color);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::setSpecularColor(const Color3& color) {
+  setUniform(_specularColorUniform, color);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::setAOBlurRadius(Int radius){
-    setUniform(_aoBlurRadiusUniform, radius);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::setAOBlurRadius(Int radius) {
+  setUniform(_aoBlurRadiusUniform, radius);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::setAOBlurFeature(Float feature){
-    setUniform(_aoBlurFeatureUniform, feature);
-    return *this;
+SsaoApplyShader& SsaoApplyShader::setAOBlurFeature(Float feature) {
+  setUniform(_aoBlurFeatureUniform, feature);
+  return *this;
 }
 
-SsaoApplyShader& SsaoApplyShader::setAOPow(Float pow){
-    setUniform(_aoPowUniform, pow);
-    return *this;
-}
-
-
-
+SsaoApplyShader& SsaoApplyShader::setAOPow(Float pow) {
+  setUniform(_aoPowUniform, pow);
+  return *this;
 }

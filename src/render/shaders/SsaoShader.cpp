@@ -14,16 +14,14 @@
 
 #include <random>
 
-namespace Magnum {
+using namespace Magnum;
 
-namespace {
 enum {
   PositionUnit  = 0,
   NormalUnit    = 1,
   NoiseUnit     = 2,
   OcclusionUnit = 3,
 };
-}
 
 SsaoShader::SsaoShader(UnsignedInt sampleCount) {
   Containers::Array<Vector3> randomSamples(Containers::NoInit, sampleCount);
@@ -123,5 +121,3 @@ SsaoShader& SsaoShader::setBias(Float bias) {
   setUniform(_biasUniform, bias);
   return *this;
 }
-
-}  // namespace Magnum

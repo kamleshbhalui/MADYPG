@@ -100,7 +100,7 @@ class Model {
     }
   }
 
-  const Vector4s deformation(const Vector6s& strain, int vix) {
+  const std::tuple<Vector4s,scalar,scalar> deformation(const Vector6s& strain, int vix) {
     Vector4s g = Vector4s::Zero();
 
     // TODO not pass vix?
@@ -110,11 +110,12 @@ class Model {
 
     int i0 = 0, i1 = 2;
     {
-      Vector4s x = m_tex2Ds_sxsy[y].blerp(strain[i0], strain[i1], t);
+      Vector4s x;
+      scalar dbg0, dbg1;
+      std::tie(x,dbg0,dbg1) = m_tex2Ds_sxsy[y].blerp(strain[i0], strain[i1], t);
       g += x - xref;
+      return std::make_tuple(g,dbg0,dbg1);
     }
-
-    return g;
   }
 
   const PeriodicYarnPattern& getPYP() const { return m_pyp; }
@@ -128,8 +129,8 @@ class Model {
   //  blerp: get cell, in cell: Gxx = pwise(T,Xij,t), use
   struct Tex2D {
     void init() {
-      inv0.reserve(int(S0.size()) - 1);
-      inv1.reserve(int(S1.size()) - 1);
+      inv0.resize(int(S0.size()) - 1);
+      inv1.resize(int(S1.size()) - 1);
       for (size_t i = 0; i < inv0.size(); i++)
         inv0[i] = 1 / (S0[i + 1] - S0[i]);
       for (size_t i = 0; i < inv1.size(); i++)
@@ -148,7 +149,7 @@ class Model {
       return (1 - a) * X.row(i) + a * X.row(i + 1);
     }
 
-    Vector4s blerp(scalar s0, scalar s1, scalar t) {
+    std::tuple<Vector4s,scalar,scalar> blerp(scalar s0, scalar s1, scalar t) {
 
 
       // s0=0;s1=0;
@@ -162,16 +163,19 @@ class Model {
                                                           S1.end() - 1, s1)) -
                1;
 
-      // Debug::log(i0,i1);
       // Debug::log(i0,S0.size(),i1,S1.size());
 
       // coeff
       scalar a = (s0 - S0[i0]) * inv0[i0];
       scalar b = (s1 - S1[i1]) * inv1[i1];
 
+      // Debug::log("   ",S0[i0],s0,S0[i0+1],"_____",(1-a)*S0[i0]+a*S0[i0+1]);
+      
+
       // clamp extrapolation
       a = std::min(std::max(scalar(0), a), scalar(1));
       b = std::min(std::max(scalar(0), b), scalar(1));
+
 
       // bilinear
       Vector4s G00 = pwiselerp(*T, X_arr[i0 * S1.size() + i1], t);
@@ -182,7 +186,7 @@ class Model {
       Vector4s g = (1 - a) * (1 - b) * G00 + a * (1 - b) * G10 +
                    (1 - a) * b * G01 + a * b * G11;
 
-      return g;
+      return std::make_tuple(g,a,b);
     }
 
     std::vector<scalar> inv0, inv1;
