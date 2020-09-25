@@ -63,6 +63,14 @@ Vector2s Grid::lowerLeft(int i, int j) const {
 }
 
 void Grid::fromTiling(const Mesh& mesh, const PYP& pyp) {
+  if (mesh.empty()) {
+    nx = ny = 0;
+    cx = cy = 0;
+    offset << 0,0;
+    pivot << 0,0;
+    return;
+  }
+
   // compute uv bounds PARALLELIZABLE (reduce both min and max simulatenously
   // or separately)
   Vector2s uv_min = mesh.U.colwise().minCoeff();

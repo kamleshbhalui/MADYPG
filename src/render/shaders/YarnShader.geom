@@ -8,11 +8,12 @@ layout (lines_adjacency) in;
 // layout (lines) in;
 layout (triangle_strip, max_vertices = NVERTICES) out;
 
-in ExtraData {
+in V2G {
     highp vec2 uv;
+    float r;
 } gs_in[];
 
-out ExtraData {
+out G2F {
     highp vec2 uv;
 } gs_out;
 
@@ -69,8 +70,8 @@ vec3 createPerp(vec3 invec)
 
 void main() { 
 
-  float r1 = 1.0 * radius;
-  float r2 = 1.0 * radius;
+  float r1 = gs_in[1].r * radius;
+  float r2 = gs_in[2].r * radius;
 
   // segment tangent, and weighted avg vertex tangents
   vec3 t = V1.gl_Position.xyz - V0.gl_Position.xyz;
@@ -95,18 +96,18 @@ void main() {
     //                 ca*b.y + sa*n.y,
     //                 ca*b.z + sa*n.z );
 
-    gs_out.uv = gs_in[1].uv;
+    gs_out.uv = gs_in[2].uv;
     viewNormal = vec3( ca*nv1.x + sa*bv1.x,
                 ca*nv1.y + sa*bv1.y,
                 ca*nv1.z + sa*bv1.z );
-    viewPosition = V1.gl_Position.xyz + r2*viewNormal;
+    viewPosition = V1.gl_Position.xyz + r2 * viewNormal;
     gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();   
     
-    gs_out.uv = gs_in[0].uv;
+    gs_out.uv = gs_in[1].uv;
     viewNormal = vec3( ca*nv0.x + sa*bv0.x,
                 ca*nv0.y + sa*bv0.y,
                 ca*nv0.z + sa*bv0.z );
-    viewPosition = V0.gl_Position.xyz + r1*viewNormal;  
+    viewPosition = V0.gl_Position.xyz + r1 * viewNormal;  
     gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();  
 
   }

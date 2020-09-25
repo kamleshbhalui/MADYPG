@@ -44,7 +44,7 @@ class YarnMapper {
   }
   float getRadius() const { return m_model->getPYP().r; }
 
-  bool initialized() const { return m_initialized; }
+  bool isInitialized() const { return m_initialized; }
 
   // timing
   Debug::MovingAverageTimer<10, std::chrono::microseconds> m_timer;

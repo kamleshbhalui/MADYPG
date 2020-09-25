@@ -26,6 +26,8 @@ class Mesh {
   void compute_vertex_normals();
   void compute_vertex_strains();
 
+  bool empty() const { return (U.rows() == 0) || (Fms.rows() == 0); }
+
   // private:
   MatrixGLf X, U;    // vertex positions and uv coordinates
   MatrixGLi F, Fms;  // tri or quad faces {[v0, v1, v2(, v3)],...} for

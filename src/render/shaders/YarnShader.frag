@@ -31,7 +31,7 @@
 in highp vec3 viewPosition;
 in highp vec3 viewNormal;
 
-in ExtraData {
+in G2F {
     highp vec2 uv;
 } gs_out;
 
@@ -44,25 +44,15 @@ out highp vec3 normal;
 
 uniform vec4 diffuseColor;
 uniform sampler2D matcap;
-uniform sampler2D heatmap;
 uniform sampler2D tex_cloth;
 uniform float tex_scale = 1;
 
-// #define DEBUG_COLOR
-
 
 void main() {
-    // color = diffuseColor; // TODO SAMPLE TEXTURE based on uv = viewnormal.xy 
-    // color = vec4(texture(matcap, viewNormal.xy).rgb, 1.0);
-    // vec2 uv = viewNormal.xy * 2 - 1;
     vec2 mat_uv = viewNormal.xy * 0.5 + 0.5;
     color = vec4(texture(matcap, mat_uv).rgb, 1.0) * diffuseColor;
     position = viewPosition;
     normal = viewNormal; //;vec3(0.0,0.0,1.0);
 
-    // color.rgb *= texture(tex_cloth, gs_out.uv * tex_scale).rgb;
-
-#ifdef DEBUG_COLOR
-    color.rgb = texture(heatmap, gs_out.uv).rgb;
-#endif
+    color.rgb *= texture(tex_cloth, gs_out.uv * tex_scale).rgb;
 }

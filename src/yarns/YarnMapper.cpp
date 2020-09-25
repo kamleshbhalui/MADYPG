@@ -6,18 +6,12 @@
 void YarnMapper::step() {
   m_timer.tick();
 
-  if (m_initialized) {
-    if (!m_settings.repeat_frame) {
-      // step the mesh provider
-      m_meshProvider->update();
-      m_timer.tock("mesh provider update");
-    }
-  } else {
+  if (!m_initialized) {
     // set up mesh provider
     m_meshProvider = std::static_pointer_cast<AbstractMeshProvider>(
         std::make_shared<ObjSeqAnimation>(m_settings.objseq_settings));
 
-    Debug::log("# mesh vertices:",
+    Debug::log("# mesh faces:",
                Debug::format_locale(m_meshProvider->getMesh().Fms.rows(),
                                     "en_US.UTF-8"));
 
@@ -27,17 +21,22 @@ void YarnMapper::step() {
   }
 
   Mesh& mesh = m_meshProvider->getMesh();
-  // if (false)  //
-  // {
-  //   // copy ms into ws // DEBUG
-  //   mesh.F = mesh.Fms;
-  //   mesh.X.resize(mesh.U.rows(), 3);
-  //   mesh.X.col(0) = mesh.U.col(0);
-  //   mesh.X.col(1) = mesh.U.col(1);
-  //   mesh.X.col(2).setZero();
-  // }
+  if (mesh.empty() ||
+      !m_model->isInitialized()) {  // couldn't load model or no mesh
+    m_initialized = true;
+    return;
+  }
 
-  if ((m_meshProvider->materialSpaceChanged() && !m_settings.repeat_frame) || !m_initialized) {
+  if (m_initialized) {
+    if (!m_settings.repeat_frame) {
+      // step the mesh provider
+      m_meshProvider->update();
+      m_timer.tock("mesh provider update");
+    }
+  }
+
+  if ((m_meshProvider->materialSpaceChanged() && !m_settings.repeat_frame) ||
+      !m_initialized) {
     m_grid.fromTiling(mesh, m_model->getPYP());
     m_grid.overlap_triangles(mesh);
 
@@ -115,11 +114,10 @@ void YarnMapper::step() {
     int n     = m_soup.num_vertices();
     auto& Xms = m_soup.get_Xms();
     auto& Xws = m_soup.get_Xws();
-    Xws.resize(Xms.rows(), Xms.cols() + 2);
-    threadutils::parallel_for(
-        0, n, [&](int i) { 
-          Xws.row(i) << Xms.row(i), Xms.block<1, 2>(i, 0); 
-          });
+    Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
+    threadutils::parallel_for(0, n, [&](int i) {
+      Xws.row(i) << Xms.row(i), Xms.block<1, 2>(i, 0), 1;
+    });
     m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
   }
 
@@ -131,7 +129,7 @@ void YarnMapper::step() {
     int nverts = m_soup.num_vertices();
     threadutils::parallel_for(0, nverts, [&](int vix) {
       auto x = m_soup.get_Xws().row(vix);
-      x << x(0), x(2), -x(1), x(3);
+      x << x(0), x(2), -x(1), x(3), x(0), x(1), 1;
     });
   }
 
@@ -143,7 +141,7 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
   int nverts = m_soup.num_vertices();
   auto& Xms  = m_soup.get_Xms();
   auto& Xws  = m_soup.get_Xws();
-  Xws.resize(Xms.rows(), Xms.cols() + 2);
+  Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
   threadutils::parallel_for(0, nverts, [&](int vix) {
     int tri = m_soup.get_tri(vix);
     if (tri < 0)  // skip unassigned vertex
@@ -162,13 +160,16 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
     }
 
     Vector4s g;
-    float dbg0,dbg1;
+    float dbg0, dbg1;
 
-    std::tie(g,dbg0,dbg1) = m_model->deformation(s, m_soup.getParametric(vix));
+    std::tie(g, dbg0, dbg1) =
+        m_model->deformation(s, m_soup.getParametric(vix));
     // store deformed ms coordinates intm. in ws coords
-    // Xws.row(vix) << Xms.row(vix) + g.transpose(), Xms.block<1, 2>(vix, 0);
-    // Xws.row(vix) << Xms.row(vix) + g.transpose(), s[0],s[2]; // DEBUG: visualize strain
-    Xws.row(vix) << Xms.row(vix) + g.transpose(), dbg0,dbg1; // DEBUG: visualize other
+    Xws.row(vix) << Xms.row(vix) + g.transpose(), Xms.block<1, 2>(vix, 0),1;
+    // Xws.row(vix) << Xms.row(vix) + g.transpose(), s[0],s[2],1; // DEBUG:
+    // visualize strain
+    // Xws.row(vix) << Xms.row(vix) + g.transpose(), dbg0, dbg1,
+        // 1;  // DEBUG: visualize other
   });
 }
 
@@ -205,5 +206,21 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
     ;
 
     x_ws.head<3>() = phi + h * n;
+  });
+
+  const auto& pyp = m_model->getPYP();
+
+  auto& Xws = m_soup.get_Xws();
+  threadutils::parallel_for(0, nverts, [&](int vix) {
+    int lix      = m_soup.getParametric(vix);
+    int next_vix = m_soup.getNext(vix);
+    scalar ratio;
+    if (next_vix >= 0)
+      ratio = pyp.RL[lix] /
+              (Xws.block<1, 3>(next_vix, 0) - Xws.block<1, 3>(vix, 0)).norm();
+    else
+      ratio = 1;
+
+    Xws(vix, 6) = std::min(std::max(scalar(0.8), ratio), scalar(1.2));
   });
 }

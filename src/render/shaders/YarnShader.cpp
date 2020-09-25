@@ -64,6 +64,7 @@ YarnShader::YarnShader() {
 
   bindAttributeLocation(Position::Location, "position");
   bindAttributeLocation(TextureCoordinates::Location, "uv");
+  bindAttributeLocation(Radius::Location, "local_radius");
 
   bindFragmentDataLocation(AlbedoOutput, "color");
   bindFragmentDataLocation(PositionsOutput, "position");
@@ -79,7 +80,6 @@ YarnShader::YarnShader() {
   // get uniform location and immediately use to set to textureunit
   setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
   setUniform(uniformLocation("tex_cloth"), TextureUnit_ClothTexture);
-  setUniform(uniformLocation("heatmap"), TextureUnit_HeatMap);
 }
 
 YarnShader &YarnShader::setTransformation(const Matrix4 &transformation) {
@@ -114,11 +114,6 @@ YarnShader &YarnShader::bindMatCap(GL::Texture2D &texture) {
 
 YarnShader &YarnShader::bindClothTexture(GL::Texture2D &texture) {
   texture.bind(TextureUnit_ClothTexture);
-  return *this;
-}
-
-YarnShader &YarnShader::bindHeatMap(GL::Texture2D &texture) {
-  texture.bind(TextureUnit_HeatMap);
   return *this;
 }
 

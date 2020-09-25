@@ -200,10 +200,6 @@ void Mesh::compute_face_data() {
       scalar invli = 1 / ei.norm();
       scalar theta = -signed_angle(n,ni,ei * invli);
       scalar c = theta * scalar(0.5) * invA * invli;
-      #warning check II sign against mathematica / arcsim. 
-      // NOTE @ warning: seems like II should be positive for bowl shape
-      // it might be that its just about the order of stuff passed to signed_angle
-      // if i change the sign here, also change it in python!
       s[3] += c * FTti[0] * FTti[0];
       s[4] += c * FTti[0] * FTti[1];
       s[5] += c * FTti[1] * FTti[1];

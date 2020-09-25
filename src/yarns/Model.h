@@ -17,8 +17,19 @@ void deserialize_matrix(const std::string& filename, MatrixGLf& M);
 class Model {
  public:
   Model(const std::string& folder) {
+    m_initialized = false;
+    if (!fs::is_directory(folder)) {
+      Debug::error("Could not load yarn model directory:", folder);
+      return;
+    }
+    const auto pypfile = fs::path(folder) / "pyp";
+    if (!fs::exists(pypfile) || fs::is_directory(pypfile)) {
+      Debug::error("No 'pyp' file found in folder:", folder);
+      return;
+    }
+
     // Load model / pyp
-    m_pyp.deserialize(folder + "/pyp");  // DEBUG hardcoded file
+    m_pyp.deserialize(pypfile);  // DEBUG hardcoded file
     m_pyp.rectangulize();  // TODO potentially assume that this is true for new
     // pyp, but it should take only a millisecond anyway
     m_pyp.compute_parametric();  // TODO potentially cache // actually ideally
@@ -34,8 +45,7 @@ class Model {
     int i0 = 0, i1 = 2;  // DEBUG fixed sx sy
     {
       std::set<scalar> S0_set, S1_set;
-      std::string subfolder =
-          folder + "/" + strain_names[i0] + strain_names[i1];
+      auto subfolder = fs::path(folder) / (strain_names[i0] + strain_names[i1]);
       for (auto& p : fs::directory_iterator(subfolder)) {
         // split "GT_s0_s1"
         std::stringstream ss(p.path().filename());
@@ -66,15 +76,16 @@ class Model {
           std::snprintf(buf1, C, "%.3f", double(S1[j]));
           GT_preload[i * n1 + j].resize(m_pyp.Q.rows(), 4);
 
-          deserialize_matrix(subfolder + "/GT_" + buf0 + "_" + buf1,
-                             GT_preload[i * n1 + j]);
+          deserialize_matrix(
+              subfolder / (std::string("GT_") + buf0 + std::string("_") + buf1),
+              GT_preload[i * n1 + j]);
         }
       }
 
       m_tex2Ds_sxsy.resize(m_pyp.param_y2v.size());
       threadutils::parallel_for(
           size_t(0), m_pyp.param_y2v.size(), [&](size_t y) {
-            auto& tex = m_tex2Ds_sxsy[y];
+            auto& tex       = m_tex2Ds_sxsy[y];
             const auto& y2v = m_pyp.param_y2v[y];
             // store per-yarn T reference
             tex.T = &m_pyp.param_y2t[y];  // TODO: ptr
@@ -89,7 +100,8 @@ class Model {
                 // NOTE: TODO assuming that we are loading
                 // "GT" = [Sinv Rt utilde, dtheta]
                 for (size_t h = 0; h < y2v.size(); h++)
-                  tex.X_arr[k].row(h) << m_pyp.Q.row(y2v[h]) + GT_preload[k].row(y2v[h]);
+                  tex.X_arr[k].row(h)
+                      << m_pyp.Q.row(y2v[h]) + GT_preload[k].row(y2v[h]);
               }
             }
 
@@ -98,9 +110,11 @@ class Model {
             tex.init();
           });
     }
+    m_initialized = true;
   }
 
-  const std::tuple<Vector4s,scalar,scalar> deformation(const Vector6s& strain, int vix) {
+  const std::tuple<Vector4s, scalar, scalar> deformation(const Vector6s& strain,
+                                                         int vix) {
     Vector4s g = Vector4s::Zero();
 
     // TODO not pass vix?
@@ -112,15 +126,18 @@ class Model {
     {
       Vector4s x;
       scalar dbg0, dbg1;
-      std::tie(x,dbg0,dbg1) = m_tex2Ds_sxsy[y].blerp(strain[i0], strain[i1], t);
+      std::tie(x, dbg0, dbg1) =
+          m_tex2Ds_sxsy[y].blerp(strain[i0], strain[i1], t);
       g += x - xref;
-      return std::make_tuple(g,dbg0,dbg1);
+      return std::make_tuple(g, dbg0, dbg1);
     }
   }
 
   const PeriodicYarnPattern& getPYP() const { return m_pyp; }
+  bool isInitialized() const { return m_initialized; }
 
  private:
+  bool m_initialized;
   PeriodicYarnPattern m_pyp;
   static const std::vector<std::string> strain_names;
 
@@ -149,9 +166,7 @@ class Model {
       return (1 - a) * X.row(i) + a * X.row(i + 1);
     }
 
-    std::tuple<Vector4s,scalar,scalar> blerp(scalar s0, scalar s1, scalar t) {
-
-
+    std::tuple<Vector4s, scalar, scalar> blerp(scalar s0, scalar s1, scalar t) {
       // s0=0;s1=0;
 
       // find closest/containing cell
@@ -170,12 +185,10 @@ class Model {
       scalar b = (s1 - S1[i1]) * inv1[i1];
 
       // Debug::log("   ",S0[i0],s0,S0[i0+1],"_____",(1-a)*S0[i0]+a*S0[i0+1]);
-      
 
       // clamp extrapolation
       a = std::min(std::max(scalar(0), a), scalar(1));
       b = std::min(std::max(scalar(0), b), scalar(1));
-
 
       // bilinear
       Vector4s G00 = pwiselerp(*T, X_arr[i0 * S1.size() + i1], t);
@@ -186,7 +199,7 @@ class Model {
       Vector4s g = (1 - a) * (1 - b) * G00 + a * (1 - b) * G10 +
                    (1 - a) * b * G01 + a * b * G11;
 
-      return std::make_tuple(g,a,b);
+      return std::make_tuple(g, a, b);
     }
 
     std::vector<scalar> inv0, inv1;

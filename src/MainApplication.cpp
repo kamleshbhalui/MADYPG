@@ -6,14 +6,93 @@ using namespace Magnum;
 using namespace Math::Literals;
 
 void setupTexture(GL::Texture2D &texture, Magnum::Vector2i const &size,
-                          GL::TextureFormat format);
+                  GL::TextureFormat format);
 void setupTexture(GL::Texture2D &texture, Magnum::Vector2i const &size,
-                          GL::TextureFormat format) {
+                  GL::TextureFormat format) {
   texture = GL::Texture2D{};
   texture.setMagnificationFilter(GL::SamplerFilter::Linear)
       .setMinificationFilter(GL::SamplerFilter::Linear)
       .setWrapping(GL::SamplerWrapping::ClampToEdge)
       .setStorage(1, format, size);
+}
+
+void makeDefaultTexture(GL::Texture2D &tex2D);
+void makeDefaultTexture(GL::Texture2D &tex2D) {
+  Containers::Array<Vector4> data(Containers::NoInit, 1);
+  data[0] = Vector4(1.0f);
+  ImageView2D view{PixelFormat::RGBA32F, {1, 1}, data};
+
+  tex2D = GL::Texture2D{};
+  tex2D.setMagnificationFilter(GL::SamplerFilter::Linear)
+      .setMinificationFilter(GL::SamplerFilter::Linear)
+      .setWrapping(GL::SamplerWrapping::Repeat)
+      .setStorage(1, GL::TextureFormat::RGBA32F, view.size())
+      .setSubImage(0, {}, view);
+}
+
+#include <functional>
+namespace ImGui {
+bool TextBrowser(ImGui::FileBrowser &browser, std::string &txt,
+           std::function<void()> onChange=[](){});
+bool TextBrowser(ImGui::FileBrowser &browser, std::string &txt,
+           std::function<void()> onChange) {
+  ImGui::PushID(&txt);
+  ImGui::PushItemWidth(150);
+  if (ImGui::InputText("##txt", &txt, ImGuiInputTextFlags_EnterReturnsTrue)) {
+    onChange();
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    ImGui::Button("Browse");
+    ImGui::PopID();
+    return true;
+  }
+  ImGui::PopItemWidth();
+  ImGui::SameLine();
+  if (ImGui::Button("Browse")) {
+    browser.SetPwd(std::filesystem::path(txt).parent_path());
+    browser.Open();
+  }
+  browser.Display();
+  if (browser.HasSelected()) {
+    txt = std::filesystem::relative(browser.GetSelected().string());
+    browser.ClearSelected();
+    onChange();
+    ImGui::PopID();
+    return true;
+  }
+  ImGui::PopID();
+  return false;
+}
+}  // namespace ImGui
+
+bool loadTexture(const std::string &file, GL::Texture2D &tex2D,
+                 GL::SamplerWrapping wrapping = GL::SamplerWrapping::Repeat);
+bool loadTexture(const std::string &file, GL::Texture2D &tex2D,
+                 GL::SamplerWrapping wrapping) {
+  PluginManager::Manager<Trade::AbstractImporter> manager;
+  Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
+  if (!importer.openFile(file)) {
+    ::Debug::error("Couldn't load texture:", file);
+    makeDefaultTexture(tex2D);
+    return false;
+  }
+  Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
+  CORRADE_INTERNAL_ASSERT(image);
+  if (!image) {
+    ::Debug::error("Couldn't load texture image:", file);
+    makeDefaultTexture(tex2D);
+    return false;
+  }
+  tex2D = GL::Texture2D();
+  tex2D.setWrapping(wrapping)
+      .setMagnificationFilter(GL::SamplerFilter::Linear)
+      .setMinificationFilter(GL::SamplerFilter::Linear,
+                             GL::SamplerMipmap::Linear)
+      .setStorage(Math::log2(image->size().min()) + 1,
+                  GL::textureFormat(image->format()), image->size())
+      .setSubImage(0, {}, *image)
+      .generateMipmap();
+  return true;
 }
 
 void MainApplication::reset_simulation() {
@@ -24,7 +103,6 @@ void MainApplication::reset_simulation() {
 
   _yarnMapper->m_settings = _yarnMapperSettings;
 
-  ::Debug::log(_yarnMapper->m_settings.modelfolder);
   _yarnMapper->initialize();
   _yarnDrawable.back().setIndices(_yarnMapper->getIndices());
   _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
@@ -38,35 +116,6 @@ void MainApplication::reset_simulation() {
 
 MainApplication::MainApplication(const Arguments &arguments)
     : Platform::Application{arguments, NoCreate} {
-  // std::string meshPath;
-  // {
-  //   // if(Utility::Directory::exists(SSAO_EXAMPLE_DIR))
-  //   //     meshPath = SSAO_EXAMPLE_DIR;
-  //   // else if(Utility::Directory::exists(SSAO_EXAMPLE_INSTALL_DIR))
-  //   //     meshPath = SSAO_EXAMPLE_INSTALL_DIR;
-  //   // else
-  //   meshPath =
-  //       Utility::Directory::path(Utility::Directory::executableLocation());
-  //   meshPath = Utility::Directory::join(meshPath, "../../src/Armadillo.ply");
-  //   // meshPath = Utility::Directory::join(meshPath, "Armadillo.ply");
-
-  //   /* Finally, provide a way for the user to override the model directory */
-  //   Utility::Arguments args;
-  //   args.addFinalOptionalArgument("mesh", meshPath)
-  //       .setHelp("mesh", "Path to the mesh you want to import")
-  //       .addSkippedPrefix("magnum", "engine-specific options")
-  //       .setGlobalHelp(
-  //           "Press P to toggle between phong shading and phong shading +
-  //           ssao\n" "Press H in debug mode to hot reload the shaders\n"
-  //           "Press C in debug mode to use a compute shader in the ssao
-  //           pass\n" "Press R to reset the camera\n" "Press L to toggle
-  //           lagging for the camera controls\n")
-  //       .parse(arguments.argc, arguments.argv);
-  //   /* relative paths are brittle, so prepend CWD to them if needed */
-  //   meshPath = Utility::Directory::join(Utility::Directory::current(),
-  //                                       args.value("mesh"));
-  // }
-
   /* Setup window */
   {
     const Vector2 dpiScaling = this->dpiScaling({});
@@ -138,13 +187,17 @@ MainApplication::MainApplication(const Arguments &arguments)
 
     {  // default settings
       _yarnMapperSettings.modelfolder            = "models/model_rib";
-      _yarnMapperSettings.objseq_settings.folder = "objseqs/sxsy";
+      _yarnMapperSettings.objseq_settings.folder = "objseqs/sxsy_const";
       _yarnMapperSettings.objseq_settings.constant_material_space = true;
     }
-    _fileDialog = std::make_unique<ImGui::FileBrowser>(
+    _folderDialog = std::make_unique<ImGui::FileBrowser>(
         ImGuiFileBrowserFlags_SelectDirectory |
         ImGuiFileBrowserFlags_CloseOnEsc);
-    _fileDialog->SetTitle("File Dialog");
+    _folderDialog->SetTitle("Select folder");
+    _fileDialog =
+        std::make_unique<ImGui::FileBrowser>(ImGuiFileBrowserFlags_CloseOnEsc);
+    _fileDialog->SetTitle("Select file");
+
     {
       _yarnDrawable.emplace_back(_yarnGeometryShader);
       _meshdrawable = std::make_unique<MeshDrawable<MeshShader>>(_meshShader);
@@ -152,59 +205,10 @@ MainApplication::MainApplication(const Arguments &arguments)
 
     reset_simulation();
 
-    PluginManager::Manager<Trade::AbstractImporter> manager;
-    Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
-    {
-      if (!importer.openFile("matcaps/lighting0.jpg"))
-        // if (!importer.openFile("matcaps/hughsk/00036.png"))
-        // if (!importer.openFile("matcaps/mua/test_gold.jpg"))
-        std::exit(2);
-      Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
-      CORRADE_INTERNAL_ASSERT(image);
-      _matcap = GL::Texture2D();
-      _matcap.setWrapping(GL::SamplerWrapping::ClampToEdge)
-          .setMagnificationFilter(GL::SamplerFilter::Linear)
-          .setMinificationFilter(GL::SamplerFilter::Linear,
-                                 GL::SamplerMipmap::Linear)
-          .setStorage(Math::log2(image->size().min()) + 1,
-                      GL::textureFormat(image->format()), image->size())
-          .setSubImage(0, {}, *image)
-          .generateMipmap();
-    }
-    {
-      if (!importer.openFile("textures/color.jpg"))
-        std::exit(2);
-      Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
-      CORRADE_INTERNAL_ASSERT(image);
-      _clothTexture = GL::Texture2D();
-      _clothTexture.setWrapping(GL::SamplerWrapping::Repeat)
-          .setMagnificationFilter(GL::SamplerFilter::Linear)
-          .setMinificationFilter(GL::SamplerFilter::Linear,
-                                 GL::SamplerMipmap::Linear)
-          .setStorage(Math::log2(image->size().min()) + 1,
-                      GL::textureFormat(image->format()), image->size())
-          .setSubImage(0, {}, *image)
-          .generateMipmap();
-    }
-    {
-      if (!importer.openFile("heatmaps/heatmap2D.png"))
-        std::exit(2);
-      Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
-      CORRADE_INTERNAL_ASSERT(image);
-      _heatMap = GL::Texture2D();
-      _heatMap.setWrapping(GL::SamplerWrapping::Repeat)
-          .setMagnificationFilter(GL::SamplerFilter::Linear)
-          .setMinificationFilter(GL::SamplerFilter::Linear,
-                                 GL::SamplerMipmap::Linear)
-          .setStorage(Math::log2(image->size().min()) + 1,
-                      GL::textureFormat(image->format()), image->size())
-          .setSubImage(0, {}, *image)
-          .generateMipmap();
-
-      // NOTE: in case of trying to load a 1D image:
-      //   make 1D view onto the first row of 2D-loaded jpg
-      //   ImageView1D img1D{img2D.format(), img2D.size().x(), img2D.data()};
-    }
+    // PluginManager::Manager<Trade::AbstractImporter> manager;
+    // Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
+    loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
+    loadTexture(_clothtexture_file, _clothTexture, GL::SamplerWrapping::Repeat);
   }
 
   /* Set up the arcball and projection */
@@ -237,7 +241,7 @@ void MainApplication::drawEvent() {
 
   bool simChanged = false;
   if (!_paused || _single_step) {  // SIM
-    if (_yarnMapper->initialized()) {
+    if (_yarnMapper->isInitialized()) {
       // force update some settings
       _yarnMapper->m_settings = _yarnMapperSettings;
       _yarnMapper->step();
@@ -276,10 +280,9 @@ void MainApplication::drawEvent() {
         .clearDepth(1.0)
         .bind();
 
-    if (_render_yarns && _yarnMapper->initialized()) {
+    if (_render_yarns && _yarnMapper->isInitialized()) {
       _yarnGeometryShader.bindMatCap(_matcap);
       _yarnGeometryShader.bindClothTexture(_clothTexture);
-      _yarnGeometryShader.bindHeatMap(_heatMap);
       _yarnGeometryShader.setProjection(_projection);
       _yarnGeometryShader.setTextureScale(_clothTexture_scale);
       _yarnDrawable.back().m_radius =
@@ -391,6 +394,15 @@ void MainApplication::drawSettings() {
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(100.0f);
 
+  if (ImGui::Button("Hot Reload Shaders")) {
+    Utility::Resource::overrideGroup("ssao-data",
+                                      "src/render/shaders/resources.conf");
+    _ssaoShader         = SsaoShader{};
+    _ssaoApplyShader    = SsaoApplyShader{_ssaoApplyFlag};
+    _yarnGeometryShader = YarnShader{};
+    _meshShader         = MeshShader{};
+  }
+  
   if (ImGui::CollapsingHeader("SSAO" /*, ImGuiTreeNodeFlags_DefaultOpen*/)) {
     ImGui::Indent();
     {
@@ -422,20 +434,20 @@ void MainApplication::drawSettings() {
       _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
     }
 
-    if (ImGui::Button("Hot Reload Shaders")) {
-      Utility::Resource::overrideGroup("ssao-data",
-                                       "src/render/shaders/resources.conf");
-      _ssaoShader         = SsaoShader{};
-      _ssaoApplyShader    = SsaoApplyShader{_ssaoApplyFlag};
-      _yarnGeometryShader = YarnShader{};
-      _meshShader         = MeshShader{};
-    }
-
     ImGui::Unindent();
   }
 
   if (ImGui::CollapsingHeader("Other", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui::Indent();
+
+    ImGui::TextBrowser(*_fileDialog.get(), _matcap_file, [&](){
+        loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
+        _yarnGeometryShader.bindMatCap(_matcap);
+    });
+    ImGui::TextBrowser(*_fileDialog.get(), _clothtexture_file, [&](){
+        loadTexture(_clothtexture_file, _clothTexture, GL::SamplerWrapping::Repeat);
+        _yarnGeometryShader.bindClothTexture(_clothTexture);
+    });
 
     ImGui::Checkbox("Yarns", &_render_yarns);
     ImGui::SameLine();
@@ -504,42 +516,10 @@ void MainApplication::drawSettings() {
   //   ImGui::PopStyleVar();
   ImGui::Checkbox("Deform Ref.", &_yarnMapperSettings.deform_reference);
   ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);
-  {
-    std::string &txt = _yarnMapperSettings.modelfolder;
-    ImGui::PushID(&txt);
-    ImGui::PushItemWidth(150);
-    ImGui::InputText("##txt", &txt);
-    ImGui::PopItemWidth();
-    ImGui::SameLine();
-    if (ImGui::Button("Browse")) {
-      _fileDialog->SetPwd(std::filesystem::path(txt).parent_path());
-      _fileDialog->Open();
-    }
-    _fileDialog->Display();
-    if (_fileDialog->HasSelected()) {
-      txt = std::filesystem::relative(_fileDialog->GetSelected().string());
-      _fileDialog->ClearSelected();
-    }
-    ImGui::PopID();
-  }
-  {
-    std::string &txt = _yarnMapperSettings.objseq_settings.folder;
-    ImGui::PushID(&txt);
-    ImGui::PushItemWidth(150);
-    ImGui::InputText("##txt", &txt);
-    ImGui::PopItemWidth();
-    ImGui::SameLine();
-    if (ImGui::Button("Browse")) {
-      _fileDialog->SetPwd(std::filesystem::path(txt).parent_path());
-      _fileDialog->Open();
-    }
-    _fileDialog->Display();
-    if (_fileDialog->HasSelected()) {
-      txt = std::filesystem::relative(_fileDialog->GetSelected().string());
-      _fileDialog->ClearSelected();
-    }
-    ImGui::PopID();
-  }
+
+
+  ImGui::TextBrowser(*_folderDialog.get(), _yarnMapperSettings.modelfolder);
+  ImGui::TextBrowser(*_folderDialog.get(), _yarnMapperSettings.objseq_settings.folder);
 
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
@@ -582,41 +562,55 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
   if (_imgui.handleKeyPressEvent(event))
     return;
 
-  switch (event.key()) {
-    case KeyEvent::Key::Esc:
-      this->exit();
-      break;
-    case KeyEvent::Key::Space:
-      _paused = !_paused;
-      break;
-    case KeyEvent::Key::R:
-      reset_simulation();
-      break;
-    case KeyEvent::Key::S:
-      _single_step = true;
-      _paused      = true;
-      break;
-    case KeyEvent::Key::M:
-      _render_mesh = !_render_mesh;
-      break;
-    case KeyEvent::Key::Y:
-      _render_yarns = !_render_yarns;
-      break;
-    case KeyEvent::Key::One:
-      _arcball->setViewParameters(Vector3(-0.4f, 0.3f, 0.5f), Vector3(0),
-                                  Vector3(0, 1, 0));
-      break;
-    case KeyEvent::Key::Zero:
-    case KeyEvent::Key::Two:
-      _arcball->setViewParameters(Vector3(0, 1, 0), Vector3(0),
-                                  Vector3(0, 0, -1));
-      break;
-    case KeyEvent::Key::Three:
-      _arcball->setViewParameters(Vector3(0, 0, 1), Vector3(0),
-                                  Vector3(0, 1, 0));
-      break;
-    default:
-      break;
+  // key press events, that are only allowed while not editing a text field
+  if (!isTextInputActive()) {
+    float cam_d = 1.0f;
+    if ((event.modifiers() & KeyEvent::Modifier::Shift))
+      cam_d *= 2.0f;
+    if ((event.modifiers() & KeyEvent::Modifier::Ctrl))
+      cam_d *= 2.0f;
+    if ((event.modifiers() & KeyEvent::Modifier::Alt))
+      cam_d *= 0.5f;
+    switch (event.key()) {
+      case KeyEvent::Key::Esc:
+        this->exit();
+        break;
+      case KeyEvent::Key::Space:
+        _paused = !_paused;
+        break;
+      case KeyEvent::Key::R:
+        reset_simulation();
+        break;
+      case KeyEvent::Key::S:
+        _single_step = true;
+        _paused      = true;
+        break;
+      case KeyEvent::Key::M:
+        _render_mesh = !_render_mesh;
+        break;
+      case KeyEvent::Key::Y:
+        _render_yarns = !_render_yarns;
+        break;
+      case KeyEvent::Key::NumOne:
+      case KeyEvent::Key::One:
+        _arcball->setViewParameters(cam_d * Vector3(-0.4f, 0.3f, 0.5f),
+                                    Vector3(0), Vector3(0, 1, 0));
+        break;
+      case KeyEvent::Key::NumZero:
+      case KeyEvent::Key::Zero:
+      case KeyEvent::Key::NumTwo:
+      case KeyEvent::Key::Two:
+        _arcball->setViewParameters(cam_d * Vector3(0, 1, 0), Vector3(0),
+                                    Vector3(0, 0, -1));
+        break;
+      case KeyEvent::Key::NumThree:
+      case KeyEvent::Key::Three:
+        _arcball->setViewParameters(cam_d * Vector3(0, 0, 1), Vector3(0),
+                                    Vector3(0, 1, 0));
+        break;
+      default:
+        break;
+    }
   }
 }
 
@@ -680,4 +674,5 @@ void MainApplication::mouseScrollEvent(MouseScrollEvent &event) {
   event.setAccepted();
   redraw();
 }
+
 MAGNUM_APPLICATION_MAIN(Magnum::MainApplication)

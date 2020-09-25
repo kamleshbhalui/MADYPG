@@ -45,6 +45,7 @@ namespace Magnum
     using Position = Magnum::Shaders::Generic3D::Position;
     // using Normal = Magnum::Shaders::Generic3D::Normal;
     using TextureCoordinates = Magnum::Shaders::Generic3D::TextureCoordinates;
+    using Radius = GL::Attribute<2, Float>;
 
     enum
     {
@@ -64,15 +65,13 @@ namespace Magnum
     YarnShader &setRadius(float radius);
     YarnShader &bindMatCap(GL::Texture2D &texture);
     YarnShader &bindClothTexture(GL::Texture2D &texture);
-    YarnShader &bindHeatMap(GL::Texture2D &texture);
     YarnShader &setTextureScale(float scale);
 
   private:
     enum : Int
     {
       TextureUnit_Matcap = 0,
-      TextureUnit_HeatMap = 1,
-      TextureUnit_ClothTexture = 2
+      TextureUnit_ClothTexture = 1
     };
 
     Int _transformationUniform,

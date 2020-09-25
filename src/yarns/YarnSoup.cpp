@@ -247,8 +247,8 @@ void YarnSoup::generate_index_list() {
   auto delim = std::numeric_limits<uint32_t>::max();
   // [ y0v0 y0v1 y0v2 ... delim y1v0 y1v1 ... ]
 
-  // construct temporary vertex-edge table
-  MatrixXXRMi VE = MatrixXXRMi::Constant(
+  // construct temporary vertex-edge table // NOTE not temporary when using fancy radius
+  VE = MatrixXXRMi::Constant(
       X_ms.rows(), 2, -1);  // vertex edge table: vix -> [eix_prev, eix_next]
   threadutils::parallel_for(0, int(E.rows()), [&](int i) {
     if (E(i, 0) >= 0 && E(i, 1) >= 0) {

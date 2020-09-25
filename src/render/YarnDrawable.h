@@ -5,6 +5,7 @@
 #include <Magnum/GL/Renderer.h>
 #include <Magnum/GL/Mesh.h>
 #include <Magnum/Shaders/Generic.h>
+#include "shaders/YarnShader.h"
 #include <Magnum/Magnum.h>
 #include <numeric> // iota
 #include <vector>
@@ -14,17 +15,17 @@
 
 namespace Magnum
 {
-  template <typename Shader>
   class YarnDrawable
   {
   public:
     struct Vertex
     {
       Vector3 position;
+      float radius;
     };
 
     explicit YarnDrawable(
-        Shader &shader,
+        YarnShader &shader,
         GL::BufferUsage vertexBufferUsage = GL::BufferUsage::StreamDraw, // probably change every frame
         GL::BufferUsage indexBufferUsage = GL::BufferUsage::StaticDraw)  // probably only ever change once
         : m_indexBufferUsage(indexBufferUsage),
@@ -34,9 +35,10 @@ namespace Magnum
           // .setPrimitive(GL::MeshPrimitive::LineStrip);
           .setPrimitive(GL::MeshPrimitive::LineStripAdjacency);
       m_mesh.addVertexBuffer(
-          this->m_vertexBuffer, 0, Shaders::Generic3D::Position{},
+          this->m_vertexBuffer, 0, YarnShader::Position{},
           4, // skip twist variable for now
-          Shaders::Generic3D::TextureCoordinates{}
+          YarnShader::TextureCoordinates{},
+          YarnShader::Radius{}
           ); // something about memory layout of data in vertex buffer
 
       // enable breaking of linestrips within single index buffer by using the index GLuint::max
@@ -123,7 +125,7 @@ namespace Magnum
   protected:
     GL::BufferUsage m_indexBufferUsage, m_vertexBufferUsage;
     GL::Buffer m_indexBuffer, m_vertexBuffer;
-    Shader &m_shader;
+    YarnShader &m_shader;
     GL::Mesh m_mesh;
 
     void recalculateIndices(int n)

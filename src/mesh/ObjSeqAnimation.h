@@ -28,6 +28,12 @@ class ObjSeqAnimation : public AbstractMeshProvider {
   ObjSeqAnimation(const Settings& settings) : m_settings(settings) {
     m_indicesDirty = true;
 
+    if (!fs::is_directory(m_settings.folder)) {  // keep uninitialized
+      Debug::error("Could not load mesh sequence directory:",
+                   m_settings.folder);
+      return;
+    }
+
     // get sorted list of files
     m_iter = 0;
     for (auto& p : fs::directory_iterator(m_settings.folder)) {
@@ -44,6 +50,11 @@ class ObjSeqAnimation : public AbstractMeshProvider {
   ~ObjSeqAnimation() {}
 
   void update() {
+    if (m_files.empty()) {
+      m_indicesDirty = false;
+      return;
+    }
+
     // repeat
     if (m_iter >= m_files.size() && m_settings.repeat) {
       m_iter = 0;

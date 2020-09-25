@@ -1,8 +1,8 @@
 #ifndef __YARNSOUP__H__
 #define __YARNSOUP__H__
 
-#include "PeriodicYarnPattern.h"
 #include "Grid.h"
+#include "PeriodicYarnPattern.h"
 // #include "../EigenDefinitions.h"
 
 class YarnSoup {
@@ -10,7 +10,8 @@ class YarnSoup {
   void fill_from_grid(const PYP& pyp, const Grid& grid);
   void cut_outside();
   void assign_triangles(const Grid& grid, const Mesh& mesh);
-  void reassign_triangles(const Grid& grid, const Mesh& mesh, bool default_same = false);
+  void reassign_triangles(const Grid& grid, const Mesh& mesh,
+                          bool default_same = false);
   void generate_index_list();
   const std::vector<uint32_t>& getIndices() const { return m_indices; }
   MatrixGLf& get_Xms() { return X_ms; }
@@ -22,16 +23,26 @@ class YarnSoup {
   const Vector3s& get_bary(int vix) const { return m_vbary[vix]; }
 
   int getParametric(int vix) { return m_pypix[vix]; }
+  int getNext(int vix) const {  // DEBUG for fancy radius
+    if (VE(vix, 1) < 0)
+      return -1;
+    return E(VE(vix, 1), 1);
+  }
 
  private:
   MatrixGLf X_ms;  // [u v h t] undeformed material space
   MatrixGLf X_ws;  // [x y z t] deformed world space
   MatrixXXRMi E;   // [v0 v1] edges
 
-  std::vector<uint32_t> m_indices; // [ y0v0 y0v1 y0v2 ... delim y1v0 y1v1 ... ]
-  std::vector<int> m_pypix; // index in pyp // TODO replace with something parametric: y,t
-  std::vector<int> m_v2tri; // triangle association per vertex
-  AlignedVector<Vector3s> m_vbary; // tri barycentric coordinates per vertex
+  MatrixXXRMi
+      VE;  // [eix_prev, eix_next] incident edges, ONLY NEEDED FOR FANCY RADIUS
+
+  std::vector<uint32_t>
+      m_indices;  // [ y0v0 y0v1 y0v2 ... delim y1v0 y1v1 ... ]
+  std::vector<int>
+      m_pypix;  // index in pyp // TODO replace with something parametric: y,t
+  std::vector<int> m_v2tri;         // triangle association per vertex
+  AlignedVector<Vector3s> m_vbary;  // tri barycentric coordinates per vertex
 };
 
-#endif // __YARNSOUP__H__
+#endif  // __YARNSOUP__H__

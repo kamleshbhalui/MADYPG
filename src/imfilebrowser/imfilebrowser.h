@@ -26,16 +26,14 @@ SOFTWARE.
 
 #pragma once
 
-#include <imgui.h>
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <filesystem>
-#include <functional>
 #include <memory>
 #include <set>
 #include <string>
 #include <vector>
-// #include <version>
 
 #ifndef IMGUI_VERSION
 #   error "include imgui.h before this header"
@@ -114,16 +112,20 @@ namespace ImGui
         void SetTypeFilters(const std::vector<const char*> &typeFilters);
 
     private:
-
-        class ScopeGuard
+    
+        template <class Functor>
+        struct ScopeGuard
         {
-            std::function<void()> func_;
+            ScopeGuard(Functor&& t) : func(std::move(t)) { }
 
-        public:
+            ~ScopeGuard()
+            {
+                func();
+            }
 
-            template<typename T>
-            explicit ScopeGuard(T func) : func_(std::move(func)) { }
-            ~ScopeGuard() { func_(); }
+        private:
+
+            Functor func;
         };
 
         void SetPwdUncatched(const std::filesystem::path &pwd);
@@ -190,7 +192,8 @@ inline ImGui::FileBrowser::FileBrowser(ImGuiFileBrowserFlags flags)
         newDirNameBuf_ = std::make_unique<
                                 std::array<char, INPUT_NAME_BUF_SIZE>>();
 
-    inputNameBuf_->at(0) = '\0';
+    inputNameBuf_->front() = '\0';
+    inputNameBuf_->back() = '\0';
     SetTitle("file browser");
     SetPwd(std::filesystem::current_path());
 
@@ -475,7 +478,7 @@ inline void ImGui::FileBrowser::Display()
 #else
                             std::strncpy(inputNameBuf_->data(),
                                          u8StrToStr(rsc.name.u8string()).c_str(),
-                                         inputNameBuf_->size());
+                                         inputNameBuf_->size() - 1);
 #endif
                         }
                     }
@@ -487,12 +490,25 @@ inline void ImGui::FileBrowser::Display()
                 }
             }
 
-            if(IsItemClicked(0) && IsMouseDoubleClicked(0) && rsc.isDir)
-            {
-                setNewPwd = true;
-                newPwd = (rsc.name != "..") ? (pwd_ / rsc.name) :
-                                               pwd_.parent_path();
+
+            // if(IsItemClicked(0) && IsMouseDoubleClicked(0) && rsc.isDir)
+            // {
+            //     setNewPwd = true;
+            //     newPwd = (rsc.name != "..") ? (pwd_ / rsc.name) :
+            //                                    pwd_.parent_path();
+            // }
+            if (IsItemClicked(0) && IsMouseDoubleClicked(0)) {
+                if(rsc.isDir)
+                {
+                    setNewPwd = true;
+                    newPwd = (rsc.name != "..") ? (pwd_ / rsc.name) :
+                                                pwd_.parent_path();
+                } else if (selected && !(flags_ & ImGuiFileBrowserFlags_SelectDirectory)) { // double click on file
+                    ok_ = true;
+                    CloseCurrentPopup();
+                }
             }
+            
         }
     }
 
@@ -546,7 +562,7 @@ inline void ImGui::FileBrowser::Display()
         Text("%s", statusStr_.c_str());
     }
 
-    if (!typeFilters_.empty())
+    if(!typeFilters_.empty())
     {
         SameLine();
         PushItemWidth(8 * GetFontSize());

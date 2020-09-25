@@ -46,6 +46,9 @@
 #include "utils/debug_includes.h"
 #include "yarns/YarnMapper.h"
 
+
+
+
 namespace Magnum {
 
 using namespace Math::Literals;
@@ -53,6 +56,10 @@ using namespace Math::Literals;
 class MainApplication : public Platform::Application {
  public:
   explicit MainApplication(const Arguments &arguments);
+
+  struct ApplicationSettings {
+
+  } _settings;
 
  private:
   void drawEvent() override;
@@ -73,19 +80,21 @@ class MainApplication : public Platform::Application {
 
   void reset_simulation();
 
-  std::vector<YarnDrawable<YarnShader>> _yarnDrawable;
+  std::vector<YarnDrawable> _yarnDrawable;
   std::unique_ptr<MeshDrawable<MeshShader>> _meshdrawable;
   std::unique_ptr<YarnMapper> _yarnMapper;
   YarnMapper::Settings _yarnMapperSettings;
   std::unique_ptr<ImGui::FileBrowser> _fileDialog;
+  std::unique_ptr<ImGui::FileBrowser> _folderDialog;
   GL::Texture2D _matcap{NoCreate};
   GL::Texture2D _clothTexture{NoCreate};
-  GL::Texture2D _heatMap{NoCreate};
   bool _paused              = false;
   int _min_loop_ms = 16;
   bool _single_step         = false;
   bool _render_mesh         = true;
   bool _render_yarns        = true;
+  std::string _matcap_file = "matcaps/lighting0.jpg";
+  std::string _clothtexture_file = "textures/NONE";
   float _render_radius_mult = 1.0f;
   float _mesh_dz            = 0.0f;
   float _clothTexture_scale = 2.0f;
