@@ -32,10 +32,11 @@ void makeDefaultTexture(GL::Texture2D &tex2D) {
 
 #include <functional>
 namespace ImGui {
+bool TextBrowser(
+    ImGui::FileBrowser &browser, std::string &txt,
+    std::function<void()> onChange = []() {});
 bool TextBrowser(ImGui::FileBrowser &browser, std::string &txt,
-           std::function<void()> onChange=[](){});
-bool TextBrowser(ImGui::FileBrowser &browser, std::string &txt,
-           std::function<void()> onChange) {
+                 std::function<void()> onChange) {
   ImGui::PushID(&txt);
   ImGui::PushItemWidth(150);
   if (ImGui::InputText("##txt", &txt, ImGuiInputTextFlags_EnterReturnsTrue)) {
@@ -112,6 +113,13 @@ void MainApplication::reset_simulation() {
   const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
   _meshdrawable->setIndices(mesh.F);
   _meshdrawable->setVertices(mesh.X);
+
+  _obsmeshdrawables.clear();
+  for (const auto &obs : _yarnMapper->getMeshSimulation()->getObstacles()) {
+    _obsmeshdrawables.emplace_back(_obsMeshShader);
+    _obsmeshdrawables.back().setIndices(obs.mesh.F);
+    _obsmeshdrawables.back().setVertices(obs.mesh.X);
+  }
 }
 
 MainApplication::MainApplication(const Arguments &arguments)
@@ -182,6 +190,7 @@ MainApplication::MainApplication(const Arguments &arguments)
 
     _yarnGeometryShader = YarnShader{};
     _meshShader         = MeshShader{};
+    _obsMeshShader      = ObsMeshShader{};
     _ssaoShader         = SsaoShader{};
     _ssaoApplyShader    = SsaoApplyShader{};
 
@@ -208,6 +217,7 @@ MainApplication::MainApplication(const Arguments &arguments)
     // PluginManager::Manager<Trade::AbstractImporter> manager;
     // Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
     loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
+    loadTexture(_matcapObs_file, _matcapObs, GL::SamplerWrapping::ClampToEdge);
     loadTexture(_clothtexture_file, _clothTexture, GL::SamplerWrapping::Repeat);
   }
 
@@ -294,6 +304,30 @@ void MainApplication::drawEvent() {
       _meshShader.setProjection(_projection);
       _meshShader.setDZ(_mesh_dz);
       _meshdrawable->draw(tf);
+    }
+
+    if (_render_obstacles)
+    {
+      _obsMeshShader.bindMatCap(_matcapObs);
+      _obsMeshShader.setProjection(_projection);
+
+      const auto &obs = _yarnMapper->getMeshSimulation()->getObstacles();
+      ::Debug::msgassert(
+          "Different number of obstacles and obstacle drawables!",
+          obs.size() == _obsmeshdrawables.size());
+      for (size_t i = 0; i < obs.size(); i++) {
+        const auto &otrafo = obs[i].transformation;
+        Matrix4 MV         = tf *
+                     Matrix4::translation(Vector3{otrafo.translation[0],
+                                                  otrafo.translation[1],
+                                                  otrafo.translation[2]}) *
+                     Matrix4::scaling(Vector3(otrafo.scale)) *
+                     Matrix4::rotation(
+                         Rad(otrafo.axis_angle[0]),
+                         Vector3{otrafo.axis_angle[1], otrafo.axis_angle[2],
+                                 otrafo.axis_angle[3]});
+        _obsmeshdrawables[i].draw(MV);
+      }
     }
 
     _ssaoShader.bindNormalTexture(_normals)
@@ -396,13 +430,14 @@ void MainApplication::drawSettings() {
 
   if (ImGui::Button("Hot Reload Shaders")) {
     Utility::Resource::overrideGroup("ssao-data",
-                                      "src/render/shaders/resources.conf");
+                                     "src/render/shaders/resources.conf");
     _ssaoShader         = SsaoShader{};
     _ssaoApplyShader    = SsaoApplyShader{_ssaoApplyFlag};
     _yarnGeometryShader = YarnShader{};
     _meshShader         = MeshShader{};
+    _obsMeshShader      = ObsMeshShader{};
   }
-  
+
   if (ImGui::CollapsingHeader("SSAO" /*, ImGuiTreeNodeFlags_DefaultOpen*/)) {
     ImGui::Indent();
     {
@@ -440,18 +475,21 @@ void MainApplication::drawSettings() {
   if (ImGui::CollapsingHeader("Other", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui::Indent();
 
-    ImGui::TextBrowser(*_fileDialog.get(), _matcap_file, [&](){
-        loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
-        _yarnGeometryShader.bindMatCap(_matcap);
+    ImGui::TextBrowser(*_fileDialog.get(), _matcap_file, [&]() {
+      loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
+      _yarnGeometryShader.bindMatCap(_matcap);
     });
-    ImGui::TextBrowser(*_fileDialog.get(), _clothtexture_file, [&](){
-        loadTexture(_clothtexture_file, _clothTexture, GL::SamplerWrapping::Repeat);
-        _yarnGeometryShader.bindClothTexture(_clothTexture);
+    ImGui::TextBrowser(*_fileDialog.get(), _clothtexture_file, [&]() {
+      loadTexture(_clothtexture_file, _clothTexture,
+                  GL::SamplerWrapping::Repeat);
+      _yarnGeometryShader.bindClothTexture(_clothTexture);
     });
 
     ImGui::Checkbox("Yarns", &_render_yarns);
     ImGui::SameLine();
     ImGui::Checkbox("Mesh", &_render_mesh);
+    ImGui::SameLine();
+    ImGui::Checkbox("Obs", &_render_obstacles);
 
     {
       ImGui::PushItemWidth(100.0f);
@@ -461,6 +499,12 @@ void MainApplication::drawSettings() {
       ImGui::DragFloat("tex scale", &_clothTexture_scale, 0.1f, 0.0f, 100.0f);
       ImGui::PopItemWidth();
     }
+
+    
+    ImGui::TextBrowser(*_fileDialog.get(), _matcapObs_file, [&]() {
+      loadTexture(_matcapObs_file, _matcapObs, GL::SamplerWrapping::ClampToEdge);
+      _obsMeshShader.bindMatCap(_matcapObs);
+    });
 
     if (ImGui::Button("Reset Camera"))
       _arcball->reset();
@@ -514,12 +558,13 @@ void MainApplication::drawSettings() {
   ImGui::Checkbox("Shepard Weights", &_yarnMapperSettings.shepard_weights);
   // if (_yarnMapperSettings.flat_normals)
   //   ImGui::PopStyleVar();
-  ImGui::Checkbox("Deform Ref.", &_yarnMapperSettings.deform_reference);
+  ImGui::SliderFloat("Deform Ref.", &_yarnMapperSettings.deform_reference, 0.0f,
+                     1.0f);
   ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);
 
-
   ImGui::TextBrowser(*_folderDialog.get(), _yarnMapperSettings.modelfolder);
-  ImGui::TextBrowser(*_folderDialog.get(), _yarnMapperSettings.objseq_settings.folder);
+  ImGui::TextBrowser(*_folderDialog.get(),
+                     _yarnMapperSettings.objseq_settings.folder);
 
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
@@ -587,6 +632,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         break;
       case KeyEvent::Key::M:
         _render_mesh = !_render_mesh;
+        break;
+      case KeyEvent::Key::O:
+        _render_obstacles = !_render_obstacles;
         break;
       case KeyEvent::Key::Y:
         _render_yarns = !_render_yarns;

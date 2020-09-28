@@ -107,7 +107,7 @@ void YarnMapper::step() {
 
   m_timer.tock("mesh normals & strains");
 
-  if (m_settings.deform_reference) {
+  if (m_settings.deform_reference > scalar(1e-10)) {
     deform_reference(mesh, m_settings.flat_strains);
     m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
   } else {
@@ -164,6 +164,7 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
 
     std::tie(g, dbg0, dbg1) =
         m_model->deformation(s, m_soup.getParametric(vix));
+    g *= m_settings.deform_reference;
     // store deformed ms coordinates intm. in ws coords
     Xws.row(vix) << Xms.row(vix) + g.transpose(), Xms.block<1, 2>(vix, 0),1;
     // Xws.row(vix) << Xms.row(vix) + g.transpose(), s[0],s[2],1; // DEBUG:

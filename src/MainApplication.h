@@ -37,8 +37,10 @@
 
 #include "arcball/ArcBall.h"
 #include "arcball/ArcBallCamera.h"
+#include "render/ObsMeshDrawable.h"
 #include "render/MeshDrawable.h"
 #include "render/YarnDrawable.h"
+#include "render/shaders/ObsMeshShader.h"
 #include "render/shaders/MeshShader.h"
 #include "render/shaders/SsaoApplyShader.h"
 #include "render/shaders/SsaoShader.h"
@@ -82,18 +84,22 @@ class MainApplication : public Platform::Application {
 
   std::vector<YarnDrawable> _yarnDrawable;
   std::unique_ptr<MeshDrawable<MeshShader>> _meshdrawable;
+  std::vector<ObsMeshDrawable<ObsMeshShader>> _obsmeshdrawables;
   std::unique_ptr<YarnMapper> _yarnMapper;
   YarnMapper::Settings _yarnMapperSettings;
   std::unique_ptr<ImGui::FileBrowser> _fileDialog;
   std::unique_ptr<ImGui::FileBrowser> _folderDialog;
+  GL::Texture2D _matcapObs{NoCreate};
   GL::Texture2D _matcap{NoCreate};
   GL::Texture2D _clothTexture{NoCreate};
   bool _paused              = false;
   int _min_loop_ms = 16;
   bool _single_step         = false;
-  bool _render_mesh         = true;
+  bool _render_mesh         = false;
   bool _render_yarns        = true;
+  bool _render_obstacles    = true;
   std::string _matcap_file = "matcaps/lighting0.jpg";
+  std::string _matcapObs_file = "matcaps/lighting0.jpg";
   std::string _clothtexture_file = "textures/NONE";
   float _render_radius_mult = 1.0f;
   float _mesh_dz            = 0.0f;
@@ -103,6 +109,7 @@ class MainApplication : public Platform::Application {
   // std::unique_ptr<ArcBallCamera> _arcballCamera;
 
   MeshShader _meshShader{NoCreate};
+  ObsMeshShader _obsMeshShader{NoCreate};
   YarnShader _yarnGeometryShader{NoCreate};
   SsaoApplyShader _ssaoApplyShader{NoCreate};
   SsaoShader _ssaoShader{NoCreate};

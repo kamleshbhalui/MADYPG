@@ -17,7 +17,7 @@ class YarnMapper {
     bool flat_normals       = false;
     bool flat_strains       = false;
     bool shepard_weights    = true;
-    bool deform_reference   = true;
+    float deform_reference  = 1.0f;
     bool shell_map          = true;
     bool default_same_tri   = false;
     bool repeat_frame       = false;
