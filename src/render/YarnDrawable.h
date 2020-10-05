@@ -44,6 +44,20 @@ namespace Magnum
       // enable breaking of linestrips within single index buffer by using the index GLuint::max
       glEnable(GL_PRIMITIVE_RESTART);
       glPrimitiveRestartIndex(std::numeric_limits<GLuint>::max());
+    /* @ compute shader 
+      // only works if vertexbufferdata is correctly padded !!! (maybe not for std430 layout, when making struct just be floats, eg float val_x, val_y, val_z...)
+      m_vertexBuffer.bind(GL::Buffer::Target::ShaderStorage, inputV_index_in_shader?)
+      m_indexBuffer.bind(GL::Buffer::Target::ShaderStorage, inputI_index_in_shader?)
+      outputBuffer.bind(GL::Buffer::Target::ShaderStorage, outputV_index_in_shader?)
+      outputBuffer.bind(GL::Buffer::Target::ShaderStorage, outputF_index_in_shader?)
+      compshader.dispatchCompute({Nverts,1,1}) //local size 1,1,1 ie iterate each vertex separately
+
+      shader will check each vertex, if it is start (ix==0) or (ix-1 == RESTART) fill left cap, if (ix+1=last) or (ix+1 == RESTART) fill right, if ix==RESTART skip computation (and set output such that there is no face). slightly more complicated with more neighbor lookups maybe
+
+      cast outputbuffer.data() to vector<struct> and serialize
+
+      // https://github.com/mosra/magnum-examples/pull/91/files
+    */
     }
 
     void setIndices(const std::vector<UnsignedInt> &indices)
@@ -60,31 +74,6 @@ namespace Magnum
       // {
       //   std::cout<<M.row(i)<<"\n";
       // }
-      
-
-      // assume row major ? or col major? 
-
-      // Eigen::Map<Eigen::RowVectorXf> v({M.data()}, M.size());
-// (size_t) sizeof(typename Matrix::Scalar) *
-// std::cout<< (uint32_t(sizeof(typename Matrix::Scalar)) * uint32_t(M.size()))<<"\n";
-// std::cout<< uint32_t(sizeof(typename Matrix::Scalar))<<" * "<<uint32_t(M.size())<<"\n";
-//       if (M.innerSize() == M.outerStride()) {
-//         std::cout<< "YES\n";
-//       }else{
-//         std::cout<< "NO\n";
-
-//       }
-
-//       std::cout<< M.rows()<<" "<<M.cols()<<"\n";
-//       int N = 40000;
-//       for (int i = 0; i < N; i++)
-//       {
-//         std::cout<<M(i,0)<<" "<<M(i,1)<<" "<<M(i,2)<<"\n";
-//         std::cout<<M.data()[3*i+0]<<" "<<M.data()[3*i+1]<<" "<<M.data()[3*i+2]<<"\n";
-//       }
-//       std::cout<< "\n";
-      
-
       this->m_vertexBuffer.setData({M.data(),
         uint32_t(M.size())}, this->m_vertexBufferUsage);
     }

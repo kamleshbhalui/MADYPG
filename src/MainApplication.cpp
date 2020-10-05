@@ -196,6 +196,8 @@ MainApplication::MainApplication(const Arguments &arguments)
 
     {  // default settings
       _yarnMapperSettings.modelfolder            = "models/model_rib";
+      _yarnMapperSettings.provider_type = YarnMapper::Settings::Provider::BinSeq;
+      _yarnMapperSettings.binseq_settings.filepath = "binseqs/sock.bin";
       _yarnMapperSettings.objseq_settings.folder = "objseqs/sxsy_const";
       _yarnMapperSettings.objseq_settings.constant_material_space = true;
     }
@@ -275,7 +277,10 @@ void MainApplication::drawEvent() {
                                GL::FramebufferClear::Depth);
   bool require_redraw = simChanged || camChanged;
   if (require_redraw) {
-    const Matrix4 tf = _arcball->viewMatrix();
+    Matrix4 tf = _arcball->viewMatrix();
+    if (_rotate_scene) {
+      tf = tf * Matrix4::rotation(Rad(-1.57079632679f),Vector3::xAxis());
+    }
 
     /* render the scene into g-buffer */
     _framebuffer
@@ -316,17 +321,7 @@ void MainApplication::drawEvent() {
           "Different number of obstacles and obstacle drawables!",
           obs.size() == _obsmeshdrawables.size());
       for (size_t i = 0; i < obs.size(); i++) {
-        const auto &otrafo = obs[i].transformation;
-        Matrix4 MV         = tf *
-                     Matrix4::translation(Vector3{otrafo.translation[0],
-                                                  otrafo.translation[1],
-                                                  otrafo.translation[2]}) *
-                     Matrix4::scaling(Vector3(otrafo.scale)) *
-                     Matrix4::rotation(
-                         Rad(otrafo.axis_angle[0]),
-                         Vector3{otrafo.axis_angle[1], otrafo.axis_angle[2],
-                                 otrafo.axis_angle[3]});
-        _obsmeshdrawables[i].draw(MV);
+        _obsmeshdrawables[i].draw(tf, obs[i].transformation);
       }
     }
 
@@ -490,6 +485,7 @@ void MainApplication::drawSettings() {
     ImGui::Checkbox("Mesh", &_render_mesh);
     ImGui::SameLine();
     ImGui::Checkbox("Obs", &_render_obstacles);
+    ImGui::Checkbox("Rotate Scene", &_rotate_scene);
 
     {
       ImGui::PushItemWidth(100.0f);
@@ -563,8 +559,25 @@ void MainApplication::drawSettings() {
   ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);
 
   ImGui::TextBrowser(*_folderDialog.get(), _yarnMapperSettings.modelfolder);
+
+  static int elem = _yarnMapperSettings.provider_type;
+  static constexpr auto count = YarnMapper::Settings::Provider::COUNT;
+  const char* elems_names[count] = { "ObjSeq", "BinSeq", "XPBD" };
+  const char* elem_name = (elem >= 0 && elem < count) ? elems_names[elem] : "Unknown";
+  if (ImGui::SliderInt("slider enum", &elem, 0, count - 1, elem_name))
+    _yarnMapperSettings.provider_type = static_cast<YarnMapper::Settings::Provider>(elem);
+
+  if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::ObjSeq) {
   ImGui::TextBrowser(*_folderDialog.get(),
                      _yarnMapperSettings.objseq_settings.folder);
+  } else if(_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::BinSeq) {
+  ImGui::TextBrowser(*_fileDialog.get(),
+                     _yarnMapperSettings.binseq_settings.filepath);
+  } else {
+    ImGui::TextUnformatted("- not implemented -");
+  }
+
+
 
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
@@ -627,8 +640,14 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         reset_simulation();
         break;
       case KeyEvent::Key::S:
-        _single_step = true;
-        _paused      = true;
+        if ((event.modifiers() & KeyEvent::Modifier::Shift)) {
+          _paused = false;
+          _yarnMapperSettings.repeat_frame = !_yarnMapperSettings.repeat_frame;
+        }
+        else {
+          _single_step = true;
+          _paused      = true;
+        }
         break;
       case KeyEvent::Key::M:
         _render_mesh = !_render_mesh;
@@ -638,6 +657,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         break;
       case KeyEvent::Key::Y:
         _render_yarns = !_render_yarns;
+        break;
+      case KeyEvent::Key::F:
+        _rotate_scene = !_rotate_scene;
         break;
       case KeyEvent::Key::NumOne:
       case KeyEvent::Key::One:

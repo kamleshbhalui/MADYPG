@@ -8,8 +8,19 @@ void YarnMapper::step() {
 
   if (!m_initialized) {
     // set up mesh provider
-    m_meshProvider = std::static_pointer_cast<AbstractMeshProvider>(
-        std::make_shared<ObjSeqAnimation>(m_settings.objseq_settings));
+    switch(m_settings.provider_type) {
+      default:
+      case Settings::XPBD:
+        Debug::log("XPBD not implemented, defaulting to ObjSeq.");
+      case Settings::ObjSeq:
+        m_meshProvider = std::static_pointer_cast<AbstractMeshProvider>(
+            std::make_shared<ObjSeqAnimation>(m_settings.objseq_settings));
+        break;
+      case Settings::BinSeq:
+        m_meshProvider = std::static_pointer_cast<AbstractMeshProvider>(
+            std::make_shared<BinSeqAnimation>(m_settings.binseq_settings));
+        break;
+    }
 
     Debug::log("# mesh faces:",
                Debug::format_locale(m_meshProvider->getMesh().Fms.rows(),
@@ -109,7 +120,9 @@ void YarnMapper::step() {
 
   if (m_settings.deform_reference > scalar(1e-10)) {
     deform_reference(mesh, m_settings.flat_strains);
+    m_timer.tock("deform");
     m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
+    m_timer.tock("bary");
   } else {
     int n     = m_soup.num_vertices();
     auto& Xms = m_soup.get_Xms();
@@ -118,10 +131,11 @@ void YarnMapper::step() {
     threadutils::parallel_for(0, n, [&](int i) {
       Xws.row(i) << Xms.row(i), Xms.block<1, 2>(i, 0), 1;
     });
+    m_timer.tock("deform");
     m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
+    m_timer.tock("bary");
   }
 
-  m_timer.tock("deform & bary");
 
   if (m_settings.shell_map)
     shell_map(mesh, m_settings.flat_normals);

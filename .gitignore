@@ -8,3 +8,7 @@ __pycache__
 *XDG_CACHE_HOME*
 imgui.ini
 build*
+
+objseqs/*
+binseqs/*
+models/*

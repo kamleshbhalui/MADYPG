@@ -154,10 +154,12 @@ void load_obj_mesh(const std::string &filename, Mesh &mesh,
                               [&](size_t i) { mesh.U.row(i) = vt[i]; });
     threadutils::parallel_for(size_t(0), fms.size(),
                               [&](size_t i) { mesh.Fms.row(i) = fms[i]; });
-    Debug::msgassert(
-        "OBJ: v and vt data size inconsistent!",
-        v.size() <=
-            vt.size());  // NOTE: one worldspace vertex can have multiple uvs
+    // NOTE: TODO currently this method is called also for obstacle meshes where we don't need that guarantee
+    //   have to make it so it only checks for cloth meshes :/
+    // Debug::msgassert(
+    //     "OBJ: v and vt data size inconsistent! " + std::to_string(v.size()) + " !<= " + std::to_string(vt.size()), 
+    //     v.size() <=
+    //         vt.size());  // NOTE: one worldspace vertex can have multiple uvs
     threadutils::parallel_for(size_t(0), f.size(),
                               [&](size_t i) { mesh.F.row(i) = f[i]; });
   }

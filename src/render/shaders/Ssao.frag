@@ -62,6 +62,8 @@ void main()
     vec3 bitangent = cross(normal, tangent);
     mat3 TBN = mat3(tangent, bitangent, normal);
 
+    // NOTE: could larger scale shadow with radius=0.2, bias=0.05, strength=0.7
+
     /* iterate over the sample kernel and calculate occlusion factor */
     float occlusion = 0.0;
     for(int i = 0; i < SAMPLE_COUNT; ++i) {

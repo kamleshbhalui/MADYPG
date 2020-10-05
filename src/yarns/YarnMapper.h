@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "../mesh/ObjSeqAnimation.h"
+#include "../mesh/BinSeqAnimation.h"
 #include "Grid.h"
 #include "Model.h"
 #include "YarnSoup.h"
@@ -21,7 +22,14 @@ class YarnMapper {
     bool shell_map          = true;
     bool default_same_tri   = false;
     bool repeat_frame       = false;
+    enum Provider {
+      ObjSeq = 0,
+      BinSeq = 1,
+      XPBD = 2,
+      COUNT
+    } provider_type = Provider::BinSeq;
     ObjSeqAnimation::Settings objseq_settings;
+    BinSeqAnimation::Settings binseq_settings;
     // TODO XPBDMeshProvider::Settings xpbd_settings;
   } m_settings;
 

@@ -29,7 +29,6 @@
 #include <MagnumPlugins/JpegImporter/JpegImporter.h>
 #include <MagnumPlugins/PngImporter/PngImporter.h>
 #include <imgui.h>
-#include "imfilebrowser/imfilebrowser.h"
 
 #include <Magnum/ImGuiIntegration/Context.hpp>
 #include <memory>
@@ -37,19 +36,17 @@
 
 #include "arcball/ArcBall.h"
 #include "arcball/ArcBallCamera.h"
-#include "render/ObsMeshDrawable.h"
+#include "imfilebrowser/imfilebrowser.h"
 #include "render/MeshDrawable.h"
+#include "render/ObsMeshDrawable.h"
 #include "render/YarnDrawable.h"
-#include "render/shaders/ObsMeshShader.h"
 #include "render/shaders/MeshShader.h"
+#include "render/shaders/ObsMeshShader.h"
 #include "render/shaders/SsaoApplyShader.h"
 #include "render/shaders/SsaoShader.h"
 #include "render/shaders/YarnShader.h"
 #include "utils/debug_includes.h"
 #include "yarns/YarnMapper.h"
-
-
-
 
 namespace Magnum {
 
@@ -60,7 +57,6 @@ class MainApplication : public Platform::Application {
   explicit MainApplication(const Arguments &arguments);
 
   struct ApplicationSettings {
-
   } _settings;
 
  private:
@@ -92,19 +88,20 @@ class MainApplication : public Platform::Application {
   GL::Texture2D _matcapObs{NoCreate};
   GL::Texture2D _matcap{NoCreate};
   GL::Texture2D _clothTexture{NoCreate};
-  bool _paused              = false;
-  int _min_loop_ms = 16;
-  bool _single_step         = false;
-  bool _render_mesh         = false;
-  bool _render_yarns        = true;
-  bool _render_obstacles    = true;
-  std::string _matcap_file = "matcaps/lighting0.jpg";
-  std::string _matcapObs_file = "matcaps/lighting0.jpg";
-  std::string _clothtexture_file = "textures/NONE";
-  float _render_radius_mult = 1.0f;
-  float _mesh_dz            = 0.0f;
-  float _clothTexture_scale = 2.0f;
-  Color4 _bgColor           = Color4(Color3(0.2f), 1.0f);
+  bool _paused                   = false;
+  int _min_loop_ms               = 16;
+  bool _single_step              = false;
+  bool _render_mesh              = false;
+  bool _render_yarns             = true;
+  bool _render_obstacles         = true;
+  bool _rotate_scene             = false;
+  std::string _matcap_file       = "matcaps/lighting1.jpg";
+  std::string _matcapObs_file    = "matcaps/lighting1.jpg";
+  std::string _clothtexture_file = "textures/colorgridy.jpg";
+  float _render_radius_mult      = 1.0f;
+  float _mesh_dz                 = 0.0f;
+  float _clothTexture_scale      = 1.0f;
+  Color4 _bgColor                = Color4(Color3(0.2f), 1.0f);
 
   // std::unique_ptr<ArcBallCamera> _arcballCamera;
 

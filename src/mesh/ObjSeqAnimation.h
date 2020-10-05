@@ -10,9 +10,9 @@
 #include <filesystem>  // requires C++17, g++ >= 8 & linking to stdc++fs)
 #include <regex>
 
-#include "../tinyxml2/tinyxml2.h"
 #include "../utils/debug_logging.h"
 #include "meshio.h"
+#include "../io/trafoio.h"
 // namespace fs = std::experimental::filesystem;
 namespace fs = std::filesystem;
 
@@ -55,6 +55,13 @@ class ObjSeqAnimation : public AbstractMeshProvider {
       for (auto& p : fs::directory_iterator(m_settings.folder)) {
         if (fs::is_regular_file(p))
           m_files.push_back(p.path());
+        else if (fs::is_directory(p) && p.path().filename() == "obs") {
+          for (auto& p2 : fs::directory_iterator(p)) {
+            m_obstacles.emplace_back();
+            if (fs::is_regular_file(p2))
+                load_obj_mesh(p2.path(), m_obstacles.back().mesh, true);
+          }
+        }
       }
       std::sort(m_files.begin(), m_files.end());
     } else {
@@ -86,19 +93,7 @@ class ObjSeqAnimation : public AbstractMeshProvider {
 
           auto& tf = data[frame];
 
-          // TODO function this
-          tinyxml2::XMLDocument doc;
-          doc.LoadFile(p.path().string().c_str());
-          auto el = doc.FirstChildElement("rotate");
-          tf.axis_angle << atof(el->Attribute("angle")),
-              atof(el->Attribute("x")), atof(el->Attribute("y")),
-              atof(el->Attribute("z"));
-          tf.axis_angle.tail<3>().normalize();
-          el       = doc.FirstChildElement("scale");
-          tf.scale = atof(el->FirstAttribute()->Value());
-          el       = doc.FirstChildElement("translate");
-          tf.translation << atof(el->Attribute("x")), atof(el->Attribute("y")),
-              atof(el->Attribute("z"));
+          load_xml_trafo(p.path(), tf);
         } else if (std::regex_search(str, match, regex_obsobj)) {
           int id = std::stoi(match[1].str());
           if (id >= int(m_obstacles.size()))
@@ -152,7 +147,7 @@ class ObjSeqAnimation : public AbstractMeshProvider {
 
  private:
   std::vector<std::string> m_files;
-  std::vector<std::deque<AbstractMeshProvider::Obstacle::Trafo>>
+  std::vector<std::deque<Trafo>>
       m_obstacle_trafos;
   size_t m_iter;
 

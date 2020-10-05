@@ -148,7 +148,7 @@ public:
         COMMENT							= NEEDS_NEWLINE_NORMALIZATION
     };
 
-    StrPair() : _flags( 0 ), _start( nullptr ), _end( nullptr ) {}
+    StrPair() : _flags( 0 ), _start( 0 ), _end( 0 ) {}
     ~StrPair();
 
     void Set( char* start, char* end, int flags ) {
@@ -591,7 +591,7 @@ public:
     }
 
     inline static bool IsPrefixHex( const char* p) {
-        p = SkipWhiteSpace(p, nullptr);
+        p = SkipWhiteSpace(p, 0);
         return p && *p == '0' && ( *(p + 1) == 'x' || *(p + 1) == 'X');
     }
 
@@ -689,46 +689,46 @@ public:
 
     /// Safely cast to an Element, or null.
     virtual XMLElement*		ToElement()		{
-        return nullptr;
+        return 0;
     }
     /// Safely cast to Text, or null.
     virtual XMLText*		ToText()		{
-        return nullptr;
+        return 0;
     }
     /// Safely cast to a Comment, or null.
     virtual XMLComment*		ToComment()		{
-        return nullptr;
+        return 0;
     }
     /// Safely cast to a Document, or null.
     virtual XMLDocument*	ToDocument()	{
-        return nullptr;
+        return 0;
     }
     /// Safely cast to a Declaration, or null.
     virtual XMLDeclaration*	ToDeclaration()	{
-        return nullptr;
+        return 0;
     }
     /// Safely cast to an Unknown, or null.
     virtual XMLUnknown*		ToUnknown()		{
-        return nullptr;
+        return 0;
     }
 
     virtual const XMLElement*		ToElement() const		{
-        return nullptr;
+        return 0;
     }
     virtual const XMLText*			ToText() const			{
-        return nullptr;
+        return 0;
     }
     virtual const XMLComment*		ToComment() const		{
-        return nullptr;
+        return 0;
     }
     virtual const XMLDocument*		ToDocument() const		{
-        return nullptr;
+        return 0;
     }
     virtual const XMLDeclaration*	ToDeclaration() const	{
-        return nullptr;
+        return 0;
     }
     virtual const XMLUnknown*		ToUnknown() const		{
-        return nullptr;
+        return 0;
     }
 
     /** The meaning of 'value' changes for the specific type.
@@ -776,9 +776,9 @@ public:
     /** Get the first child element, or optionally the first child
         element with the specified name.
     */
-    const XMLElement* FirstChildElement( const char* name = nullptr ) const;
+    const XMLElement* FirstChildElement( const char* name = 0 ) const;
 
-    XMLElement* FirstChildElement( const char* name = nullptr )	{
+    XMLElement* FirstChildElement( const char* name = 0 )	{
         return const_cast<XMLElement*>(const_cast<const XMLNode*>(this)->FirstChildElement( name ));
     }
 
@@ -794,9 +794,9 @@ public:
     /** Get the last child element or optionally the last child
         element with the specified name.
     */
-    const XMLElement* LastChildElement( const char* name = nullptr ) const;
+    const XMLElement* LastChildElement( const char* name = 0 ) const;
 
-    XMLElement* LastChildElement( const char* name = nullptr )	{
+    XMLElement* LastChildElement( const char* name = 0 )	{
         return const_cast<XMLElement*>(const_cast<const XMLNode*>(this)->LastChildElement(name) );
     }
 
@@ -810,9 +810,9 @@ public:
     }
 
     /// Get the previous (left) sibling element of this node, with an optionally supplied name.
-    const XMLElement*	PreviousSiblingElement( const char* name = nullptr ) const ;
+    const XMLElement*	PreviousSiblingElement( const char* name = 0 ) const ;
 
-    XMLElement*	PreviousSiblingElement( const char* name = nullptr ) {
+    XMLElement*	PreviousSiblingElement( const char* name = 0 ) {
         return const_cast<XMLElement*>(const_cast<const XMLNode*>(this)->PreviousSiblingElement( name ) );
     }
 
@@ -826,9 +826,9 @@ public:
     }
 
     /// Get the next (right) sibling element of this node, with an optionally supplied name.
-    const XMLElement*	NextSiblingElement( const char* name = nullptr ) const;
+    const XMLElement*	NextSiblingElement( const char* name = 0 ) const;
 
-    XMLElement*	NextSiblingElement( const char* name = nullptr )	{
+    XMLElement*	NextSiblingElement( const char* name = 0 )	{
         return const_cast<XMLElement*>(const_cast<const XMLNode*>(this)->NextSiblingElement( name ) );
     }
 
@@ -1239,7 +1239,7 @@ public:
 private:
     enum { BUF_SIZE = 200 };
 
-    XMLAttribute() : _name(), _value(),_parseLineNum( 0 ), _next( nullptr ), _memPool( nullptr ) {}
+    XMLAttribute() : _name(), _value(),_parseLineNum( 0 ), _next( 0 ), _memPool( 0 ) {}
     virtual ~XMLAttribute()	{}
 
     XMLAttribute( const XMLAttribute& );	// not supported
@@ -1304,7 +1304,7 @@ public:
     	}
     	@endverbatim
     */
-    const char* Attribute( const char* name, const char* value=nullptr ) const;
+    const char* Attribute( const char* name, const char* value=0 ) const;
 
     /** Given an attribute name, IntAttribute() returns the value
     	of the attribute interpreted as an integer. The default
@@ -1827,7 +1827,7 @@ public:
     	// printer.CStr() has a const char* to the XML
     	@endverbatim
     */
-    void Print( XMLPrinter* streamer=nullptr ) const;
+    void Print( XMLPrinter* streamer=0 ) const;
     virtual bool Accept( XMLVisitor* visitor ) const;
 
     /**
@@ -1859,7 +1859,7 @@ public:
     		<?xml version="1.0" encoding="UTF-8"?>
     	@endverbatim
     */
-    XMLDeclaration* NewDeclaration( const char* text=nullptr );
+    XMLDeclaration* NewDeclaration( const char* text=0 );
     /**
     	Create a new Unknown associated with
     	this Document. The memory for the object
@@ -1874,7 +1874,7 @@ public:
     void DeleteNode( XMLNode* node );
 
     void ClearError() {
-        SetError(XML_SUCCESS, 0, nullptr);
+        SetError(XML_SUCCESS, 0, 0);
     }
 
     /// Return true if there was an error parsing the document.
@@ -1921,7 +1921,7 @@ public:
 	void MarkInUse(const XMLNode* const);
 
     virtual XMLNode* ShallowClone( XMLDocument* /*document*/ ) const	{
-        return nullptr;
+        return 0;
     }
     virtual bool ShallowEqual( const XMLNode* /*compare*/ ) const	{
         return false;
@@ -2069,35 +2069,35 @@ public:
 
     /// Get the first child of this handle.
     XMLHandle FirstChild() 													{
-        return XMLHandle( _node ? _node->FirstChild() : nullptr);
+        return XMLHandle( _node ? _node->FirstChild() : 0 );
     }
     /// Get the first child element of this handle.
-    XMLHandle FirstChildElement( const char* name = nullptr )						{
-        return XMLHandle( _node ? _node->FirstChildElement( name ) : nullptr);
+    XMLHandle FirstChildElement( const char* name = 0 )						{
+        return XMLHandle( _node ? _node->FirstChildElement( name ) : 0 );
     }
     /// Get the last child of this handle.
     XMLHandle LastChild()													{
-        return XMLHandle( _node ? _node->LastChild() : nullptr);
+        return XMLHandle( _node ? _node->LastChild() : 0 );
     }
     /// Get the last child element of this handle.
-    XMLHandle LastChildElement( const char* name = nullptr )						{
-        return XMLHandle( _node ? _node->LastChildElement( name ) : nullptr);
+    XMLHandle LastChildElement( const char* name = 0 )						{
+        return XMLHandle( _node ? _node->LastChildElement( name ) : 0 );
     }
     /// Get the previous sibling of this handle.
     XMLHandle PreviousSibling()												{
-        return XMLHandle( _node ? _node->PreviousSibling() : nullptr);
+        return XMLHandle( _node ? _node->PreviousSibling() : 0 );
     }
     /// Get the previous sibling element of this handle.
-    XMLHandle PreviousSiblingElement( const char* name = nullptr )				{
-        return XMLHandle( _node ? _node->PreviousSiblingElement( name ) : nullptr);
+    XMLHandle PreviousSiblingElement( const char* name = 0 )				{
+        return XMLHandle( _node ? _node->PreviousSiblingElement( name ) : 0 );
     }
     /// Get the next sibling of this handle.
     XMLHandle NextSibling()													{
-        return XMLHandle( _node ? _node->NextSibling() : nullptr);
+        return XMLHandle( _node ? _node->NextSibling() : 0 );
     }
     /// Get the next sibling element of this handle.
-    XMLHandle NextSiblingElement( const char* name = nullptr )					{
-        return XMLHandle( _node ? _node->NextSiblingElement( name ) : nullptr);
+    XMLHandle NextSiblingElement( const char* name = 0 )					{
+        return XMLHandle( _node ? _node->NextSiblingElement( name ) : 0 );
     }
 
     /// Safe cast to XMLNode. This can return null.
@@ -2106,19 +2106,19 @@ public:
     }
     /// Safe cast to XMLElement. This can return null.
     XMLElement* ToElement() 					{
-        return ( _node ? _node->ToElement() : nullptr);
+        return ( _node ? _node->ToElement() : 0 );
     }
     /// Safe cast to XMLText. This can return null.
     XMLText* ToText() 							{
-        return ( _node ? _node->ToText() : nullptr);
+        return ( _node ? _node->ToText() : 0 );
     }
     /// Safe cast to XMLUnknown. This can return null.
     XMLUnknown* ToUnknown() 					{
-        return ( _node ? _node->ToUnknown() : nullptr);
+        return ( _node ? _node->ToUnknown() : 0 );
     }
     /// Safe cast to XMLDeclaration. This can return null.
     XMLDeclaration* ToDeclaration() 			{
-        return ( _node ? _node->ToDeclaration() : nullptr);
+        return ( _node ? _node->ToDeclaration() : 0 );
     }
 
 private:
@@ -2146,28 +2146,28 @@ public:
     }
 
     const XMLConstHandle FirstChild() const											{
-        return XMLConstHandle( _node ? _node->FirstChild() : nullptr );
+        return XMLConstHandle( _node ? _node->FirstChild() : 0 );
     }
-    const XMLConstHandle FirstChildElement( const char* name = nullptr ) const				{
-        return XMLConstHandle( _node ? _node->FirstChildElement( name ) : nullptr);
+    const XMLConstHandle FirstChildElement( const char* name = 0 ) const				{
+        return XMLConstHandle( _node ? _node->FirstChildElement( name ) : 0 );
     }
     const XMLConstHandle LastChild()	const										{
-        return XMLConstHandle( _node ? _node->LastChild() : nullptr);
+        return XMLConstHandle( _node ? _node->LastChild() : 0 );
     }
-    const XMLConstHandle LastChildElement( const char* name = nullptr ) const				{
-        return XMLConstHandle( _node ? _node->LastChildElement( name ) : nullptr);
+    const XMLConstHandle LastChildElement( const char* name = 0 ) const				{
+        return XMLConstHandle( _node ? _node->LastChildElement( name ) : 0 );
     }
     const XMLConstHandle PreviousSibling() const									{
-        return XMLConstHandle( _node ? _node->PreviousSibling() : nullptr);
+        return XMLConstHandle( _node ? _node->PreviousSibling() : 0 );
     }
-    const XMLConstHandle PreviousSiblingElement( const char* name = nullptr ) const		{
-        return XMLConstHandle( _node ? _node->PreviousSiblingElement( name ) : nullptr);
+    const XMLConstHandle PreviousSiblingElement( const char* name = 0 ) const		{
+        return XMLConstHandle( _node ? _node->PreviousSiblingElement( name ) : 0 );
     }
     const XMLConstHandle NextSibling() const										{
-        return XMLConstHandle( _node ? _node->NextSibling() : nullptr);
+        return XMLConstHandle( _node ? _node->NextSibling() : 0 );
     }
-    const XMLConstHandle NextSiblingElement( const char* name = nullptr ) const			{
-        return XMLConstHandle( _node ? _node->NextSiblingElement( name ) : nullptr);
+    const XMLConstHandle NextSiblingElement( const char* name = 0 ) const			{
+        return XMLConstHandle( _node ? _node->NextSiblingElement( name ) : 0 );
     }
 
 
@@ -2175,16 +2175,16 @@ public:
         return _node;
     }
     const XMLElement* ToElement() const			{
-        return ( _node ? _node->ToElement() : nullptr);
+        return ( _node ? _node->ToElement() : 0 );
     }
     const XMLText* ToText() const				{
-        return ( _node ? _node->ToText() : nullptr);
+        return ( _node ? _node->ToText() : 0 );
     }
     const XMLUnknown* ToUnknown() const			{
-        return ( _node ? _node->ToUnknown() : nullptr);
+        return ( _node ? _node->ToUnknown() : 0 );
     }
     const XMLDeclaration* ToDeclaration() const	{
-        return ( _node ? _node->ToDeclaration() : nullptr);
+        return ( _node ? _node->ToDeclaration() : 0 );
     }
 
 private:
@@ -2243,7 +2243,7 @@ public:
     	If 'compact' is set to true, then output is created
     	with only required whitespace and newlines.
     */
-    XMLPrinter( FILE* file=nullptr, bool compact = false, int depth = 0 );
+    XMLPrinter( FILE* file=0, bool compact = false, int depth = 0 );
     virtual ~XMLPrinter()	{}
 
     /** If streaming, write the BOM and declaration. */

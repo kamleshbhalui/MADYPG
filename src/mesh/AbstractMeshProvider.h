@@ -1,20 +1,12 @@
 #ifndef __ABSTRACTMESHPROVIDER__H__
 #define __ABSTRACTMESHPROVIDER__H__
 
+#include "Trafo.h"
 #include "Mesh.h"
 class AbstractMeshProvider {
  public:
   struct Obstacle {
-    struct Trafo {
-      Vector4s axis_angle;  // angle, axis
-      scalar scale;
-      Vector3s translation;
-      Trafo() {
-        axis_angle << 0, 0, 0, 1;
-        translation.setZero();
-        scale = 1;
-      }
-    } transformation;
+    Trafo transformation;
     Mesh mesh;
   };
 

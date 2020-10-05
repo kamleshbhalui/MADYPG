@@ -9,6 +9,44 @@ SET(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS} -Wall -pthread")
 # Add module path in case this is project root
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/../modules/" ${CMAKE_MODULE_PATH})
 
+
+# common libraries
+find_package(Eigen3 CONFIG REQUIRED)
+
+add_library(tinyxml2 dependencies/tinyxml2/tinyxml2.cpp)
+target_include_directories(tinyxml2 SYSTEM INTERFACE dependencies/)
+
+add_library(bitsery INTERFACE)
+target_include_directories(bitsery SYSTEM INTERFACE dependencies/)
+
+# target: obj2bin. object sequence to binary format converter
+
+file(GLOB_RECURSE glob_BIN_SRCS
+  io/*.cpp
+  utils/*.cpp
+  obj2bin.cpp
+)
+
+add_executable(obj2binary ${glob_BIN_SRCS})
+target_link_libraries(obj2binary PRIVATE
+  Eigen3::Eigen
+  tinyxml2
+  bitsery
+  stdc++fs # <filesystem> on gcc/g++ 8.4
+)
+
+# optional cpu parallelism
+set (NO_PARALLEL FALSE CACHE BOOL "no parallel")
+if (${NO_PARALLEL})
+  target_compile_definitions(obj2binary PUBLIC NO_PARALLEL)
+  target_compile_definitions(obj2binary PUBLIC EIGEN_DONT_PARALLELIZE)
+else()
+  find_package(TBB CONFIG REQUIRED)
+  target_link_libraries(obj2binary PUBLIC TBB::tbb)
+endif()
+
+# target: mesh2yarns ###########################################
+
 find_package(Corrade REQUIRED Main)
 find_package(Magnum REQUIRED
     GL
@@ -29,13 +67,17 @@ set_directory_properties(PROPERTIES CORRADE_USE_PEDANTIC_FLAGS ON)
 
 corrade_add_resource(SSAO_Rcs render/shaders/resources.conf)
 
+file(GLOB_RECURSE glob_APP_SRCS
+  arcball/*.cpp
+  io/*.cpp
+  mesh/*.cpp
+  render/*.cpp
+  utils/*.cpp
+  yarns/*.cpp
+  MainApplication.cpp
+)
 
-file(GLOB_RECURSE glob_SRCS
-  *.cpp)
-
-add_executable(mesh2yarns
-        ${glob_SRCS}
-        ${SSAO_Rcs})
+add_executable(mesh2yarns ${glob_APP_SRCS} ${SSAO_Rcs})
 
 target_link_libraries(mesh2yarns PRIVATE
     Corrade::Main
@@ -54,21 +96,22 @@ target_link_libraries(mesh2yarns PRIVATE
     MagnumPlugins::JpegImporter
     )
 
-find_package(Eigen3 CONFIG REQUIRED)
-target_link_libraries(mesh2yarns PUBLIC Eigen3::Eigen)
-
 # optional cpu parallelism
 # compile with NO_PARALLEL fo threadutils to ignore threading
 set (NO_PARALLEL FALSE CACHE BOOL "no parallel")
 if (${NO_PARALLEL})
   message("Compiling without multithreading support")
-  target_compile_definitions(mesh2yarns PUBLIC NO_PARALLEL)
-  target_compile_definitions(mesh2yarns PUBLIC EIGEN_DONT_PARALLELIZE)
+  target_compile_definitions(mesh2yarns PRIVATE NO_PARALLEL)
+  target_compile_definitions(mesh2yarns PRIVATE EIGEN_DONT_PARALLELIZE)
 else()
   message("Compiling with multithreading support")
   find_package(TBB CONFIG REQUIRED)
-  target_link_libraries(mesh2yarns PUBLIC TBB::tbb)
+  target_link_libraries(mesh2yarns PRIVATE TBB::tbb)
 endif()
 
-# <filesystem> not working on gcc/g++ 8.4
-target_link_libraries(mesh2yarns PUBLIC stdc++fs)
+target_link_libraries(mesh2yarns PRIVATE
+Eigen3::Eigen
+tinyxml2
+bitsery
+stdc++fs # <filesystem> on gcc/g++ 8.4
+stdc++fs)
