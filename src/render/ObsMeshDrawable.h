@@ -14,6 +14,7 @@
 #include "../EigenDefinitions.h"
 #include "../mesh/AbstractMeshProvider.h"
 // #include "../mesh/Mesh.h"
+#include "../utils/debug_logging.h"
 
 namespace Magnum {
 template <typename Shader>
@@ -32,14 +33,29 @@ class ObsMeshDrawable {
                              Shaders::Generic3D::Position{});                             
   }
 
-  void setIndices(const MatrixGLi &M) {
-    m_glmesh.setCount(M.rows() * M.cols());
-    m_indexBuffer.setData({M.data(), uint32_t(M.size())}, m_indexBufferUsage);
+  // void setIndices(const MatrixGLi &M) {
+  //   m_glmesh.setCount(M.rows() * M.cols());
+  //   m_indexBuffer.setData({M.data(), uint32_t(M.size())}, m_indexBufferUsage);
+  // }
+
+  // void setVertices(const MatrixGLf &M) {
+  //   this->m_vertexBuffer.setData({M.data(), uint32_t(M.size())},
+  //                                this->m_vertexBufferUsage);
+  // }
+  // TODO POTENTIALLY SET OUTSIDE / IN YARNMAPPER
+  void setIndices(const VectorBuffer<Mesh::Face> &buf)
+  { 
+    m_glmesh.setCount(buf.cpu().size()*3); // total number of indices!
+    m_indexBuffer.setData({&buf.cpu()[0],
+                            uint32_t(buf.cpu().size())},
+                          m_indexBufferUsage);
   }
 
-  void setVertices(const MatrixGLf &M) {
-    this->m_vertexBuffer.setData({M.data(), uint32_t(M.size())},
-                                 this->m_vertexBufferUsage);
+  void setVertices(const VectorBuffer<Mesh::WSVertex> &buf)
+  { 
+    this->m_vertexBuffer.setData({&buf.cpu()[0],
+                            uint32_t(buf.cpu().size())},
+                                  this->m_vertexBufferUsage);
   }
 
   void draw(const Matrix4 &V, const Trafo &m) {

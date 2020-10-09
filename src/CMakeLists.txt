@@ -65,7 +65,8 @@ find_package(MagnumPlugins REQUIRED PngImporter JpegImporter)
 
 set_directory_properties(PROPERTIES CORRADE_USE_PEDANTIC_FLAGS ON)
 
-corrade_add_resource(SSAO_Rcs render/shaders/resources.conf)
+corrade_add_resource(Render_Rcs render/shaders/resources.conf)
+corrade_add_resource(Compute_Rcs yarns/shaders/resources.conf)
 
 file(GLOB_RECURSE glob_APP_SRCS
   arcball/*.cpp
@@ -77,7 +78,7 @@ file(GLOB_RECURSE glob_APP_SRCS
   MainApplication.cpp
 )
 
-add_executable(mesh2yarns ${glob_APP_SRCS} ${SSAO_Rcs})
+add_executable(mesh2yarns ${glob_APP_SRCS} ${Render_Rcs} ${Compute_Rcs})
 
 target_link_libraries(mesh2yarns PRIVATE
     Corrade::Main

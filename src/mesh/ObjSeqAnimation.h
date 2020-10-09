@@ -11,8 +11,9 @@
 #include <regex>
 
 #include "../utils/debug_logging.h"
-#include "meshio.h"
+// #include "meshio.h"
 #include "../io/trafoio.h"
+#include "../io/objio.h"
 // namespace fs = std::experimental::filesystem;
 namespace fs = std::filesystem;
 
@@ -58,8 +59,10 @@ class ObjSeqAnimation : public AbstractMeshProvider {
         else if (fs::is_directory(p) && p.path().filename() == "obs") {
           for (auto& p2 : fs::directory_iterator(p)) {
             m_obstacles.emplace_back();
-            if (fs::is_regular_file(p2))
-                load_obj_mesh(p2.path(), m_obstacles.back().mesh, true);
+            if (fs::is_regular_file(p2)) {
+              load_obj(p2.path(), m_obstacles.back().mesh.X.cpu(), m_obstacles.back().mesh.F.cpu());
+            }
+            // load_obj_mesh(p2.path(), m_obstacles.back().mesh, true);
           }
         }
       }
@@ -98,7 +101,8 @@ class ObjSeqAnimation : public AbstractMeshProvider {
           int id = std::stoi(match[1].str());
           if (id >= int(m_obstacles.size()))
             m_obstacles.resize(id + 1);
-          load_obj_mesh(p.path(), m_obstacles[id].mesh, true);
+          load_obj(p.path(), m_obstacles[id].mesh.X.cpu(), m_obstacles[id].mesh.F.cpu());
+          // load_obj_mesh(p.path(), m_obstacles[id].mesh, true);
         }
       }
     }
@@ -126,9 +130,13 @@ class ObjSeqAnimation : public AbstractMeshProvider {
     if (m_iter < m_files.size()) {
       // load mesh, with material space data if non-constant or uninitialized
       bool load_uv =
-          !m_settings.constant_material_space || m_mesh.Fms.rows() == 0;
+          !m_settings.constant_material_space || m_mesh.Fms.cpu().size() == 0;
       m_indicesDirty = load_uv;
-      load_obj_mesh(m_files[m_iter], m_mesh, load_uv);
+      // load_obj_mesh(m_files[m_iter], m_mesh, load_uv);
+      if (load_uv)
+        load_obj(m_files[m_iter], m_mesh.X.cpu(), m_mesh.F.cpu(), m_mesh.U.cpu(), m_mesh.Fms.cpu());
+      else
+        load_obj(m_files[m_iter], m_mesh.X.cpu());
 
       if (arcsim_mode) {
         // update obstacle transformations

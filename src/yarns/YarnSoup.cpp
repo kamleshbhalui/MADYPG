@@ -36,19 +36,10 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
 
   // allocate memory for vertex data, vertex/edge topology
   X_ms.resize(n_verts, 4);
-  X_ws.resize(n_verts, 4);
   m_pypix.resize(n_verts);  // TODO parametric fake
   E = MatrixXXRMi::Constant(n_edges, 2,
                             -1);  // NOTE parallelizable? (or just set -1
                                   // explicitly in edge copy for borders)
-
-  // TODO IGNORE UNTIL USED
-  // self.v_pp_id = np.full(
-  //     (n_verts,), -1, dtype=np.int)  # periodic patch id
-  // self.v_tri_id = np.full((n_verts,), -1, dtype=np.int)
-  // self.v_tri_bary = np.empty((n_verts, 3), dtype=np.float)
-  // # incident edges: eix_prev eix_next
-  // self.v_edges = np.full((n_verts, 2), -1, dtype=np.int)
 
   // parallel over filled grid cells
   threadutils::parallel_for(0, n_tiles, [&](int cix) {
@@ -111,11 +102,12 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
 }
 
 void YarnSoup::assign_triangles(const Grid& grid, const Mesh& mesh) {
-  m_v2tri.resize(X_ms.rows());
-  m_vbary.resize(X_ms.rows());
+  auto& bary0 = B0.cpu();
+
+  bary0.resize(X_ms.rows());
 
   threadutils::parallel_for(0, int(X_ms.rows()), [&](int vix) {
-    m_v2tri[vix] = -1;
+    bary0[vix].tri = -1;
 
     int i, j;
     Vector2s p     = X_ms.row(vix).head<2>();
@@ -148,8 +140,10 @@ void YarnSoup::assign_triangles(const Grid& grid, const Mesh& mesh) {
     for (int tri : tris) {
       Vector3s abc = mesh.barycentric_ms(tri, p);
       if (barycentric_inside(abc)) {
-        m_v2tri[vix] = tri;
-        m_vbary[vix] = abc;
+        bary0[vix].tri = tri;
+        bary0[vix].a = abc[0];
+        bary0[vix].b = abc[1];
+        bary0[vix].c = abc[2];
         break;
       }
     }
@@ -175,25 +169,32 @@ void YarnSoup::reassign_triangles(const Grid& grid, const Mesh& mesh,
 
   // NOTE: using X_ws here as predeformed ref coords!
 
+  auto& bary0 = B0.cpu();
+  auto& bary = B.cpu();
+  bary.resize(bary0.size());
+
+
   if (default_same) {  // just use previous triangle
-    threadutils::parallel_for(0, int(X_ws.rows()), [&](int vix) {
-      int tri = m_v2tri[vix];
+    threadutils::parallel_for(size_t(0), X_ws.getCPUSize(), [&](size_t vix) {
+      int tri = bary0[vix].tri;
       if (tri < 0)
         return;  // skip unassigned
-      Vector2s p   = X_ws.row(vix).head<2>();
+      Vector2s p   = X_ws.row<float,2>(vix);
       Vector3s abc = mesh.barycentric_ms(tri, p);
-      m_v2tri[vix] = tri;
-      m_vbary[vix] = abc;
+      bary[vix].tri = tri;
+      bary[vix].a = abc[0];
+      bary[vix].b = abc[1];
+      bary[vix].c = abc[2];
     });
     return;
   }
 
-  threadutils::parallel_for(0, int(X_ws.rows()), [&](int vix) {
-    int tri = m_v2tri[vix];
+  threadutils::parallel_for(size_t(0), X_ws.getCPUSize(), [&](size_t vix) {
+    int tri = bary0[vix].tri;
     if (tri < 0)
       return;  // skip unassigned
 
-    Vector2s p = X_ws.row(vix).head<2>();
+    Vector2s p   = X_ws.row<float,2>(vix);
 
     Vector3s abc;
     int i, j;
@@ -222,12 +223,15 @@ void YarnSoup::reassign_triangles(const Grid& grid, const Mesh& mesh,
         abc = mesh.barycentric_ms(tri, p);
       }
     }
-    m_v2tri[vix] = tri;
-    m_vbary[vix] = abc;
+    bary[vix].tri = tri;
+    bary[vix].a = abc[0];
+    bary[vix].b = abc[1];
+    bary[vix].c = abc[2];
   });
 }
 
 void YarnSoup::cut_outside() {
+  auto& bary0 = B0.cpu();
   // remove edges if any of its vertices is not assigned to some triangle
   threadutils::parallel_for(0, int(E.rows()), [&](int eix) {
     int v0 = E(eix, 0);
@@ -236,7 +240,7 @@ void YarnSoup::cut_outside() {
     if (v0 < 0 || v1 < 0) {  // bad edge (already marked for deletion somehow)
       cut = true;
     } else {
-      cut = m_v2tri[v0] < 0 || m_v2tri[v1] < 0;  // any vertex unassigned
+      cut = bary0[v0].tri < 0 || bary0[v1].tri < 0;  // any vertex unassigned
     }
     if (cut)
       E.row(eix) << -1, -1;  // "delete"
@@ -311,21 +315,22 @@ void YarnSoup::generate_index_list() {
              Debug::format_locale(n_vertices_total, "en_US.UTF-8"));
 
   // use accum. lengths to set indices per yarn in parallel
-  m_indices.resize(total);
+  auto& indices = m_indices.cpu();
+  indices.resize(total);
   threadutils::parallel_for(0, int(starts.size()), [&](int i) {
     int offset            = lengths[i];
     int vix               = starts[i];
-    m_indices[offset + 0] = vix;
+    indices[offset + 0] = vix;
     int c                 = 1;
     while (hasNext(vix)) {
       vix                   = getNext(vix);
-      m_indices[offset + c] = vix;
+      indices[offset + c] = vix;
       ++c;
       if (c >= VE.rows() + 1) {
         Debug::msgassert("infinite loop in yarnsoup", false);
         break;
       }
     }
-    m_indices[offset + c] = delim;
+    indices[offset + c] = delim;
   });
 }

@@ -28,7 +28,7 @@ def build(sourcedir, builddir, target=[], debug=False, toolchain=None, cflags=[]
 
 # get command line arguments
 ap = argparse.ArgumentParser()
-ap.add_argument("targets", nargs=argparse.REMAINDER,
+ap.add_argument("targets", nargs='?',
                 help="...")
 ap.add_argument("-d", "--debug", action='store_true',
                 help="...")
@@ -42,13 +42,14 @@ ap.add_argument("-r", "--run", default="1",
                 help="...")
 # ap.add_argument("-t", "--target", default="micro",
 #                 help="...")
+ap.add_argument('extra_args', nargs='*')
 # TODO add a no compilation flag
 args = vars(ap.parse_args())
 args['build'] = args['build'] != "0"
 args['run'] = args['run'] != "0"
 args['with_parallel'] = args['with_parallel'] != "0"
 
-if len(args['targets']) == 0:
+if args['targets'] is None or len(args['targets']) == 0:
     args['targets'] = ["mesh2yarns"] # in case multiple targets exist, set default
 target = ' '.join(args['targets'])
 
@@ -75,7 +76,7 @@ if args['build']:
 # RUN
 if args['run']:
     workdir = os.getcwd() # run from parent
-    executable = os.path.join(builddir, target)
+    executable = [os.path.join(builddir, target)] + args['extra_args']
 
     print("Executing:", executable)
     try:

@@ -105,14 +105,19 @@ void MainApplication::reset_simulation() {
   _yarnMapper->m_settings = _yarnMapperSettings;
 
   _yarnMapper->initialize();
-  _yarnDrawable.back().setIndices(_yarnMapper->getIndices());
-  _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
+  _yarnDrawable.clear();
+  _yarnDrawable.emplace_back(_yarnGeometryShader, _yarnMapper->getVertexBuffer(), _yarnMapper->getIndexBuffer());
+
+  // _yarnDrawable.back().setIndices(_yarnMapper->getIndices());
+  // _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
   _yarnDrawable.back().m_radius =
       _yarnMapper->getRadius() * _render_radius_mult;
 
-  const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
-  _meshdrawable->setIndices(mesh.F);
-  _meshdrawable->setVertices(mesh.X);
+  auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
+  _meshdrawable.release();
+  _meshdrawable = std::make_unique<MeshDrawable<MeshShader>>(_meshShader, mesh.F, mesh.X);
+  // _meshdrawable->setIndices(mesh.F);
+  // _meshdrawable->setVertices(mesh.X);
 
   _obsmeshdrawables.clear();
   for (const auto &obs : _yarnMapper->getMeshSimulation()->getObstacles()) {
@@ -197,7 +202,12 @@ MainApplication::MainApplication(const Arguments &arguments)
     {  // default settings
       _yarnMapperSettings.modelfolder            = "models/model_rib";
       _yarnMapperSettings.provider_type = YarnMapper::Settings::Provider::BinSeq;
-      _yarnMapperSettings.binseq_settings.filepath = "binseqs/sock.bin";
+      // _yarnMapperSettings.binseq_settings.filepath = "binseqs/sock.bin";
+      // #ifdef NDEBUG
+      _yarnMapperSettings.binseq_settings.filepath = "binseqs/HYLC_30x30/basket_drapeX.bin";
+      // #else
+      // _yarnMapperSettings.binseq_settings.filepath = "binseqs/sxsy_const.bin";
+      // #endif
       _yarnMapperSettings.objseq_settings.folder = "objseqs/sxsy_const";
       _yarnMapperSettings.objseq_settings.constant_material_space = true;
     }
@@ -208,11 +218,6 @@ MainApplication::MainApplication(const Arguments &arguments)
     _fileDialog =
         std::make_unique<ImGui::FileBrowser>(ImGuiFileBrowserFlags_CloseOnEsc);
     _fileDialog->SetTitle("Select file");
-
-    {
-      _yarnDrawable.emplace_back(_yarnGeometryShader);
-      _meshdrawable = std::make_unique<MeshDrawable<MeshShader>>(_meshShader);
-    }
 
     reset_simulation();
 
@@ -225,9 +230,9 @@ MainApplication::MainApplication(const Arguments &arguments)
 
   /* Set up the arcball and projection */
   {
-    const Vector3 eye = Vector3::yAxis(1.0f);
+    const Vector3 eye = 2.0f * Vector3(+0.4f, 0.3f, 0.5f);//Vector3::yAxis(1.0f);
     const Vector3 center{};
-    const Vector3 up = Vector3::zAxis(-1.0f);
+    const Vector3 up = Vector3::yAxis();
     ;
     _arcball.emplace(eye, center, up, 45.0_degf, windowSize());
     _arcball->setLagging(0.85f);
@@ -257,14 +262,10 @@ void MainApplication::drawEvent() {
       // force update some settings
       _yarnMapper->m_settings = _yarnMapperSettings;
       _yarnMapper->step();
-      // assume no update to yarn indices
-      _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
 
       const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
-      if (_yarnMapper->getMeshSimulation()->meshIndicesDirty())
-        _meshdrawable->setIndices(mesh.F);
-      // always assume changes to vertices
-      _meshdrawable->setVertices(mesh.X);
+      // if (_yarnMapper->getMeshSimulation()->meshIndicesDirty())
+      _meshdrawable->updateIndexCount(mesh.F.getGPUSize());
     }
     _single_step = false;
     simChanged   = true;
@@ -352,7 +353,6 @@ void MainApplication::drawEvent() {
       .setAOPow(_ao_pow)
       .draw(_screenAlignedTriangle);
 
-  _profiler.endFrame();
 
   _imgui.newFrame();
   if (ImGui::GetIO().WantTextInput && !isTextInputActive())
@@ -376,6 +376,8 @@ void MainApplication::drawEvent() {
   GL::Renderer::disable(GL::Renderer::Feature::Blending);
 
   swapBuffers();
+
+  _profiler.endFrame();
 
   redraw();
 }
@@ -622,7 +624,7 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
 
   // key press events, that are only allowed while not editing a text field
   if (!isTextInputActive()) {
-    float cam_d = 1.0f;
+    float cam_d = 2.0f;
     if ((event.modifiers() & KeyEvent::Modifier::Shift))
       cam_d *= 2.0f;
     if ((event.modifiers() & KeyEvent::Modifier::Ctrl))
@@ -661,9 +663,12 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       case KeyEvent::Key::F:
         _rotate_scene = !_rotate_scene;
         break;
+      case KeyEvent::Key::T:
+        _yarnMapperSettings.debug_toggle = !_yarnMapperSettings.debug_toggle;
+        break;
       case KeyEvent::Key::NumOne:
       case KeyEvent::Key::One:
-        _arcball->setViewParameters(cam_d * Vector3(-0.4f, 0.3f, 0.5f),
+        _arcball->setViewParameters(cam_d * Vector3(+0.4f, 0.3f, 0.5f),
                                     Vector3(0), Vector3(0, 1, 0));
         break;
       case KeyEvent::Key::NumZero:

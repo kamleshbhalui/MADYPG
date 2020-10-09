@@ -10,7 +10,7 @@
 #include <vector>
 #include <iostream>
 #include "../EigenDefinitions.h"
-// #include "../mesh/Mesh.h"
+#include "../mesh/Mesh.h"
 
 namespace Magnum
 {
@@ -18,39 +18,40 @@ namespace Magnum
   class MeshDrawable
   {
   public:
-    struct Vertex
-    {
-      Vector3 position;
-    };
 
     explicit MeshDrawable(
         Shader &shader,
-        GL::BufferUsage vertexBufferUsage = GL::BufferUsage::StreamDraw, // probably change every frame
-        GL::BufferUsage indexBufferUsage = GL::BufferUsage::StaticDraw)  // probably only ever change once
-        : m_indexBufferUsage(indexBufferUsage),
-          m_vertexBufferUsage(vertexBufferUsage), m_shader(shader)
+        VectorBuffer<Mesh::Face>& indexBuffer,
+        VectorBuffer<Mesh::WSVertex>& vertexBuffer)
+        : m_shader(shader)
     {
-      m_glmesh.setIndexBuffer(m_indexBuffer, 0, GL::MeshIndexType::UnsignedInt)
+      m_glmesh.setIndexBuffer(indexBuffer.gpu(), 0, GL::MeshIndexType::UnsignedInt)
           .setPrimitive(GL::MeshPrimitive::Triangles);
+      m_glmesh.setCount(indexBuffer.getGPUSize() * 3); // *3 because of triangle faces
       m_glmesh.addVertexBuffer(
-          this->m_vertexBuffer, 0, Shaders::Generic3D::Position{}); // something about memory layout of data in vertex buffer
+          vertexBuffer.gpu(), 0, Shaders::Generic3D::Position{}); // something about memory layout of data in vertex buffer
     }
 
-    void setIndices(const MatrixGLi &M)
-    {
-      // this->m_indices = indices;
-      m_glmesh.setCount(M.rows() * M.cols());
-      m_indexBuffer.setData({M.data(),
-                             uint32_t(M.size())},
-                            m_indexBufferUsage);
+    void updateIndexCount(int32_t Nindices) {
+      if (m_glmesh.count() != Nindices) {
+        m_glmesh.setCount(Nindices);
+      }
     }
 
-    void setVertices(const MatrixGLf &M)
-    {
-      this->m_vertexBuffer.setData({M.data(),
-                                    uint32_t(M.size())},
-                                   this->m_vertexBufferUsage);
-    }
+    // void setIndices(const VectorBuffer<Mesh::Face> &buf)
+    // { /// TODO SET OUTSIDE FOR CLOTH MESH
+    //   m_glmesh.setCount(buf.cpu().size());
+    //   m_indexBuffer.setData({&buf.cpu()[0],
+    //                          uint32_t(buf.cpu().size())},
+    //                         m_indexBufferUsage);
+    // }
+
+    // void setVertices(const VectorBuffer<Mesh::WSVertex> &buf)
+    // { /// TODO SET OUTSIDE FOR CLOTH MESH
+    //   this->m_vertexBuffer.setData({&buf.cpu()[0],
+    //                          uint32_t(buf.cpu().size())},
+    //                                this->m_vertexBufferUsage);
+    // }
 
     void draw(const Matrix4 &V)
     {

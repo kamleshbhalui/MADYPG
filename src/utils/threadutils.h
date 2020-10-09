@@ -65,10 +65,10 @@ using vsize_type = typename std::vector<T, A>::size_type;
 // #include <tbb/parallel_reduce.h>
 #include <time.h>
 
-#include <algorithm>
 #include <iostream>
 #include <thread>
 #endif
+#include <algorithm>
 
 namespace threadutils {
 

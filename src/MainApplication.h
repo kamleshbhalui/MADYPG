@@ -115,7 +115,7 @@ class MainApplication : public Platform::Application {
   Matrix4 _projection;
   Deg _proj_fov    = 45.0_degf;
   float _proj_near = 0.0001f;
-  float _proj_far  = 100.0f;  // TODO reduce further?
+  float _proj_far  = 10.0f;  // TODO reduce further?
 
   GL::Mesh _screenAlignedTriangle{NoCreate};
 

@@ -2,13 +2,14 @@
 
 #include "../utils/debug_includes.h"
 #include "../utils/threadutils.h"
+#include "shaders/ShellMapShader.h"
 
 void YarnMapper::step() {
   m_timer.tick();
 
   if (!m_initialized) {
     // set up mesh provider
-    switch(m_settings.provider_type) {
+    switch (m_settings.provider_type) {
       default:
       case Settings::XPBD:
         Debug::log("XPBD not implemented, defaulting to ObjSeq.");
@@ -23,12 +24,13 @@ void YarnMapper::step() {
     }
 
     Debug::log("# mesh faces:",
-               Debug::format_locale(m_meshProvider->getMesh().Fms.rows(),
+               Debug::format_locale(m_meshProvider->getMesh().Fms.cpu().size(),
                                     "en_US.UTF-8"));
 
     m_model = std::make_unique<Model>(m_settings.modelfolder);
 
     m_timer.tock("mesh provider & pyp/model init");
+
   }
 
   Mesh& mesh = m_meshProvider->getMesh();
@@ -77,6 +79,9 @@ void YarnMapper::step() {
       m_timer.tock("soup tiling");
     }
 
+    mesh.F.bufferData(Magnum::GL::BufferUsage::StaticDraw); // push to gpu // current hint static bc expecting no change in matspace
+
+
     mesh.compute_invDm();
     mesh.compute_v2f_map(m_settings.shepard_weights);
     mesh.compute_face_adjacency();  // TODO cache in obj file / or binary cache
@@ -102,11 +107,15 @@ void YarnMapper::step() {
                                      // it doesnt matter, and its nicer
                                      // however the code is more readable!!)
 
+      m_soup.getIndexBuffer().bufferData(Magnum::GL::BufferUsage::StaticDraw);
+
       m_timer.tock("soup cut & index list");
     }
   }  // end of MS change
 
   // @ WORLD SPACE MESH CHANGES
+
+  mesh.X.bufferData(); // push to gpu
 
   mesh.compute_face_data();  // TODO make normals optional in case obj file has
                              // normals ? actually might not matter since
@@ -127,27 +136,87 @@ void YarnMapper::step() {
     int n     = m_soup.num_vertices();
     auto& Xms = m_soup.get_Xms();
     auto& Xws = m_soup.get_Xws();
-    Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
+    Xws.cpu().resize(Xms.rows());
+    // Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
     threadutils::parallel_for(0, n, [&](int i) {
-      Xws.row(i) << Xms.row(i), Xms.block<1, 2>(i, 0), 1;
+      Xws.row<float, 7>(i) << Xms.row(i).transpose(), Xms.block<1, 2>(i, 0).transpose(), 1;
     });
     m_timer.tock("deform");
     m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
     m_timer.tock("bary");
   }
 
-
   if (m_settings.shell_map)
     shell_map(mesh, m_settings.flat_normals);
   else {
     int nverts = m_soup.num_vertices();
     threadutils::parallel_for(0, nverts, [&](int vix) {
-      auto x = m_soup.get_Xws().row(vix);
+      auto x = m_soup.get_Xws().row<float, 4>(vix);
       x << x(0), x(2), -x(1), x(3), x(0), x(1), 1;
     });
   }
 
   m_timer.tock("shell map");
+
+
+  // if(render)
+  m_soup.get_Xws().bufferData(Magnum::GL::BufferUsage::StreamDraw); // TODO buffer when needed, for cpu-compute mode that is after shell mapping, for gpu-compute it is before deformref
+
+  if (m_settings.debug_toggle) { 
+    m_soup.get_B().bufferData();
+    
+    if (m_settings.flat_normals)
+      mesh.normals.bufferData();
+    else {
+      mesh.vertex_normals.bufferData();
+      mesh.Fms.bufferData(); // TODO should be done earlier once
+    }
+    // TODO CONTINUE mesh normal & vertexnormal as BUFFER, shell map shader, compare performance
+    m_timer.tock("TEST");
+  }
+
+
+  // {
+  //   const auto& M = m_soup.get_Xws().cpu();
+
+  //   bool realloc = !m_initialized;
+  //   // NOTE EVERY BUF I BIND COSTS EXTRA TIME A LOT
+  //   // TODO REALLY MAKE A SINGLE BUF FOR ALL YARN VERTEX FLOATS
+  //   // AND MAYBE ONE FOR ALL IDS
+  //   // AND MAYBE KEEP TRIANGLE IDS CONSTANT AS TO ONLY SOURCE IT ONCE :/
+  //   setBufferData(m_buf_tri, m_soup.get_tri_array(), realloc);
+  //   setBufferData(m_buf_bary, m_soup.get_bary_array(), realloc);
+  //   m_timer.tock("buffer binding");
+
+
+  //   // const auto& A =  m_soup.get_bary_array();
+  //   // for (size_t i = 0; i < 10; i++)
+  //   // {
+  //   //   Debug::log(A(i,0), A(i,1), A(i,2), A.row(i).sum());
+  //   //   Debug::log(A.data()[3*i + 0], A.data()[3*i + 1], A.data()[3*i + 2]);
+  //   // }
+    
+  
+  // }
+
+  if (m_settings.debug_toggle) {  // COMPUTE SHADER TEST
+
+    // auto& M = m_soup.get_Xws();
+    // // buf.setData({M.data(), uint32_t(M.size())},
+    // //             Magnum::GL::BufferUsage::StreamDraw);
+
+    // static ShellMapShader shader;
+    // shader.compute(m_soup.get_Xws().rows(), m_buf_Xws, m_buf_tri, m_buf_bary);
+    // shader.compute(M);
+    // // _ssaoShader.bindOcclusionTexture(_occlusion)
+    // //            .dispatchCompute(wgCount);
+    // //
+    // GL::Renderer::setMemoryBarrier(GL::Renderer::MemoryBarrier::TextureFetch);
+    // m_timer.tock("test compute shader");
+
+    // Magnum::GL::Buffer vb (Magnum::GL::Buffer::TargetHint::);
+  }
+
   m_initialized = true;
 }
 
@@ -155,19 +224,24 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
   int nverts = m_soup.num_vertices();
   auto& Xms  = m_soup.get_Xms();
   auto& Xws  = m_soup.get_Xws();
-  Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
+  // TODO i sometimes need  both cpudata for access, and buf object for row need to write that nicer TODO CONTINUE GETTING RID OF OLD FUNCS AND USE B0 AND B ... maybe always use .cpu()[vix].. or make rowmap available to cpudata?  I guess .cpu is a more verbose and nicer method
+  auto& B0  = m_soup.get_B0().cpu();
+  Xws.cpu().resize(Xms.rows());
+  // Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
   threadutils::parallel_for(0, nverts, [&](int vix) {
-    int tri = m_soup.get_tri(vix);
+    const auto& bary = B0[vix];
+    int tri = bary.tri;
     if (tri < 0)  // skip unassigned vertex
       return;
 
-    const auto& abc = m_soup.get_bary(vix);
+    Vector3s abc;
+    abc << bary.a,bary.b,bary.c;
 
     Vector6s s;
     if (flat_strains) {
       s = mesh.strains[tri];
     } else {
-      auto ms_ixs = mesh.Fms.row(tri);
+      auto ms_ixs = mesh.Fms.cpu()[tri].map();
       s           = mesh.vertex_strains[ms_ixs[0]] * abc[0] +
           mesh.vertex_strains[ms_ixs[1]] * abc[1] +
           mesh.vertex_strains[ms_ixs[2]] * abc[2];
@@ -180,11 +254,12 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
         m_model->deformation(s, m_soup.getParametric(vix));
     g *= m_settings.deform_reference;
     // store deformed ms coordinates intm. in ws coords
-    Xws.row(vix) << Xms.row(vix) + g.transpose(), Xms.block<1, 2>(vix, 0),1;
+    // NOTE: buffer.row is a colvector so it expects colvector comma init
+    Xws.row<float, 7>(vix) << Xms.row(vix).transpose() + g, Xms.block<1, 2>(vix, 0).transpose(), 1;
     // Xws.row(vix) << Xms.row(vix) + g.transpose(), s[0],s[2],1; // DEBUG:
     // visualize strain
     // Xws.row(vix) << Xms.row(vix) + g.transpose(), dbg0, dbg1,
-        // 1;  // DEBUG: visualize other
+    // 1;  // DEBUG: visualize other
   });
 }
 
@@ -192,32 +267,42 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
   // x = phi(xi1, xi2) + h n(xi1, xi2); where xi1 xi2 h are pre-deformed
   // reference coordinates
 
+  auto& N  = mesh.normals.cpu();
+  auto& Nv  = mesh.vertex_normals.cpu();
+  auto& B  = m_soup.get_B().cpu();
   int nverts = m_soup.num_vertices();
   threadutils::parallel_for(0, nverts, [&](int vix) {
-    int tri = m_soup.get_tri(vix);
+    const auto& bary = B[vix];
+    int tri = bary.tri;
     if (tri < 0)  // skip unassigned vertex
       return;
     // NOTE: assuming Xws are (deformed or copied) ms coords
     //   and abc are bary coords _after_ ms-deformation
-    auto x_ws       = m_soup.get_Xws().row(vix);
-    const auto& abc = m_soup.get_bary(vix);
+    auto x_ws       = m_soup.get_Xws().row<float,3>(vix);
     scalar h        = x_ws(2);
+    Vector3s abc;
+    abc << bary.a,bary.b,bary.c;
 
     Vector3s n;
     if (flat_normals) {
-      n = mesh.normals[tri];
+      n = N[tri].map();
     } else {
-      auto ms_ixs = mesh.Fms.row(tri);
-      n           = mesh.vertex_normals[ms_ixs[0]] * abc[0] +
-          mesh.vertex_normals[ms_ixs[1]] * abc[1] +
-          mesh.vertex_normals[ms_ixs[2]] * abc[2];
+      auto ms_ixs = mesh.Fms.cpu()[tri].map();
+      // auto ms_ixs = mesh.Fms.row(tri);
+      n           = Nv[ms_ixs[0]].map() * abc[0] +
+          Nv[ms_ixs[1]].map() * abc[1] +
+          Nv[ms_ixs[2]].map() * abc[2];
+      // n           = mesh.vertex_normals[ms_ixs[0]] * abc[0] +
+      //     mesh.vertex_normals[ms_ixs[1]] * abc[1] +
+      //     mesh.vertex_normals[ms_ixs[2]] * abc[2];
       n.normalize();
     }
 
-    auto ws_ixs  = mesh.F.row(tri);
-    Vector3s phi = mesh.X.row(ws_ixs[0]) * abc[0] +
-                   mesh.X.row(ws_ixs[1]) * abc[1] +
-                   mesh.X.row(ws_ixs[2]) * abc[2];
+    auto ws_ixs = mesh.F.cpu()[tri].map();
+    // auto ws_ixs  = mesh.F.row(tri);
+    Vector3s phi = mesh.X.row<float,3>(ws_ixs[0]) * abc[0] +
+                   mesh.X.row<float,3>(ws_ixs[1]) * abc[1] +
+                   mesh.X.row<float,3>(ws_ixs[2]) * abc[2];
     ;
 
     x_ws.head<3>() = phi + h * n;
@@ -232,10 +317,14 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
     scalar ratio;
     if (next_vix >= 0)
       ratio = pyp.RL[lix] /
-              (Xws.block<1, 3>(next_vix, 0) - Xws.block<1, 3>(vix, 0)).norm();
+              (Xws.row<float,3>(next_vix) - Xws.row<float,3>(vix)).norm();
     else
       ratio = 1;
 
-    Xws(vix, 6) = std::min(std::max(scalar(0.8), ratio), scalar(1.2));
+    Xws.cpu()[vix].r = std::min(std::max(scalar(0.8), ratio), scalar(1.2));
+
+    // TODO consider volumepreservation-based formula (better for paper)
+    // TODO consider making a parameter
+    // TODO this might also be a bit buggy? maybe some divisions by 0?
   });
 }

@@ -73,8 +73,9 @@ void Grid::fromTiling(const Mesh& mesh, const PYP& pyp) {
 
   // compute uv bounds PARALLELIZABLE (reduce both min and max simulatenously
   // or separately)
-  Vector2s uv_min = mesh.U.colwise().minCoeff();
-  Vector2s uv_max = mesh.U.colwise().maxCoeff();
+  auto U = mesh.U.matrixView<float,2>();
+  Vector2s uv_min = U.colwise().minCoeff();
+  Vector2s uv_max = U.colwise().maxCoeff();
   // grow bounds for added robustness
   uv_min -= 0.1f * MakeVec(pyp.px, pyp.py);
   uv_max += 0.1f * MakeVec(pyp.px, pyp.py);
@@ -105,7 +106,9 @@ void Grid::fromTiling(const Mesh& mesh, const PYP& pyp) {
 void Grid::overlap_triangles(const Mesh& mesh, float eps) {
   eps *= (cx + cy) * 0.5f;  // tolerance relative to cell size
 
-  int n_tris = mesh.Fms.rows();
+  auto Fmsc = mesh.Fms.matrixView<int32_t,3>();
+  auto Uc = mesh.U.matrixView<float,2>();
+  int n_tris = Fmsc.rows();
 
   // NOTE for now tri2cells is temporary, and used to construct its inverse
   std::vector<std::vector<std::pair<int, int>>>
@@ -113,9 +116,9 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
   tri2cells.resize(n_tris);
 
   threadutils::parallel_for(0, n_tris, [&](int tri) {
-    auto ixs = mesh.Fms.row(tri);
+    auto ixs = Fmsc.row(tri);
     Eigen::Matrix<scalar, 3, 2, Eigen::RowMajor> coords;
-    coords << mesh.U.row(ixs[0]), mesh.U.row(ixs[1]), mesh.U.row(ixs[2]);
+    coords << Uc.row(ixs[0]), Uc.row(ixs[1]), Uc.row(ixs[2]);
 
     overlap_triangle(tri2cells[tri], coords, eps);
   });

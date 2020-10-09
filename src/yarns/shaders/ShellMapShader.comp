@@ -1,0 +1,73 @@
+layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+struct _vertices
+{
+  // vec4 x;
+  // vec4 other;
+  // NOTE: apparently structural alignment takes biggest element of structure. eg. vec3 and vec4 will be aligned like 2 vec4 !
+  // either make sure that buffers are aligned nicely like that (if using vec4 for pos then make sure its a multiple of 4x4byte)
+  // or use separate floats which make alignent 4byte
+  float x,y,z,t,u,v,r;
+};
+layout(std430, binding = 0) writeonly buffer _vertexBuffer
+{
+  _vertices data[];
+} buf_Xws;
+
+
+struct v2tri_vals {
+  int id;
+};
+
+layout(std430, binding = 1) readonly buffer _triBuffer
+{
+  v2tri_vals data[];
+} buf_tri;
+
+
+struct v2bary_vals {
+  vec3 abc; // TODO ALIGNMENT OF EIGEN VECTOR?
+};
+layout(std430, binding = 2) readonly buffer _baryBuffer
+{
+  v2bary_vals data[];
+} buf_bary;
+
+
+// TODO use memory qualifiers: readonly, writeonly, restrict? coherent?
+
+void main()
+{
+  uint vix = gl_GlobalInvocationID.x;
+
+  int tri = buf_tri.data[vix].id;
+  if(tri >= 0) {
+
+    // vec3 abc =  buf_bary.data[vix].abc;
+    // abc.x = max(0,abc.x);
+    // abc.y = max(0,abc.y);
+    // abc.z = max(0,abc.z);
+    // abc.x = min(1,abc.x);
+    // abc.y = min(1,abc.y);
+    // abc.z = min(1,abc.z);
+
+    // vec3 xout = abc.x * vec3(0,0,0) + abc.y * vec3(1,0,0) + abc.z * vec3(0,1,0);
+
+    // xout = vec3(1,0,0)*abc.x + abc.y + abc.z;
+    // buf_Xws.data[vix].x = xout.x;
+    // // buf_Xws.data[vix].y = xout.y;
+    // // buf_Xws.data[vix].z = xout.z;
+
+    vec3 abc =  buf_bary.data[vix].abc.xyz;
+    buf_Xws.data[vix].x = abc.x;
+    buf_Xws.data[vix].y = abc.y;
+    buf_Xws.data[vix].z = abc.z; // MAYBE THIS BREAKS BECAUSE OF MEMORY BARRIER ?
+
+    // buf_Xws.data[vix].x += 0.1;
+    // buf_Xws.data[vix].y += 0.1;
+    // buf_Xws.data[vix].z += -0.1;
+  }
+  // buf_Xws.data[vix].x += 0.4;
+  // X_ws.data[vix].x += vec4(1,0,1.5,0);
+  // X_ws.data[vix].u *= 100;
+}

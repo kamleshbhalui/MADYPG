@@ -1,27 +1,19 @@
-#ifndef __OBJIO_H__
-#define __OBJIO_H__
+#include "objio.h"
 
-#include <deque>
-#include <fstream>
-#include <iterator>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <assert.h>     /* assert */
-#include <iostream>
+int count_words(const std::string &str) {
+  std::istringstream iss(str);
+  return std::distance(std::istream_iterator<std::string>(iss),
+                       std::istream_iterator<std::string>());
+}
 
-#include "../utils/threadutils.h"
-
-int count_words(const std::string &str);
-
-template <typename Mf, typename Mi>
-bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U, Mi &Fms,
-              bool with_faces, bool with_uvs) {
+bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X,
+              std::vector<Mesh::Face> &F, std::vector<Mesh::MSVertex> &U,
+              std::vector<Mesh::Face> &Fms, bool with_faces, bool with_uvs) {
   // NOTE: assuming that the obj file contains: v, vt, f
   //  with f either just v0 v1 v2, or v0/uv0 v1/uv1 v2/uv2
 
-  typedef typename Mf::Scalar scalar_type;
-  typedef typename Mi::Scalar index_type;
+  typedef uint32_t index_type;
+  typedef float scalar_type;
 
   std::fstream ifs(path.c_str(), std::ios::in);
   if (!ifs) {
@@ -55,19 +47,19 @@ bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U, Mi &Fms,
   }
 
   {
-    V.resize(str_v.size(), 3);
+    X.resize(str_v.size());
     threadutils::parallel_for(size_t(0), str_v.size(), [&](size_t i) {
       std::string kw;
       std::stringstream linestream(str_v[i]);
-      linestream >> kw >> V(i, 0) >> V(i, 1) >> V(i, 2);
+      linestream >> kw >> X[i].x >> X[i].y >> X[i].z;
     });
   }
   if (with_uvs) {
-    U.resize(str_vt.size(), 2);
+    U.resize(str_vt.size());
     threadutils::parallel_for(size_t(0), str_vt.size(), [&](size_t i) {
       std::string kw;
       std::stringstream linestream(str_vt[i]);
-      linestream >> kw >> U(i, 0) >> U(i, 1);
+      linestream >> kw >> U[i].u >> U[i].v;
     });
   }
 
@@ -111,12 +103,14 @@ bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U, Mi &Fms,
         tmp_f.push_back(
             {ixs_ms[0], ixs_ms[1], ixs_ms[2], ixs_ws[0], ixs_ws[1], ixs_ws[2]});
       } else if (N == 4) {
-        Mf &X =
-            (U.size() > 0) ? U : V;  // use uvs for triangulation if it exists
-        auto &ixs          = (U.size() > 0) ? ixs_ms : ixs_ws;
         scalar_type diag02 = 0, diag13 = 0;
-        diag02 = (X.row(ixs[0]) - X.row(ixs[2])).squaredNorm();
-        diag13 = (X.row(ixs[1]) - X.row(ixs[3])).squaredNorm();
+        if (U.size() > 0) { // use uvs for triangulation if it exists
+          diag02 = (U[ixs_ms[0]].map() - U[ixs_ms[2]].map()).squaredNorm();
+          diag13 = (U[ixs_ms[1]].map() - U[ixs_ms[3]].map()).squaredNorm();
+        } else {
+          diag02 = (X[ixs_ws[0]].map() - X[ixs_ws[2]].map()).squaredNorm();
+          diag13 = (X[ixs_ws[1]].map() - X[ixs_ws[3]].map()).squaredNorm();
+        }
         if (diag02 <= diag13) {
           tmp_f.push_back({ixs_ms[0], ixs_ms[1], ixs_ms[2], ixs_ws[0],
                            ixs_ws[1], ixs_ws[2]});
@@ -131,15 +125,15 @@ bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U, Mi &Fms,
       }
     }
 
-    F.resize(tmp_f.size(), 3);
+    F.resize(tmp_f.size());
     if (with_uvs)
-      Fms.resize(tmp_f.size(), 3);
+      Fms.resize(tmp_f.size());
 
     threadutils::parallel_for(size_t(0), tmp_f.size(), [&](size_t i) {
       const auto &frow = tmp_f[i];
-      F.row(i) << frow[3], frow[4], frow[5];
+      F[i].map() << frow[3], frow[4], frow[5];
       if (with_uvs)
-        Fms.row(i) << frow[0], frow[1], frow[2];
+        Fms[i].map() << frow[0], frow[1], frow[2];
     });
 
   }  // with_faces
@@ -147,42 +141,21 @@ bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U, Mi &Fms,
   return true;
 }
 
-template <typename Mf, typename Mi>
-bool load_obj(const std::string &path,
-              Mf &V) {  // only load updated vertex data
-  Mf U;
-  Mi F, Fms;
-  return load_obj(path, V, F, U, Fms, false, false);
+bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X,
+              std::vector<Mesh::Face> &F, std::vector<Mesh::MSVertex> &U,
+              std::vector<Mesh::Face> &Fms) {
+  return load_obj(path, X, F, U, Fms, true, true);
 }
 
-template <typename Mf, typename Mi>
-bool load_obj(const std::string &path, Mf &V,
-              Mi &F) {  // only load world space data, ignore uvs
-  Mf U;
-  Mi Fms;
-  return load_obj(path, V, F, U, Fms, true, false);
+bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X,
+              std::vector<Mesh::Face> &F) {
+  std::vector<Mesh::MSVertex> U;
+  std::vector<Mesh::Face> Fms;
+  return load_obj(path, X, F, U, Fms, true, false);
 }
 
-template <typename Mf, typename Mi>
-bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U,
-              Mi &Fms) {  // load full mesh data
-  return load_obj(path, V, F, U, Fms, true, true);
+bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X) {
+  std::vector<Mesh::MSVertex> U;
+  std::vector<Mesh::Face> F, Fms;
+  return load_obj(path, X, F, U, Fms, true, false);
 }
-
-
-
-
-#include "../mesh/Mesh.h"
-// same as above but now for the vector<struct> data types ...
-bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X, std::vector<Mesh::Face> &F, std::vector<Mesh::MSVertex> &U, std::vector<Mesh::Face> &Fms, bool with_faces, bool with_uvs);
-bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X, std::vector<Mesh::Face> &F, std::vector<Mesh::MSVertex> &U, std::vector<Mesh::Face> &Fms);
-bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X, std::vector<Mesh::Face> &F);
-bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X);
-
-
-
-template <typename Mf, typename Mi>
-bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U, Mi &Fms,
-              bool with_faces, bool with_uvs) ;
-
-#endif  //__OBJIO_H__

@@ -3,10 +3,12 @@
 
 #include "../utils/debug_timer.h"
 // #include "../mesh/AbstractMeshProvider.h"
+#include <Magnum/GL/Buffer.h>
+
 #include <memory>
 
-#include "../mesh/ObjSeqAnimation.h"
 #include "../mesh/BinSeqAnimation.h"
+#include "../mesh/ObjSeqAnimation.h"
 #include "Grid.h"
 #include "Model.h"
 #include "YarnSoup.h"
@@ -25,12 +27,13 @@ class YarnMapper {
     enum Provider {
       ObjSeq = 0,
       BinSeq = 1,
-      XPBD = 2,
+      XPBD   = 2,
       COUNT
     } provider_type = Provider::BinSeq;
     ObjSeqAnimation::Settings objseq_settings;
     BinSeqAnimation::Settings binseq_settings;
     // TODO XPBDMeshProvider::Settings xpbd_settings;
+    bool debug_toggle = false;
   } m_settings;
 
   YarnMapper() : m_initialized(false) {}
@@ -43,10 +46,10 @@ class YarnMapper {
   void deform_reference(const Mesh& mesh, bool flat_strains = false);
   void shell_map(const Mesh& mesh, bool flat_normals = false);
 
-  const std::vector<uint32_t>& getIndices() const {
-    return m_soup.getIndices();
-  }
-  const MatrixGLf& getVertexData() const { return m_soup.get_Xws(); }
+  // const std::vector<uint32_t>& getIndices() const {
+  //   return m_soup.getIndices();
+  // }
+
   const std::shared_ptr<AbstractMeshProvider> getMeshSimulation() {
     return m_meshProvider;
   }
@@ -54,11 +57,15 @@ class YarnMapper {
 
   bool isInitialized() const { return m_initialized; }
 
+  VectorBuffer<VertexWSData>& getVertexBuffer() { return m_soup.get_Xws(); }
+  VectorBuffer<uint32_t>& getIndexBuffer() { return m_soup.getIndexBuffer(); }
+
   // timing
   Debug::MovingAverageTimer<10, std::chrono::microseconds> m_timer;
 
  private:
   bool m_initialized;
+  bool use_gpu = true;
   std::unique_ptr<Model> m_model;
   Grid m_grid;
   YarnSoup m_soup;
@@ -67,7 +74,19 @@ class YarnMapper {
   std::shared_ptr<AbstractMeshProvider> m_meshProvider;
 
   // yarn stuff
-  std::vector<uint32_t> I;
+  Magnum::GL::Buffer m_buf_tri;
+  Magnum::GL::Buffer m_buf_bary;
+
+  template <typename ArrayLike>
+  void setBufferData(Magnum::GL::Buffer& buffer, const ArrayLike& A,
+                     bool realloc = true,
+                     Magnum::GL::BufferUsage bufferUsage =
+                         Magnum::GL::BufferUsage::StreamDraw) {
+    if (realloc)
+      buffer.setData({A.data(), uint32_t(A.size())}, bufferUsage);
+    else
+      buffer.setSubData(0, {A.data(), uint32_t(A.size())});
+  }
 };
 
 #endif  // __YARNMAPPER__H__
