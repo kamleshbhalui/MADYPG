@@ -559,6 +559,9 @@ void MainApplication::drawSettings() {
   ImGui::SliderFloat("Deform Ref.", &_yarnMapperSettings.deform_reference, 0.0f,
                      1.0f);
   ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);
+  ImGui::Checkbox("GPU", &_yarnMapperSettings.gpu_compute);
+  ImGui::Checkbox("DBG", &_yarnMapperSettings.debug_toggle);
+
 
   ImGui::TextBrowser(*_folderDialog.get(), _yarnMapperSettings.modelfolder);
 
@@ -665,6 +668,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         break;
       case KeyEvent::Key::T:
         _yarnMapperSettings.debug_toggle = !_yarnMapperSettings.debug_toggle;
+        break;
+      case KeyEvent::Key::G:
+        _yarnMapperSettings.gpu_compute = !_yarnMapperSettings.gpu_compute;
         break;
       case KeyEvent::Key::NumOne:
       case KeyEvent::Key::One:

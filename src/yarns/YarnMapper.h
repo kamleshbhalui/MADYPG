@@ -22,8 +22,9 @@ class YarnMapper {
     bool shepard_weights    = true;
     float deform_reference  = 1.0f;
     bool shell_map          = true;
-    bool default_same_tri   = false;
+    bool default_same_tri   = true;
     bool repeat_frame       = false;
+    bool gpu_compute        = false;
     enum Provider {
       ObjSeq = 0,
       BinSeq = 1,
@@ -65,7 +66,6 @@ class YarnMapper {
 
  private:
   bool m_initialized;
-  bool use_gpu = true;
   std::unique_ptr<Model> m_model;
   Grid m_grid;
   YarnSoup m_soup;

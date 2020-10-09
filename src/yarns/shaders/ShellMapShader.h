@@ -15,8 +15,11 @@ class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
  public:
   enum {
     VertexBuffer = 0,
-    TriBuffer = 1,
-    BaryBuffer = 2
+    BaryBuffer = 1,
+    NormalBuffer = 2,
+    MeshXBuffer = 3,
+    MeshFBuffer = 4,
+    MeshFmsBuffer = 5
   };
 
   explicit ShellMapShader(Magnum::NoCreateT)
@@ -24,14 +27,19 @@ class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
 
   explicit ShellMapShader();
 
-
-  void compute(size_t N, Magnum::GL::Buffer &vertexBuffer, Magnum::GL::Buffer &triBuffer, Magnum::GL::Buffer &baryBuffer) {
-    vertexBuffer.bind(Magnum::GL::Buffer::Target::ShaderStorage, VertexBuffer);
-    triBuffer.bind(Magnum::GL::Buffer::Target::ShaderStorage, TriBuffer);
-    baryBuffer.bind(Magnum::GL::Buffer::Target::ShaderStorage, BaryBuffer);
+  // TODO into cpp
+  void compute(size_t N, Magnum::GL::Buffer &Xws, Magnum::GL::Buffer &B, Magnum::GL::Buffer &NNv, Magnum::GL::Buffer &mX, Magnum::GL::Buffer &mF, Magnum::GL::Buffer &mFms, bool apply, bool flat_normals) {
+    Xws.bind(Magnum::GL::Buffer::Target::ShaderStorage, VertexBuffer);
+    B.bind(Magnum::GL::Buffer::Target::ShaderStorage, BaryBuffer);
+    NNv.bind(Magnum::GL::Buffer::Target::ShaderStorage, NormalBuffer);
+    mX.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshXBuffer);
+    mF.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshFBuffer);
+    if(!flat_normals)
+      mFms.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshFmsBuffer);
+    setUniform(_applyUniform, apply);
+    setUniform(_flatNormalsUniform, flat_normals);
 
     dispatchCompute(Magnum::Vector3ui{N, 1, 1});
-
 
     Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
     // Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::ShaderStorage);
@@ -92,7 +100,7 @@ class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
   // }
 
  private:
-  Magnum::GL::Buffer m_vertexbuffer;
+    Magnum::Int _applyUniform, _flatNormalsUniform;
 };
 
 #endif  // __SHELLMAPSHADER__H__

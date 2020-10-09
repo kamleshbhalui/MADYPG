@@ -9,29 +9,52 @@ struct _vertices
   // or use separate floats which make alignent 4byte
   float x,y,z,t,u,v,r;
 };
-layout(std430, binding = 0) writeonly buffer _vertexBuffer
+layout(std430, binding = 0) buffer _vertexBuffer
 {
   _vertices data[];
 } buf_Xws;
 
 
-struct v2tri_vals {
+struct _bary {
+  float a, b, c;
   int id;
 };
-
-layout(std430, binding = 1) readonly buffer _triBuffer
+layout(std430, binding = 1) readonly buffer _baryBuffer
 {
-  v2tri_vals data[];
-} buf_tri;
+  _bary data[];
+} buf_B;
 
-
-struct v2bary_vals {
-  vec3 abc; // TODO ALIGNMENT OF EIGEN VECTOR?
+struct _alignedvec3 {
+  float x,y,z;
 };
-layout(std430, binding = 2) readonly buffer _baryBuffer
+struct _aligneduvec3 {
+  uint x,y,z;
+};
+
+layout(std430, binding = 2) readonly buffer _normalBuffer
 {
-  v2bary_vals data[];
-} buf_bary;
+  _alignedvec3 data[];
+} buf_NNv;
+
+
+layout(std430, binding = 3) readonly buffer _meshXBuffer
+{
+  // vec3 data[];
+  _alignedvec3 data[];
+} buf_meshX;
+
+layout(std430, binding = 4) readonly buffer _meshFBuffer
+{
+  _aligneduvec3 data[];
+} buf_meshF;
+
+layout(std430, binding = 5) readonly buffer _meshFmsBuffer
+{
+  _aligneduvec3 data[];
+} buf_meshFms;
+
+uniform bool apply = true;
+uniform bool flat_normals = false;
 
 
 // TODO use memory qualifiers: readonly, writeonly, restrict? coherent?
@@ -40,34 +63,65 @@ void main()
 {
   uint vix = gl_GlobalInvocationID.x;
 
-  int tri = buf_tri.data[vix].id;
+  _bary abci =  buf_B.data[vix];
+  int tri = abci.id;
   if(tri >= 0) {
 
-    // vec3 abc =  buf_bary.data[vix].abc;
-    // abc.x = max(0,abc.x);
-    // abc.y = max(0,abc.y);
-    // abc.z = max(0,abc.z);
-    // abc.x = min(1,abc.x);
-    // abc.y = min(1,abc.y);
-    // abc.z = min(1,abc.z);
+    _vertices V = buf_Xws.data[vix];
 
-    // vec3 xout = abc.x * vec3(0,0,0) + abc.y * vec3(1,0,0) + abc.z * vec3(0,1,0);
+    if (!apply) { // TODO MOVE OUTSIDE OF COMPUTE()
+      // TODO
 
-    // xout = vec3(1,0,0)*abc.x + abc.y + abc.z;
-    // buf_Xws.data[vix].x = xout.x;
-    // // buf_Xws.data[vix].y = xout.y;
-    // // buf_Xws.data[vix].z = xout.z;
+      // buf_Xws.data[vix].x = abci.a;
+      // buf_Xws.data[vix].y = abci.b;
+      // buf_Xws.data[vix].z = abci.c; 
+      return;
+    }
 
-    vec3 abc =  buf_bary.data[vix].abc.xyz;
-    buf_Xws.data[vix].x = abc.x;
-    buf_Xws.data[vix].y = abc.y;
-    buf_Xws.data[vix].z = abc.z; // MAYBE THIS BREAKS BECAUSE OF MEMORY BARRIER ?
+    float h = V.z;
 
-    // buf_Xws.data[vix].x += 0.1;
-    // buf_Xws.data[vix].y += 0.1;
-    // buf_Xws.data[vix].z += -0.1;
+    vec3 n;
+    if (flat_normals) {
+      _alignedvec3 n0 = buf_NNv.data[tri];
+      n = vec3(n0.x, n0.y, n0.z);
+    } else {
+      _aligneduvec3 ms_ixs = buf_meshFms.data[tri];
+
+      _alignedvec3 n0 = buf_NNv.data[ms_ixs.x];
+      _alignedvec3 n1 = buf_NNv.data[ms_ixs.y];
+      _alignedvec3 n2 = buf_NNv.data[ms_ixs.z];
+      n = vec3(
+        n0.x * abci.a + n1.x * abci.b + n2.x * abci.c,
+        n0.y * abci.a + n1.y * abci.b + n2.y * abci.c,
+        n0.z * abci.a + n1.z * abci.b + n2.z * abci.c
+      );
+      // n = buf_NNv.data[ms_ixs.x] * abci.a + buf_NNv.data[ms_ixs.y] * abci.b + buf_NNv.data[ms_ixs.z] * abci.c;
+      n = normalize(n);
+    }
+    _aligneduvec3 ws_ixs = buf_meshF.data[tri];
+
+    _alignedvec3 x0 = buf_meshX.data[ws_ixs.x];
+    _alignedvec3 x1 = buf_meshX.data[ws_ixs.y];
+    _alignedvec3 x2 = buf_meshX.data[ws_ixs.z];
+    vec3 phi = vec3(
+    x0.x * abci.a + x1.x * abci.b + x2.x * abci.c,
+    x0.y * abci.a + x1.y * abci.b + x2.y * abci.c,
+    x0.z * abci.a + x1.z * abci.b + x2.z * abci.c
+    );
+    // vec3 phi = buf_meshX.data[ws_ixs.x] * abci.a + buf_meshX.data[ws_ixs.y] * abci.b + buf_meshX.data[ws_ixs.z] * abci.c;
+    // vec3 phi = vec3(
+    //   buf_meshX.data[vix % 5000].x,
+    //   buf_meshX.data[vix % 5000].y,
+    //   buf_meshX.data[vix % 5000].z
+    // );
+    // vec3 phi = buf_meshX.data[vix % 5000].x;
+    phi += h * n;
+
+    // phi = buf_meshX.data[0];
+    V.x = phi.x;
+    V.y = phi.y;
+    V.z = phi.z;
+
+    buf_Xws.data[vix] = V;
   }
-  // buf_Xws.data[vix].x += 0.4;
-  // X_ws.data[vix].x += vec4(1,0,1.5,0);
-  // X_ws.data[vix].u *= 100;
 }
