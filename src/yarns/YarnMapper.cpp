@@ -2,7 +2,6 @@
 
 #include "../utils/debug_includes.h"
 #include "../utils/threadutils.h"
-#include "shaders/ShellMapShader.h"
 
 void YarnMapper::step() {
   m_timer.tick();
@@ -29,7 +28,7 @@ void YarnMapper::step() {
 
     m_model = std::make_unique<Model>(m_settings.modelfolder);
 
-    m_timer.tock("mesh provider & pyp/model init");
+    m_timer.tock("@init: mesh provider & pyp/model init");
   }
 
   Mesh& mesh = m_meshProvider->getMesh();
@@ -49,10 +48,10 @@ void YarnMapper::step() {
 
   if ((m_meshProvider->materialSpaceChanged() && !m_settings.repeat_frame) ||
       !m_initialized) {
-    m_grid.fromTiling(mesh, m_model->getPYP());
+    m_grid.fromTiling(mesh, m_model->getPYP()); // maybe only once unless fast
     m_grid.overlap_triangles(mesh);
 
-    m_timer.tock("grid setup");
+    m_timer.tock("@uv: grid setup");
 
     if (!m_initialized) {
       // ... soup
@@ -75,22 +74,27 @@ void YarnMapper::step() {
       // somehow account for yarns being pushed outside of uvmesh: tribary
       // choose closest tri)
 
-      m_timer.tock("soup tiling");
+      m_timer.tock("@init: soup tiling");
     }
 
-    mesh.F.bufferData(
-        Magnum::GL::BufferUsage::StaticDraw);  // push to gpu // current hint
-                                               // static bc expecting no change
-                                               // in matspace
 
     mesh.compute_invDm();
     mesh.compute_v2f_map(m_settings.shepard_weights);
     mesh.compute_face_adjacency();  // TODO cache in obj file / or binary cache
-    m_timer.tock("mesh invdm v2f adjacency");
+    m_timer.tock("@uv: mesh invdm v2f adjacency");
 
     m_soup.assign_triangles(m_grid, mesh);
 
-    m_timer.tock("soup tri bary");
+    m_timer.tock("@uv: soup tri bary");
+
+    m_soup.get_B0().bufferData(Magnum::GL::BufferUsage::StaticDraw);
+    mesh.invDmU.bufferData(Magnum::GL::BufferUsage::StaticDraw);
+    mesh.Fms.bufferData(Magnum::GL::BufferUsage::StaticDraw);
+    mesh.F.bufferData(
+        Magnum::GL::BufferUsage::StaticDraw);  // push to gpu // current hint
+                                               // static bc expecting no change
+                                               // in matspace
+    m_timer.tock("@uv: gpu buffers");
 
     if (!m_initialized) {
       m_soup.cut_outside();  // 'delete' unassigned vertices
@@ -110,7 +114,7 @@ void YarnMapper::step() {
 
       m_soup.getIndexBuffer().bufferData(Magnum::GL::BufferUsage::StaticDraw);
 
-      m_timer.tock("soup cut & index list");
+      m_timer.tock("@init: soup cut & index list & buffer");
     }
   }  // end of MS change
 
@@ -131,8 +135,6 @@ void YarnMapper::step() {
   if (m_settings.deform_reference > scalar(1e-10)) {
     deform_reference(mesh, m_settings.flat_strains);
     m_timer.tock("deform");
-    m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
-    m_timer.tock("bary");
   } else {
     int n     = m_soup.num_vertices();
     auto& Xms = m_soup.get_Xms();
@@ -144,8 +146,6 @@ void YarnMapper::step() {
           Xms.block<1, 2>(i, 0).transpose(), 1;
     });
     m_timer.tock("deform");
-    m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
-    m_timer.tock("bary");
   }
 
   // if (m_settings.shell_map)
@@ -173,20 +173,23 @@ void YarnMapper::step() {
     // m_timer.tock("shell map");
 
     m_soup.get_Xws().bufferData(Magnum::GL::BufferUsage::StreamDraw);
-    m_soup.get_B().bufferData();
 
 
     if (m_settings.flat_normals)
       mesh.normals.bufferData();
     else {
       mesh.vertex_normals.bufferData();
-      mesh.Fms.bufferData();  // TODO should be done earlier once
     }
-    
-    static ShellMapShader shader;
-    bool apply = m_settings.shell_map;
-    shader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(),
-                   m_soup.get_B().gpu(),
+    // TODO if not shell map, dont even call this shader? unless its combined with barycentrics..
+    // m_soup.get_B().bufferData(); // NOT IF DOING THAT WITHIN SHADER
+    // m_ssshader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(),
+    //                m_soup.get_B().gpu(),
+    //                m_settings.flat_normals ? mesh.normals.gpu()
+    //                                        : mesh.vertex_normals.gpu(),
+    //                mesh.X.gpu(), mesh.F.gpu(), mesh.Fms.gpu(),
+    //                m_settings.shell_map, m_settings.flat_normals);
+    m_ssshader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(),
+                   m_soup.get_B0().gpu(), mesh.invDmU.gpu(),
                    m_settings.flat_normals ? mesh.normals.gpu()
                                            : mesh.vertex_normals.gpu(),
                    mesh.X.gpu(), mesh.F.gpu(), mesh.Fms.gpu(),
@@ -195,15 +198,17 @@ void YarnMapper::step() {
     // TODO CONTINUE mesh normal & vertexnormal as BUFFER, shell map shader
     // (uniform for do shell map, and uniform for flat normals), compare
     // performance
-    m_timer.tock("shell map & buf");
+    m_timer.tock("bary & shell map & buf");
   } else {
+    m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
+
     if (m_settings.shell_map)
       shell_map(mesh, m_settings.flat_normals);
     else {
       int nverts = m_soup.num_vertices();
       threadutils::parallel_for(0, nverts, [&](int vix) {
         auto x = m_soup.get_Xws().row<float, 4>(vix);
-        x << x(0), x(2), -x(1), x(3), x(0), x(1), 1;
+        x << x(0), x(2), -x(1), x(3), x(0), x(1), 1; // NOTE: not correct uv
       });
     }
 
@@ -212,7 +217,7 @@ void YarnMapper::step() {
                                                // cpu-compute mode that is after
                                                // shell mapping, for gpu-compute
                                                // it is before deformref
-    m_timer.tock("shell map & buf");
+    m_timer.tock("bary & shell map & buf");
   }
   m_timer.tock("rest");
 

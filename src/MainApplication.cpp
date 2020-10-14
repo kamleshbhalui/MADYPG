@@ -265,7 +265,7 @@ void MainApplication::drawEvent() {
 
       const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
       // if (_yarnMapper->getMeshSimulation()->meshIndicesDirty())
-      _meshdrawable->updateIndexCount(mesh.F.getGPUSize());
+      _meshdrawable->updateIndexCount(mesh.F.getGPUSize() * 3);
     }
     _single_step = false;
     simChanged   = true;

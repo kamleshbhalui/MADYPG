@@ -4,6 +4,7 @@
 #include "../utils/debug_timer.h"
 // #include "../mesh/AbstractMeshProvider.h"
 #include <Magnum/GL/Buffer.h>
+#include "shaders/ShellMapShader.h"
 
 #include <memory>
 
@@ -77,16 +78,10 @@ class YarnMapper {
   Magnum::GL::Buffer m_buf_tri;
   Magnum::GL::Buffer m_buf_bary;
 
-  template <typename ArrayLike>
-  void setBufferData(Magnum::GL::Buffer& buffer, const ArrayLike& A,
-                     bool realloc = true,
-                     Magnum::GL::BufferUsage bufferUsage =
-                         Magnum::GL::BufferUsage::StreamDraw) {
-    if (realloc)
-      buffer.setData({A.data(), uint32_t(A.size())}, bufferUsage);
-    else
-      buffer.setSubData(0, {A.data(), uint32_t(A.size())});
-  }
+  // GPU compute
+  ShellMapShader m_ssshader;
+
+
 };
 
 #endif  // __YARNMAPPER__H__

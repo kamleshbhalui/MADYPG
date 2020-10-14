@@ -10,6 +10,7 @@
 #include "../../EigenDefinitions.h"
 #include "../../utils/threadutils.h"
 #include <iostream>
+#define SHELLMAPSHADER_WRKGRPSIZE 32 // for nvidia?
 
 class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
  public:
@@ -19,7 +20,8 @@ class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
     NormalBuffer = 2,
     MeshXBuffer = 3,
     MeshFBuffer = 4,
-    MeshFmsBuffer = 5
+    MeshFmsBuffer = 5,
+    MeshDiUBuffer = 6
   };
 
   explicit ShellMapShader(Magnum::NoCreateT)
@@ -27,19 +29,38 @@ class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
 
   explicit ShellMapShader();
 
+  // // TODO into cpp
+  // void compute(size_t N, Magnum::GL::Buffer &Xws, Magnum::GL::Buffer &B, Magnum::GL::Buffer &NNv, Magnum::GL::Buffer &mX, Magnum::GL::Buffer &mF, Magnum::GL::Buffer &mFms, bool apply, bool flat_normals) {
+  //   Xws.bind(Magnum::GL::Buffer::Target::ShaderStorage, VertexBuffer);
+  //   B.bind(Magnum::GL::Buffer::Target::ShaderStorage, BaryBuffer);
+  //   NNv.bind(Magnum::GL::Buffer::Target::ShaderStorage, NormalBuffer);
+  //   mX.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshXBuffer);
+  //   mF.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshFBuffer);
+  //   if(!flat_normals)
+  //     mFms.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshFmsBuffer);
+  //   setUniform(_applyUniform, apply);
+  //   setUniform(_flatNormalsUniform, flat_normals);
+  //   setUniform(_numVertsUniform, uint32_t(N));
+
+  //   dispatchCompute(Magnum::Vector3ui{uint32_t(N / SHELLMAPSHADER_WRKGRPSIZE), 1, 1}); // TODO TEST SIZE
+
+  //   Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
+  //   // Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::ShaderStorage);
+  // } 
   // TODO into cpp
-  void compute(size_t N, Magnum::GL::Buffer &Xws, Magnum::GL::Buffer &B, Magnum::GL::Buffer &NNv, Magnum::GL::Buffer &mX, Magnum::GL::Buffer &mF, Magnum::GL::Buffer &mFms, bool apply, bool flat_normals) {
+  void compute(size_t N, Magnum::GL::Buffer &Xws, Magnum::GL::Buffer &B0, Magnum::GL::Buffer &DinvU, Magnum::GL::Buffer &NNv, Magnum::GL::Buffer &mX, Magnum::GL::Buffer &mF, Magnum::GL::Buffer &mFms, bool apply, bool flat_normals) {
     Xws.bind(Magnum::GL::Buffer::Target::ShaderStorage, VertexBuffer);
-    B.bind(Magnum::GL::Buffer::Target::ShaderStorage, BaryBuffer);
+    B0.bind(Magnum::GL::Buffer::Target::ShaderStorage, BaryBuffer);
+    DinvU.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshDiUBuffer);
     NNv.bind(Magnum::GL::Buffer::Target::ShaderStorage, NormalBuffer);
     mX.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshXBuffer);
     mF.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshFBuffer);
-    if(!flat_normals)
-      mFms.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshFmsBuffer);
+    mFms.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshFmsBuffer);
     setUniform(_applyUniform, apply);
     setUniform(_flatNormalsUniform, flat_normals);
+    setUniform(_numVertsUniform, uint32_t(N));
 
-    dispatchCompute(Magnum::Vector3ui{N, 1, 1});
+    dispatchCompute(Magnum::Vector3ui{uint32_t(N / SHELLMAPSHADER_WRKGRPSIZE), 1, 1}); // TODO TEST SIZE
 
     Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
     // Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::ShaderStorage);
@@ -100,7 +121,7 @@ class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
   // }
 
  private:
-    Magnum::Int _applyUniform, _flatNormalsUniform;
+    Magnum::Int _applyUniform, _flatNormalsUniform, _numVertsUniform;
 };
 
 #endif  // __SHELLMAPSHADER__H__

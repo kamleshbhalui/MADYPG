@@ -14,20 +14,25 @@ scalar signed_angle(const Vector3s &u, const Vector3s &v, const Vector3s &e) {
 }
 
 void Mesh::compute_invDm() {
-  invDm.resize(Fms.getCPUSize());
-  threadutils::parallel_for(size_t(0), invDm.size(), [&](size_t i) {
+  auto& invDmU_cpu = invDmU.cpu();
+  invDmU_cpu.resize(Fms.getCPUSize());
+  threadutils::parallel_for(size_t(0), invDmU_cpu.size(), [&](size_t i) {
     auto &ixs = Fms.cpu()[i];
     Matrix2s Dm;
-    Dm.col(0) = U.row<float, 2>(ixs.v1) - U.row<float, 2>(ixs.v0);
-    Dm.col(1) = U.row<float, 2>(ixs.v2) - U.row<float, 2>(ixs.v0);
-    invDm[i]  = Dm.inverse();
+    Vector2s U0 = U.row<float, 2>(ixs.v0);
+    Dm.col(0) = U.row<float, 2>(ixs.v1) - U0;
+    Dm.col(1) = U.row<float, 2>(ixs.v2) - U0;
+    invDmU_cpu[i].mapDinv() = Dm.inverse();
+    invDmU_cpu[i].mapU0() = U0;
   });
 }
 
 Vector3s Mesh::barycentric_ms(int tri, const Vector2s &p) const {
+  const auto& invDmU_cpu = invDmU.cpu();
   Vector3s abc;
-  auto u0       = U.row<float, 2>(Fms.cpu()[tri].v0);
-  abc.tail<2>() = invDm[tri] * (p - u0);
+  // auto u0       = U.row<float, 2>(Fms.cpu()[tri].v0);
+  const auto& iDmU = invDmU_cpu[tri];
+  abc.tail<2>() = iDmU.mapDinv() * (p - iDmU.mapU0());
   abc[0]        = scalar(1) - abc[1] - abc[2];
   return abc;
 }
@@ -169,6 +174,7 @@ void Mesh::compute_face_adjacency() {
 void Mesh::compute_face_data() {
   auto &Fc = F.cpu();
   auto Xc  = X.matrixView<float, 3>();
+  auto& invDmU_cpu = invDmU.cpu();
   normals.cpu().resize(Fc.size());
   // normals.resize(Fc.size());
   strains.resize(Fc.size());
@@ -185,7 +191,7 @@ void Mesh::compute_face_data() {
     MatrixNMs<3, 2> defoF;
     defoF.col(0) = e01;
     defoF.col(1) = e02;
-    defoF *= invDm[f];
+    defoF *= invDmU_cpu[f].mapDinv();
     Vector6s &s = strains[f];
 
     // in plane
