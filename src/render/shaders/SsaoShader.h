@@ -7,6 +7,9 @@
 #include <Magnum/GL/AbstractShaderProgram.h>
 #include <Magnum/Shaders/Generic.h>
 #include <Magnum/Math/Vector2.h>
+#include <Magnum/GL/MultisampleTexture.h>
+
+#include "../enableMSAA.h"
 
 namespace Magnum {
 
@@ -20,18 +23,18 @@ public:
 
     explicit SsaoShader(Magnum::NoCreateT) : GL::AbstractShaderProgram{Magnum::NoCreate} {};
 
+    #ifdef MSAA
+    SsaoShader& bindPositionTexture(GL::MultisampleTexture2D&);
+    SsaoShader& bindNormalTexture(GL::MultisampleTexture2D&);
+    #else
     SsaoShader& bindPositionTexture(GL::Texture2D&);
-
     SsaoShader& bindNormalTexture(GL::Texture2D&);
+    #endif
 
     SsaoShader& bindNoiseTexture(GL::Texture2D&);
-
     SsaoShader& bindOcclusionTexture(GL::Texture2D&);
-
     SsaoShader& setProjectionMatrix(Matrix4 const&);
-
     SsaoShader& setSampleRadius(Float);
-
     SsaoShader& setBias(Float);
 
 private:

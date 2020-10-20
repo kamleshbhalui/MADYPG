@@ -30,8 +30,31 @@
 
 in vec2 textureCoordinate;
 
+#ifdef MSAA // defined in enableMSAA.h
+uniform sampler2DMS positions; 
+uniform sampler2DMS normals;
+
+// average sampling
+#define invMSAA 1.0/MSAA
+vec4 textureMSavg(sampler2DMS tex, ivec2 P) {
+    // return texelFetch(tex, P, 0);
+    vec4 val = vec4(0.0);
+    for (int i = 0; i < MSAA; i++)
+        val += texelFetch(tex, P, i);
+    return val * invMSAA;
+}
+vec4 textureMSsum(sampler2DMS tex, ivec2 P) {
+    // return texelFetch(tex, P, 0);
+    vec4 val = vec4(0.0);
+    for (int i = 0; i < MSAA; i++)
+        val += texelFetch(tex, P, i);
+    return val;
+}
+#else
 uniform sampler2D positions;
 uniform sampler2D normals;
+#endif
+
 uniform sampler2D noise;
 
 uniform mat4 projection;
@@ -41,28 +64,81 @@ uniform vec3 samples[SAMPLE_COUNT];
 
 out float ambientOcclusion;
 
+#ifdef MSAA
+vec2 noiseScale = vec2(textureSize(positions))/vec2(textureSize(noise,0));
+#else
 vec2 noiseScale = vec2(textureSize(positions,0))/vec2(textureSize(noise,0));
+#endif
 
 void main()
 {
-    vec3 position = texture(positions, textureCoordinate).xyz;
+    // NOTE: could larger scale shadow with radius=0.2, bias=0.05, strength=0.7
 
+    #ifdef MSAA
+    // TODO WHY DOES THIS PRODUCE SHADOW AROUND SMOOTH OBSTACLES
+    float occlusion = 0.0;
+    // ambientOcclusion = 0.0;
+    ivec2 texsize = textureSize(positions); // assume same for normals
+    int N_AO = SAMPLE_COUNT / MSAA; // assume divisible
+    float invN = 1.0 / float(N_AO);
+    for (int m = 0; m < MSAA; m++) {
+        ivec2 P = ivec2(textureCoordinate * texsize);
+        vec3 position = texelFetch(positions, P, m).xyz;
+        vec3 normal = normalize(texelFetch(normals, P, m).xyz);
+
+        // if(position.z == 0) {
+        //     ambientOcclusion = 1;
+        //     return;
+        // }
+        vec3 randomVector = normalize(texture(noise, textureCoordinate*noiseScale).xyz);
+
+        /* tangent-space to view-space */
+        vec3 tangent = normalize(randomVector - normal*dot(randomVector, normal));
+        vec3 bitangent = cross(normal, tangent);
+        mat3 TBN = mat3(tangent, bitangent, normal);
+
+        /* iterate over the sample kernel and calculate occlusion factor */
+        // float occlusion = 0.0;
+        for(int i = 0; i < N_AO; ++i) {
+            vec3 randomSample = TBN*samples[m*N_AO + i];
+            randomSample = position + randomSample * radius;
+
+            vec4 sampleNDC = projection*vec4(randomSample, 1.);
+            sampleNDC.xyz /= sampleNDC.w; /* perspective division */
+            vec2 sampleCoords = sampleNDC.xy*0.5 + 0.5;
+
+            float sampleDepth = texelFetch(positions, ivec2(sampleCoords * texsize), m).z;
+            // float sampleDepth = texture(positions, sampleCoords).z;
+
+            /* range check & accumulate */
+            float rangeCheck = smoothstep(0.0, 1.0, radius/abs(position.z - sampleDepth));
+
+            occlusion += (sampleDepth >= randomSample.z + bias ? 1.0 : 0.0)*rangeCheck;
+        }
+
+        // ambientOcclusion += 1.0 - (occlusion * invN);
+    }
+
+    ambientOcclusion = 1.0 - (occlusion * invN * invMSAA);
+    
+
+
+
+    #else
+
+    vec3 position = texture(positions, textureCoordinate).xyz;
+    vec3 normal = normalize(texture(normals, textureCoordinate).xyz);
     // if(position.z == 0) {
     //     ambientOcclusion = 1;
     //     return;
     // }
-    vec3 normal = normalize(texture(normals, textureCoordinate).xyz);
     vec3 randomVector = normalize(texture(noise, textureCoordinate*noiseScale).xyz);
-
-
-    // normal=vec3(0,0,1.0);
 
     /* tangent-space to view-space */
     vec3 tangent = normalize(randomVector - normal*dot(randomVector, normal));
     vec3 bitangent = cross(normal, tangent);
     mat3 TBN = mat3(tangent, bitangent, normal);
 
-    // NOTE: could larger scale shadow with radius=0.2, bias=0.05, strength=0.7
 
     /* iterate over the sample kernel and calculate occlusion factor */
     float occlusion = 0.0;
@@ -78,11 +154,9 @@ void main()
         /* range check & accumulate */
         float rangeCheck = smoothstep(0.0, 1.0, radius/abs(position.z - sampleDepth));
 
-    // rangeCheck=1.0;
-
         occlusion += (sampleDepth >= randomSample.z + bias ? 1.0 : 0.0)*rangeCheck;
     }
 
     ambientOcclusion = 1.0 - (occlusion / float(SAMPLE_COUNT));
-    // ambientOcclusion = 1.0;
+    #endif
 }

@@ -2,6 +2,12 @@
 
 #include <imgui_stdlib.h>
 
+// #ifdef MSAA
+// #define SSAO_SAMPLES 32
+// #else
+#define SSAO_SAMPLES 64
+// #endif
+
 using namespace Magnum;
 using namespace Math::Literals;
 
@@ -15,6 +21,15 @@ void setupTexture(GL::Texture2D &texture, Magnum::Vector2i const &size,
       .setWrapping(GL::SamplerWrapping::ClampToEdge)
       .setStorage(1, format, size);
 }
+#ifdef MSAA
+void setupTexture(GL::MultisampleTexture2D &texture,
+                  Magnum::Vector2i const &size, GL::TextureFormat format);
+void setupTexture(GL::MultisampleTexture2D &texture,
+                  Magnum::Vector2i const &size, GL::TextureFormat format) {
+  texture = GL::MultisampleTexture2D{};
+  texture.setStorage(MSAA, format, size);
+}
+#endif
 
 void makeDefaultTexture(GL::Texture2D &tex2D);
 void makeDefaultTexture(GL::Texture2D &tex2D) {
@@ -106,7 +121,9 @@ void MainApplication::reset_simulation() {
 
   _yarnMapper->initialize();
   _yarnDrawable.clear();
-  _yarnDrawable.emplace_back(_yarnGeometryShader, _yarnMapper->getVertexBuffer(), _yarnMapper->getIndexBuffer());
+  _yarnDrawable.emplace_back(_yarnGeometryShader,
+                             _yarnMapper->getVertexBuffer(),
+                             _yarnMapper->getIndexBuffer());
 
   // _yarnDrawable.back().setIndices(_yarnMapper->getIndices());
   // _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
@@ -115,7 +132,8 @@ void MainApplication::reset_simulation() {
 
   auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
   _meshdrawable.release();
-  _meshdrawable = std::make_unique<MeshDrawable<MeshShader>>(_meshShader, mesh.F, mesh.X);
+  _meshdrawable =
+      std::make_unique<MeshDrawable<MeshShader>>(_meshShader, mesh.F, mesh.X);
   // _meshdrawable->setIndices(mesh.F);
   // _meshdrawable->setVertices(mesh.X);
 
@@ -129,6 +147,11 @@ void MainApplication::reset_simulation() {
 
 MainApplication::MainApplication(const Arguments &arguments)
     : Platform::Application{arguments, NoCreate} {
+#ifdef MSAA
+  ::Debug::logf("Using %dx MSAA\n", MSAA);
+  GL::Renderer::enable(GL::Renderer::Feature::Multisampling);
+#endif
+
   /* Setup window */
   {
     const Vector2 dpiScaling = this->dpiScaling({});
@@ -187,7 +210,10 @@ MainApplication::MainApplication(const Arguments &arguments)
     const Range2Di viewport = GL::defaultFramebuffer.viewport();
     const Vector2i vpSize   = viewport.size();
 
-    _framebuffer = GL::Framebuffer{viewport};
+    _fbo_gbuffer = GL::Framebuffer{viewport};
+#ifdef MSAA
+    _fbo_ssao = GL::Framebuffer{viewport};
+#endif
     setupFramebuffer(vpSize);
     // GL::Renderer::setClearColor({});
     // GL::Renderer::setClearColor(_bgColor);
@@ -196,18 +222,20 @@ MainApplication::MainApplication(const Arguments &arguments)
     _yarnGeometryShader = YarnShader{};
     _meshShader         = MeshShader{};
     _obsMeshShader      = ObsMeshShader{};
-    _ssaoShader         = SsaoShader{};
+    _ssaoShader         = SsaoShader{SSAO_SAMPLES};
     _ssaoApplyShader    = SsaoApplyShader{};
 
     {  // default settings
-      _yarnMapperSettings.modelfolder            = "models/model_rib";
-      _yarnMapperSettings.provider_type = YarnMapper::Settings::Provider::BinSeq;
+      _yarnMapperSettings.modelfolder = "models/model_rib";
+      _yarnMapperSettings.provider_type =
+          YarnMapper::Settings::Provider::BinSeq;
       // _yarnMapperSettings.binseq_settings.filepath = "binseqs/sock.bin";
       // #ifdef NDEBUG
-      _yarnMapperSettings.binseq_settings.filepath = "binseqs/HYLC_30x30/basket_drapeX.bin";
+      _yarnMapperSettings.binseq_settings.filepath =
+          "binseqs/HYLC_30x30/basket_drapeX.bin";
       // #else
-      // _yarnMapperSettings.binseq_settings.filepath = "binseqs/sxsy_const.bin";
-      // #endif
+      // _yarnMapperSettings.binseq_settings.filepath =
+      // "binseqs/sxsy_const.bin"; #endif
       _yarnMapperSettings.objseq_settings.folder = "objseqs/sxsy_const";
       _yarnMapperSettings.objseq_settings.constant_material_space = true;
     }
@@ -230,7 +258,8 @@ MainApplication::MainApplication(const Arguments &arguments)
 
   /* Set up the arcball and projection */
   {
-    const Vector3 eye = 2.0f * Vector3(+0.4f, 0.3f, 0.5f);//Vector3::yAxis(1.0f);
+    const Vector3 eye =
+        2.0f * Vector3(+0.4f, 0.3f, 0.5f);  // Vector3::yAxis(1.0f);
     const Vector3 center{};
     const Vector3 up = Vector3::yAxis();
     ;
@@ -280,11 +309,11 @@ void MainApplication::drawEvent() {
   if (require_redraw) {
     Matrix4 tf = _arcball->viewMatrix();
     if (_rotate_scene) {
-      tf = tf * Matrix4::rotation(Rad(-1.57079632679f),Vector3::xAxis());
+      tf = tf * Matrix4::rotation(Rad(-1.57079632679f), Vector3::xAxis());
     }
 
     /* render the scene into g-buffer */
-    _framebuffer
+    _fbo_gbuffer
         .mapForDraw(
             {{YarnShader::AlbedoOutput, GL::Framebuffer::ColorAttachment{0}},
              {YarnShader::PositionsOutput, GL::Framebuffer::ColorAttachment{1}},
@@ -312,8 +341,7 @@ void MainApplication::drawEvent() {
       _meshdrawable->draw(tf);
     }
 
-    if (_render_obstacles)
-    {
+    if (_render_obstacles) {
       _obsMeshShader.bindMatCap(_matcapObs);
       _obsMeshShader.setProjection(_projection);
 
@@ -326,6 +354,7 @@ void MainApplication::drawEvent() {
       }
     }
 
+
     _ssaoShader.bindNormalTexture(_normals)
         .bindNoiseTexture(_noise)
         .bindPositionTexture(_positions)
@@ -333,16 +362,31 @@ void MainApplication::drawEvent() {
         .setSampleRadius(_ao_radius)
         .setBias(_ao_bias);
 
-    _framebuffer
+    #ifdef MSAA
+    _fbo_ssao
+        .mapForDraw({{SsaoShader::AmbientOcclusionOutput,
+                      GL::Framebuffer::ColorAttachment{0}}})
+        .clear(GL::FramebufferClear::Color)
+        // .clearColor(3, Color4(0.0, 0.0, 1.0, 1.0))
+        // .clear(GL::FramebufferClear::Color) // TODO? WHAT IS COLORATTACHMENT, replace with clearColor(3, ...)
+        .bind();
+        
+  // ::Debug::error("TEST",_fbo_ssao.checkStatus(GL::FramebufferTarget::Draw) ==
+  //                     GL::Framebuffer::Status::Complete);
+    _ssaoShader.draw(_screenAlignedTriangle);
+    #else
+    _fbo_gbuffer
         .mapForDraw({{SsaoShader::AmbientOcclusionOutput,
                       GL::Framebuffer::ColorAttachment{3}}})
         .clear(GL::FramebufferClear::Color);
     _ssaoShader.draw(_screenAlignedTriangle);
+    #endif
   }
+
   GL::defaultFramebuffer.bind();
   _ssaoApplyShader.bindAlbedoTexture(_albedo)
       .bindOcclusionTexture(_occlusion)
-      .bindNormalTexture(_normals)
+      // .bindNormalTexture(_normals)
       .bindPositionTexture(_positions)
       .setLightPosition({5.0f, 5.0f, 7.0f})
       .setLightColor(Color3{1.f})
@@ -352,6 +396,51 @@ void MainApplication::drawEvent() {
       .setAOBlurFeature(_ao_blur_feature)
       .setAOPow(_ao_pow)
       .draw(_screenAlignedTriangle);
+
+    
+    // GL::AbstractFramebuffer::blit(_fbo_gbuffer, GL::defaultFramebuffer, {Vector2i(0,0),_positions.imageSize()}, {Vector2i(0,0),_positions.imageSize()},GL::FramebufferBlit::Color,GL::FramebufferBlitFilter::Nearest); // TODO CONTINUE HERE. THIS SEEMS TO WORK, SO GBUFFER FBO AT LEAST HAS COLOR CORRECT (and probably the rest.) so at what stage is it failing then. is the ssao shader not binding gbuffer correct or reading its values? try to blit the output of ssao   
+    // it also doesnt seem to work to blit gbuffer into ssao and then into default. so maybe fbossao is not even set up correctly (like to have a color thing? or bc blit color assumes that it wants to use colorattachment 0 which doesnt exist for ssaofbo?)
+    // i can map any of gbuffer stuff for read into the default framebuffer with working MSAA
+    // however going over ssaofbo does not work, maybe again i dont know to which attachment to draw 
+
+    // _fbo_gbuffer.mapForRead(GL::Framebuffer::ColorAttachment{2});
+    // GL::AbstractFramebuffer::blit(_fbo_gbuffer, GL::defaultFramebuffer, {Vector2i(0,0),_positions.imageSize()}, GL::FramebufferBlit::Color); 
+    
+    // maybe cant blit bc different format texture RGB->R?
+    // _fbo_gbuffer.mapForRead(GL::Framebuffer::ColorAttachment{2});
+    // _fbo_ssao.mapForDraw({{SsaoShader::AmbientOcclusionOutput,
+    //                   GL::Framebuffer::ColorAttachment{3}}});
+    // GL::AbstractFramebuffer::blit(_fbo_gbuffer, _fbo_ssao, {Vector2i(0,0),_positions.imageSize()}, GL::FramebufferBlit::Color); 
+
+
+    // _fbo_ssao.mapForRead(GL::Framebuffer::ColorAttachment{3});    GL::defaultFramebuffer.mapForDraw(GL::DefaultFramebuffer::DrawAttachment::Back);
+    // GL::AbstractFramebuffer::blit(_fbo_ssao, GL::defaultFramebuffer, {Vector2i(0,0),_positions.imageSize()},GL::FramebufferBlit::Color);
+/*
+0th attempt: all below but use texelfetch of fixed sample 0
+
+
+1st attempt
+
+--enable opengl multisample
+--make albedo normal and position multisample
+--keep aotexture single sample
+
+--make second framebuffer for ssaoshading
+
+ssao shader: use texelfetch to get avg position, avg normal, for neighborlookup use some random single sample position (eg based on the random normal vector using tangent t or so... biased?)
+  ~~~~ position/normal
+
+ssaoapply shader: use texelfetch for avg color, (if blur use texelfetch for random or average position)
+  try just getting and showing occlusion first using occludraw
+  ~~~~ albedo/position
+
+use second fbo
+
+define MSAA somewhere else
+
+
+multisampled depth??
+*/
 
 
   _imgui.newFrame();
@@ -387,7 +476,10 @@ void MainApplication::viewportEvent(ViewportEvent &event) {
   const Vector2i wSize  = event.windowSize();
 
   GL::defaultFramebuffer.setViewport({{}, fbSize});
-  _framebuffer.setViewport({{}, fbSize});
+  _fbo_gbuffer.setViewport({{}, fbSize});
+  #ifdef MSAA
+  _fbo_ssao.setViewport({{},fbSize});
+  #endif
 
   _arcball->reshape(wSize);
   _projection = Matrix4::perspectiveProjection(
@@ -407,16 +499,43 @@ void MainApplication::setupFramebuffer(const Vector2i &size) {
   setupTexture(_occlusion, size, GL::TextureFormat::R32F);
   setupTexture(_depth, size, GL::TextureFormat::DepthComponent32F);
 
-  _framebuffer
+// _depth.setStorage(128,GL::TextureFormat::DepthComponent32F,size); TODO WHY DOESNT THIS THROW AN ERROR, MAKING VARZING
+#ifdef MSAA
+  _fbo_gbuffer
+      .attachTexture(GL::Framebuffer::BufferAttachment::Depth, _depth)
+      .attachTexture(GL::Framebuffer::ColorAttachment{0}, _albedo)
+      .attachTexture(GL::Framebuffer::ColorAttachment{1}, _positions)
+      .attachTexture(GL::Framebuffer::ColorAttachment{2}, _normals);
+#else
+  _fbo_gbuffer
       .attachTexture(GL::Framebuffer::BufferAttachment::Depth, _depth, 0)
       .attachTexture(GL::Framebuffer::ColorAttachment{0}, _albedo, 0)
       .attachTexture(GL::Framebuffer::ColorAttachment{1}, _positions, 0)
       .attachTexture(GL::Framebuffer::ColorAttachment{2}, _normals, 0)
-      .attachTexture(GL::Framebuffer::ColorAttachment{3}, _occlusion, 0);
-
+      .attachTexture(GL::Framebuffer::ColorAttachment{3}, _occlusion,
+                             0);
+#endif
   CORRADE_INTERNAL_ASSERT(
-      _framebuffer.checkStatus(GL::FramebufferTarget::Draw) ==
+      _fbo_gbuffer.checkStatus(GL::FramebufferTarget::Draw) ==
       GL::Framebuffer::Status::Complete);
+
+#ifdef MSAA
+// TODO maybe only attach the textures that need to be drawn?
+  _fbo_ssao
+      // .attachTexture(GL::Framebuffer::ColorAttachment{1}, _positions)
+      // .attachTexture(GL::Framebuffer::ColorAttachment{2}, _normals)
+      .attachTexture(GL::Framebuffer::ColorAttachment{0},  _occlusion, 0); // TEST ATTACHMENT {0}
+  CORRADE_INTERNAL_ASSERT(_fbo_gbuffer.checkStatus(GL::FramebufferTarget::Read) ==
+                          GL::Framebuffer::Status::Complete);
+  CORRADE_INTERNAL_ASSERT(_fbo_ssao.checkStatus(GL::FramebufferTarget::Draw) ==
+                          GL::Framebuffer::Status::Complete);
+  CORRADE_INTERNAL_ASSERT(_fbo_ssao.checkStatus(GL::FramebufferTarget::Read) ==
+                          GL::Framebuffer::Status::Complete);
+  // ::Debug::error("TEST",_fbo_ssao.checkStatus(GL::FramebufferTarget::Draw) ==
+  //                     GL::Framebuffer::Status::Complete);
+  // ::Debug::error("TEST",_fbo_gbuffer.checkStatus(GL::FramebufferTarget::Draw) ==
+  //                     GL::Framebuffer::Status::Complete);
+#endif
 }
 
 void MainApplication::drawSettings() {
@@ -428,7 +547,7 @@ void MainApplication::drawSettings() {
   if (ImGui::Button("Hot Reload Shaders")) {
     Utility::Resource::overrideGroup("ssao-data",
                                      "src/render/shaders/resources.conf");
-    _ssaoShader         = SsaoShader{};
+    _ssaoShader         = SsaoShader{SSAO_SAMPLES};
     _ssaoApplyShader    = SsaoApplyShader{_ssaoApplyFlag};
     _yarnGeometryShader = YarnShader{};
     _meshShader         = MeshShader{};
@@ -498,9 +617,9 @@ void MainApplication::drawSettings() {
       ImGui::PopItemWidth();
     }
 
-    
     ImGui::TextBrowser(*_fileDialog.get(), _matcapObs_file, [&]() {
-      loadTexture(_matcapObs_file, _matcapObs, GL::SamplerWrapping::ClampToEdge);
+      loadTexture(_matcapObs_file, _matcapObs,
+                  GL::SamplerWrapping::ClampToEdge);
       _obsMeshShader.bindMatCap(_matcapObs);
     });
 
@@ -562,27 +681,28 @@ void MainApplication::drawSettings() {
   ImGui::Checkbox("GPU", &_yarnMapperSettings.gpu_compute);
   ImGui::Checkbox("DBG", &_yarnMapperSettings.debug_toggle);
 
-
   ImGui::TextBrowser(*_folderDialog.get(), _yarnMapperSettings.modelfolder);
 
-  static int elem = _yarnMapperSettings.provider_type;
-  static constexpr auto count = YarnMapper::Settings::Provider::COUNT;
-  const char* elems_names[count] = { "ObjSeq", "BinSeq", "XPBD" };
-  const char* elem_name = (elem >= 0 && elem < count) ? elems_names[elem] : "Unknown";
+  static int elem                = _yarnMapperSettings.provider_type;
+  static constexpr auto count    = YarnMapper::Settings::Provider::COUNT;
+  const char *elems_names[count] = {"ObjSeq", "BinSeq", "XPBD"};
+  const char *elem_name =
+      (elem >= 0 && elem < count) ? elems_names[elem] : "Unknown";
   if (ImGui::SliderInt("slider enum", &elem, 0, count - 1, elem_name))
-    _yarnMapperSettings.provider_type = static_cast<YarnMapper::Settings::Provider>(elem);
+    _yarnMapperSettings.provider_type =
+        static_cast<YarnMapper::Settings::Provider>(elem);
 
-  if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::ObjSeq) {
-  ImGui::TextBrowser(*_folderDialog.get(),
-                     _yarnMapperSettings.objseq_settings.folder);
-  } else if(_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::BinSeq) {
-  ImGui::TextBrowser(*_fileDialog.get(),
-                     _yarnMapperSettings.binseq_settings.filepath);
+  if (_yarnMapperSettings.provider_type ==
+      YarnMapper::Settings::Provider::ObjSeq) {
+    ImGui::TextBrowser(*_folderDialog.get(),
+                       _yarnMapperSettings.objseq_settings.folder);
+  } else if (_yarnMapperSettings.provider_type ==
+             YarnMapper::Settings::Provider::BinSeq) {
+    ImGui::TextBrowser(*_fileDialog.get(),
+                       _yarnMapperSettings.binseq_settings.filepath);
   } else {
     ImGui::TextUnformatted("- not implemented -");
   }
-
-
 
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
@@ -625,6 +745,8 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
   if (_imgui.handleKeyPressEvent(event))
     return;
 
+  static bool MS = true;
+
   // key press events, that are only allowed while not editing a text field
   if (!isTextInputActive()) {
     float cam_d = 2.0f;
@@ -646,13 +768,19 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         break;
       case KeyEvent::Key::S:
         if ((event.modifiers() & KeyEvent::Modifier::Shift)) {
-          _paused = false;
+          _paused                          = false;
           _yarnMapperSettings.repeat_frame = !_yarnMapperSettings.repeat_frame;
-        }
-        else {
+        } else {
           _single_step = true;
           _paused      = true;
         }
+        break;
+      case KeyEvent::Key::B:
+      if (MS)
+        GL::Renderer::disable(GL::Renderer::Feature::Multisampling);
+      else
+        GL::Renderer::enable(GL::Renderer::Feature::Multisampling);
+        MS = !MS;
         break;
       case KeyEvent::Key::M:
         _render_mesh = !_render_mesh;

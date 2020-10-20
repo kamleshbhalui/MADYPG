@@ -57,6 +57,9 @@ SsaoApplyShader::SsaoApplyShader(Flag flag) {
   GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
 
   vert.addSource(rs.get("FullScreenTriangle.vert"));
+  #ifdef MSAA
+  frag.addSource("#define MSAA " +  std::to_string(MSAA) + "\n");
+  #endif
   frag.addSource(flag == Flag::DrawAmbientOcclusion
                      ? "#define DRAW_OCCLUSION_FACTOR\n"
                      : "")
@@ -75,35 +78,52 @@ SsaoApplyShader::SsaoApplyShader(Flag flag) {
 
   if (flag != Flag::DrawAmbientOcclusion) {
     setUniform(uniformLocation("positionTexture"), PositionUnit);
-    setUniform(uniformLocation("normalTexture"), NormalUnit);
+    // setUniform(uniformLocation("normalTexture"), NormalUnit);
     setUniform(uniformLocation("albedoTexture"), AlbedoUnit);
 
-    _shininessUniform     = uniformLocation("shininess");
-    _lightPositionUniform = uniformLocation("lightPosition");
-    _lightColorUniform    = uniformLocation("lightColor");
-    _specularColorUniform = uniformLocation("specularColor");
+    // _shininessUniform     = uniformLocation("shininess");
+    // _lightPositionUniform = uniformLocation("lightPosition");
+    // _lightColorUniform    = uniformLocation("lightColor");
+    // _specularColorUniform = uniformLocation("specularColor");
   }
 
   setUniform(uniformLocation("ambientOcclusionTexture"), AmbientOcclusionUnit);
 }
 
+
+
+#ifdef MSAA
+SsaoApplyShader& SsaoApplyShader::bindAlbedoTexture(GL::MultisampleTexture2D& texture) {
+  texture.bind(AlbedoUnit);
+  return *this;
+}
+SsaoApplyShader& SsaoApplyShader::bindPositionTexture(GL::MultisampleTexture2D& texture) {
+  texture.bind(PositionUnit);
+  return *this;
+}
+// SsaoApplyShader& SsaoApplyShader::bindNormalTexture(GL::MultisampleTexture2D& texture) {
+//   texture.bind(NormalUnit);
+//   return *this;
+// }
+#else
 SsaoApplyShader& SsaoApplyShader::bindAlbedoTexture(GL::Texture2D& texture) {
   texture.bind(AlbedoUnit);
   return *this;
 }
+SsaoApplyShader& SsaoApplyShader::bindPositionTexture(GL::Texture2D& texture) {
+  texture.bind(PositionUnit);
+  return *this;
+}
+// SsaoApplyShader& SsaoApplyShader::bindNormalTexture(GL::Texture2D& texture) {
+//   texture.bind(NormalUnit);
+//   return *this;
+// }
+#endif
+
+
 
 SsaoApplyShader& SsaoApplyShader::bindOcclusionTexture(GL::Texture2D& texture) {
   texture.bind(AmbientOcclusionUnit);
-  return *this;
-}
-
-SsaoApplyShader& SsaoApplyShader::bindNormalTexture(GL::Texture2D& texture) {
-  texture.bind(NormalUnit);
-  return *this;
-}
-
-SsaoApplyShader& SsaoApplyShader::bindPositionTexture(GL::Texture2D& texture) {
-  texture.bind(PositionUnit);
   return *this;
 }
 

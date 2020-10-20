@@ -30,15 +30,27 @@
 
 in vec2 textureCoordinate;
 
+#ifdef MSAA
+uniform sampler2DMS positionTexture; 
+uniform sampler2DMS albedoTexture;
+#define invMSAA 1.0/MSAA
+vec4 textureMSavg(sampler2DMS sampler, ivec2 P) {
+    vec4 val = vec4(0.0);
+    for (int i = 0; i < MSAA; i++)
+        val += texelFetch(sampler, P, i);
+    return val * invMSAA;
+}
+#else
 uniform sampler2D positionTexture;
-uniform sampler2D normalTexture;
 uniform sampler2D albedoTexture;
+#endif
 uniform sampler2D ambientOcclusionTexture;
 
-uniform vec3 lightPosition;
-uniform vec3 lightColor;
-uniform float shininess;
-uniform vec3 specularColor;
+// uniform sampler2D normalTexture;
+// uniform vec3 lightPosition;
+// uniform vec3 lightColor;
+// uniform float shininess;
+// uniform vec3 specularColor;
 
 out vec4 fragmentColor;
 
@@ -64,11 +76,27 @@ float bilateral_weight() {
 
 void main()
 {
+
+#ifdef MSAA
+    float blurredOcclusion = texture(ambientOcclusionTexture, textureCoordinate).x;
+    blurredOcclusion = pow(blurredOcclusion, ao_pow);
+    #ifndef DRAW_OCCLUSION_FACTOR 
+    vec3 albedo = textureMSavg(albedoTexture, ivec2(textureCoordinate*textureSize(albedoTexture))).rgb;
+    fragmentColor.rgb = albedo*blurredOcclusion;
+    #else
+    fragmentColor.rgb = vec3(blurredOcclusion);
+    #endif
+    return;
+
+    // MSAA blur not implemented ...
+#else
+
+
     /* retrieve data from gbuffer */
     vec3 position = texture(positionTexture, textureCoordinate).rgb;
 
 #ifndef DRAW_OCCLUSION_FACTOR
-    vec3 normal = texture(normalTexture, textureCoordinate).rgb;
+    // vec3 normal = texture(normalTexture, textureCoordinate).rgb;
     vec3 albedo = texture(albedoTexture, textureCoordinate).rgb;
 #endif
 
@@ -116,30 +144,10 @@ void main()
         blurredOcclusion = texture(ambientOcclusionTexture, textureCoordinate).x;
     }
 
-
-
-    
     // ssao power to strengthen effect
     blurredOcclusion = pow(blurredOcclusion, ao_pow); 
 
 #ifndef DRAW_OCCLUSION_FACTOR
-    // /* No ambient color */
-    // fragmentColor = vec4(0,0,0,1);
-
-    // /* normalize normal */
-    // mediump vec3 normalizedTransformedNormal = normalize(normal);
-
-    // /* Add diffuse color */
-    // highp vec3 normalizedLightDirection = normalize(lightPosition - position);
-    // lowp float intensity = max(0.0, dot(normalizedTransformedNormal, normalizedLightDirection));
-    // fragmentColor.rgb += albedo*lightColor*intensity*blurredOcclusion;
-
-    // /* Add specular color, if needed */
-    // if(intensity > 0.001) {
-    //     highp vec3 reflection = reflect(-normalizedLightDirection, normalizedTransformedNormal);
-    //     mediump float specularity = clamp(pow(max(0.0, dot(normalize(-position), reflection)), shininess), 0.0, 1.0);
-    //     fragmentColor.rgb += specularColor*specularity; /* white specular color */
-    // }
     fragmentColor.rgb = albedo*blurredOcclusion;
 #else
     fragmentColor.rgb = vec3(blurredOcclusion);
@@ -147,7 +155,6 @@ void main()
 
 
 
-// TODO WHEN USING MATCAPS NO NEED TO DO
-// fragmentColor.rgb =albedo; 
+#endif // TODO del MSAA hack
 }
 

@@ -80,79 +80,84 @@ void main()
   // int tri = abci.id;
   int tri = buf_B0.data[vix].id;
 
-  if(tri >= 0) {
-
-    _vertices V = buf_Xws.data[vix];
-
-    if (!apply) { // TODO MOVE OUTSIDE OF COMPUTE()
-      // TODO
-
-      // buf_Xws.data[vix].x = abci.a;
-      // buf_Xws.data[vix].y = abci.b;
-      // buf_Xws.data[vix].z = abci.c; 
-      return;
-    }
-
-    vec3 abc;
-    { // barycentrics
-      vec2 p = vec2(V.x, V.y);
-      _DiU DiU = buf_meshDinvU.data[tri];
-      mat2 Dinv = mat2(DiU.Dcol0, DiU.Dcol1);
-      abc.yz = Dinv * (p - DiU.U0);
-      abc.x = 1 - abc.y - abc.z;
-    }
+  if(tri < 0)
+    return;
 
 
-    float h = V.z;
+  _vertices V = buf_Xws.data[vix];
 
-    vec3 n;
-    if (flat_normals) {
-      _alignedvec3 n0 = buf_NNv.data[tri];
-      n = vec3(n0.x, n0.y, n0.z);
-    } else {
-      _aligneduvec3 ms_ixs = buf_meshFms.data[tri];
+  if (!apply) { // TODO MOVE OUTSIDE OF COMPUTE()
+    // TODO
 
-      _alignedvec3 n0 = buf_NNv.data[ms_ixs.x];
-      _alignedvec3 n1 = buf_NNv.data[ms_ixs.y];
-      _alignedvec3 n2 = buf_NNv.data[ms_ixs.z];
-      n = vec3(
-        // n0.x * abci.a + n1.x * abci.b + n2.x * abci.c,
-        // n0.y * abci.a + n1.y * abci.b + n2.y * abci.c,
-        // n0.z * abci.a + n1.z * abci.b + n2.z * abci.c
-        n0.x * abc.x + n1.x * abc.y + n2.x * abc.z,
-        n0.y * abc.x + n1.y * abc.y + n2.y * abc.z,
-        n0.z * abc.x + n1.z * abc.y + n2.z * abc.z
-      );
-      // n = buf_NNv.data[ms_ixs.x] * abci.a + buf_NNv.data[ms_ixs.y] * abci.b + buf_NNv.data[ms_ixs.z] * abci.c;
-      n = normalize(n);
-    }
-    _aligneduvec3 ws_ixs = buf_meshF.data[tri];
-
-    _alignedvec3 x0 = buf_meshX.data[ws_ixs.x];
-    _alignedvec3 x1 = buf_meshX.data[ws_ixs.y];
-    _alignedvec3 x2 = buf_meshX.data[ws_ixs.z];
-    vec3 phi = vec3(
-    // x0.x * abci.a + x1.x * abci.b + x2.x * abci.c,
-    // x0.y * abci.a + x1.y * abci.b + x2.y * abci.c,
-    // x0.z * abci.a + x1.z * abci.b + x2.z * abci.c
-    x0.x * abc.x + x1.x * abc.y + x2.x * abc.z,
-    x0.y * abc.x + x1.y * abc.y + x2.y * abc.z,
-    x0.z * abc.x + x1.z * abc.y + x2.z * abc.z
-    );
-    // vec3 phi = buf_meshX.data[ws_ixs.x] * abci.a + buf_meshX.data[ws_ixs.y] * abci.b + buf_meshX.data[ws_ixs.z] * abci.c;
-    // vec3 phi = vec3(
-    //   buf_meshX.data[vix % 5000].x,
-    //   buf_meshX.data[vix % 5000].y,
-    //   buf_meshX.data[vix % 5000].z
-    // );
-    // vec3 phi = buf_meshX.data[vix % 5000].x;
-    phi += h * n;
-
-    // phi = buf_meshX.data[0];
-    V.x = phi.x + 0.2;
-    V.y = phi.y;
-    V.z = phi.z;
-
-    buf_Xws.data[vix] = V;
+    // buf_Xws.data[vix].x = abci.a;
+    // buf_Xws.data[vix].y = abci.b;
+    // buf_Xws.data[vix].z = abci.c; 
+    return;
   }
+
+  vec3 abc;
+  { // barycentrics
+    vec2 p = vec2(V.x, V.y);
+    _DiU DiU = buf_meshDinvU.data[tri];
+    mat2 Dinv = mat2(DiU.Dcol0, DiU.Dcol1);
+    abc.yz = Dinv * (p - DiU.U0);
+    abc.x = 1 - abc.y - abc.z;
+  }
+
+
+  float h = V.z;
+
+  vec3 n;
+  if (flat_normals) {
+    _alignedvec3 n0 = buf_NNv.data[tri];
+    n = vec3(n0.x, n0.y, n0.z);
+  } else {
+    _aligneduvec3 ms_ixs = buf_meshFms.data[tri];
+
+    _alignedvec3 n0 = buf_NNv.data[ms_ixs.x];
+    _alignedvec3 n1 = buf_NNv.data[ms_ixs.y];
+    _alignedvec3 n2 = buf_NNv.data[ms_ixs.z];
+    n = vec3(
+      // n0.x * abci.a + n1.x * abci.b + n2.x * abci.c,
+      // n0.y * abci.a + n1.y * abci.b + n2.y * abci.c,
+      // n0.z * abci.a + n1.z * abci.b + n2.z * abci.c
+      n0.x * abc.x + n1.x * abc.y + n2.x * abc.z,
+      n0.y * abc.x + n1.y * abc.y + n2.y * abc.z,
+      n0.z * abc.x + n1.z * abc.y + n2.z * abc.z
+    );
+    // n = buf_NNv.data[ms_ixs.x] * abci.a + buf_NNv.data[ms_ixs.y] * abci.b + buf_NNv.data[ms_ixs.z] * abci.c;
+    n = normalize(n);
+  }
+  _aligneduvec3 ws_ixs = buf_meshF.data[tri];
+
+  _alignedvec3 x0 = buf_meshX.data[ws_ixs.x];
+  _alignedvec3 x1 = buf_meshX.data[ws_ixs.y];
+  _alignedvec3 x2 = buf_meshX.data[ws_ixs.z];
+  vec3 phi = vec3(
+  // x0.x * abci.a + x1.x * abci.b + x2.x * abci.c,
+  // x0.y * abci.a + x1.y * abci.b + x2.y * abci.c,
+  // x0.z * abci.a + x1.z * abci.b + x2.z * abci.c
+  x0.x * abc.x + x1.x * abc.y + x2.x * abc.z,
+  x0.y * abc.x + x1.y * abc.y + x2.y * abc.z,
+  x0.z * abc.x + x1.z * abc.y + x2.z * abc.z
+  );
+  // vec3 phi = buf_meshX.data[ws_ixs.x] * abci.a + buf_meshX.data[ws_ixs.y] * abci.b + buf_meshX.data[ws_ixs.z] * abci.c;
+  // vec3 phi = vec3(
+  //   buf_meshX.data[vix % 5000].x,
+  //   buf_meshX.data[vix % 5000].y,
+  //   buf_meshX.data[vix % 5000].z
+  // );
+  // vec3 phi = buf_meshX.data[vix % 5000].x;
+  phi += h * n;
+
+  // phi = buf_meshX.data[0];
+  V.x = phi.x;// + 0.2;
+  V.y = phi.y;
+  V.z = phi.z;
+
+  buf_Xws.data[vix] = V;
+
+
+  // TODO radius ? needs neighbors already set for cur length comp.
+  // maybe another shader (prob easiest, and check if fast enough)
 }

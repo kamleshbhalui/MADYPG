@@ -35,6 +35,9 @@
 #include <Magnum/Shaders/Generic.h>
 #include <Magnum/Math/Vector3.h>
 #include <Magnum/Math/Color.h>
+#include <Magnum/GL/MultisampleTexture.h>
+
+#include "../enableMSAA.h"
 
 namespace Magnum {
 
@@ -49,13 +52,19 @@ public:
 
     explicit SsaoApplyShader(Magnum::NoCreateT) : Magnum::GL::AbstractShaderProgram{Magnum::NoCreate} {};
 
+    #ifdef MSAA
+    SsaoApplyShader& bindAlbedoTexture(Magnum::GL::MultisampleTexture2D&);
+    SsaoApplyShader& bindPositionTexture(Magnum::GL::MultisampleTexture2D&);
+    // SsaoApplyShader& bindNormalTexture(Magnum::GL::MultisampleTexture2D&);
+    #else
     SsaoApplyShader& bindAlbedoTexture(Magnum::GL::Texture2D&);
+    SsaoApplyShader& bindPositionTexture(Magnum::GL::Texture2D&);
+    // SsaoApplyShader& bindNormalTexture(Magnum::GL::Texture2D&);
+    #endif
 
     SsaoApplyShader& bindOcclusionTexture(Magnum::GL::Texture2D&);
 
-    SsaoApplyShader& bindPositionTexture(Magnum::GL::Texture2D&);
 
-    SsaoApplyShader& bindNormalTexture(Magnum::GL::Texture2D&);
 
     SsaoApplyShader& setShininess(Float);
 
