@@ -226,13 +226,15 @@ MainApplication::MainApplication(const Arguments &arguments)
     _ssaoApplyShader    = SsaoApplyShader{};
 
     {  // default settings
-      _yarnMapperSettings.modelfolder = "models/model_rib";
+      _yarnMapperSettings.modelfolder = "models/model_stock";
+      // _yarnMapperSettings.modelfolder = "models/V0/model_rib";
       _yarnMapperSettings.provider_type =
           YarnMapper::Settings::Provider::BinSeq;
       // _yarnMapperSettings.binseq_settings.filepath = "binseqs/sock.bin";
       // #ifdef NDEBUG
       _yarnMapperSettings.binseq_settings.filepath =
-          "binseqs/HYLC_30x30/basket_drapeX.bin";
+          "binseqs/sxsy_const.bin";
+          // "binseqs/HYLC_30x30/basket_drapeX.bin";
       // #else
       // _yarnMapperSettings.binseq_settings.filepath =
       // "binseqs/sxsy_const.bin"; #endif

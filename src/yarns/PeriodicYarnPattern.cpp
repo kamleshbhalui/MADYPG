@@ -183,6 +183,7 @@ std::vector<uint32_t> PYP::compute_simple_yarns() {
 
 // yarn index and restlength along-yarn-parameter t ϵ [0, L)
 void PYP::compute_parametric() {
+  // TODO DEPRECATE, INSTEAD USE FROM MODEL
   if (VE.rows() != Q.rows())
     recompute_VE_table();
 
@@ -207,7 +208,7 @@ void PYP::compute_parametric() {
           // y2t.push_back(L);
           param_v2y[vix] = y;
           param_v2t[vix]    = L;
-          L += RL[eix];
+          L += RL[vix]; // NOTE using vix because RL in HYLC computed indexed per vertex for its outgoing edge
           vix = E(eix, 1);
           eix = VE(vix, 1);
         } while (!visited[vix]);
@@ -225,4 +226,10 @@ void PYP::compute_parametric() {
         y2t.push_back(param_v2t[vix]);
       }
   });
+
+  Debug::log("Y2V 0:\n",param_y2v[0],"\n");
+  Debug::log("Y2V 1:\n",param_y2v[1],"\n");
+
+  Debug::log("Y2T 0:\n",param_y2t[0],"\n");
+  Debug::log("Y2T 1:\n",param_y2t[1],"\n");
 }

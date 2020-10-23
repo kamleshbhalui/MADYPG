@@ -23,7 +23,7 @@ struct PeriodicYarnPattern
   float r = 0;
   MatrixGLf Q;  // vertex data [x y z t]
   MatrixXXRMi E;  // periodic edges [v0, v1, di, dj]
-  std::vector<scalar> RL; // restlengths
+  std::vector<scalar> RL; // restlengths (NOTE: stored per vertex outgoing edge, not per edge index!)
   Vector2s Qmin;
   std::vector<int> param_v2y;
   std::vector<scalar> param_v2t;

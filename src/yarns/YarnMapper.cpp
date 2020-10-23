@@ -26,6 +26,7 @@ void YarnMapper::step() {
                Debug::format_locale(m_meshProvider->getMesh().Fms.cpu().size(),
                                     "en_US.UTF-8"));
 
+    // m_model = std::make_unique<ModelV0>(m_settings.modelfolder);
     m_model = std::make_unique<Model>(m_settings.modelfolder);
 
     m_timer.tock("@init: mesh provider & pyp/model init");
@@ -262,12 +263,13 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
     g *= m_settings.deform_reference;
     // store deformed ms coordinates intm. in ws coords
     // NOTE: buffer.row is a colvector so it expects colvector comma init
+    // Xws.row<float, 7>(vix) << Xms.row(vix).transpose() + g,
+    //     Xms.block<1, 2>(vix, 0).transpose(), 1;
     Xws.row<float, 7>(vix) << Xms.row(vix).transpose() + g,
-        Xms.block<1, 2>(vix, 0).transpose(), 1;
-    // Xws.row(vix) << Xms.row(vix) + g.transpose(), s[0],s[2],1; // DEBUG:
-    // visualize strain
-    // Xws.row(vix) << Xms.row(vix) + g.transpose(), dbg0, dbg1,
-    // 1;  // DEBUG: visualize other
+        dbg0,dbg1, 1;
+
+    // if (vix == 1200)
+    //   Debug::log("  ",dbg0);
   });
 }
 

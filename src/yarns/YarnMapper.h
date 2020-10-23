@@ -11,6 +11,7 @@
 #include "../mesh/BinSeqAnimation.h"
 #include "../mesh/ObjSeqAnimation.h"
 #include "Grid.h"
+#include "ModelV0.h"
 #include "Model.h"
 #include "YarnSoup.h"
 
@@ -67,6 +68,7 @@ class YarnMapper {
 
  private:
   bool m_initialized;
+  // std::unique_ptr<ModelV0> m_model;
   std::unique_ptr<Model> m_model;
   Grid m_grid;
   YarnSoup m_soup;
