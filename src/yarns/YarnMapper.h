@@ -36,7 +36,6 @@ class YarnMapper {
     ObjSeqAnimation::Settings objseq_settings;
     BinSeqAnimation::Settings binseq_settings;
     // TODO XPBDMeshProvider::Settings xpbd_settings;
-    bool debug_toggle = false;
   } m_settings;
 
   YarnMapper() : m_initialized(false) {}
@@ -65,6 +64,11 @@ class YarnMapper {
 
   // timing
   Debug::MovingAverageTimer<10, std::chrono::microseconds> m_timer;
+
+
+  struct DebugSettings {
+    std::vector<float> strain_toggle = std::vector<float>{1,1,1,1,1,1};
+  } m_dbg;
 
  private:
   bool m_initialized;

@@ -109,9 +109,9 @@ class Model {
       // x = m_tex_sxsasy[y].sample({t,strain[0],strain[1],strain[2]});
       g += x - xref;
 
-      if (vix % 10 == 0 && y == 0) {
-        Debug::logf("%d: %.8f %.2f\n", vix, t, dbg1);
-      }
+      //if (vix % 10 == 0 && y == 0) {
+      //  Debug::logf("%d: %.8f %.2f\n", vix, t, dbg1);
+      //}
       
       return std::make_tuple(g, dbg0, dbg1);
     }

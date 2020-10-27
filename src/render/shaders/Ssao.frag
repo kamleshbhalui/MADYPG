@@ -75,7 +75,7 @@ void main()
     // NOTE: could larger scale shadow with radius=0.2, bias=0.05, strength=0.7
 
     #ifdef MSAA
-    // TODO WHY DOES THIS PRODUCE SHADOW AROUND SMOOTH OBSTACLES
+    // TODO WHY DOES THIS PRODUCE SHADOW AROUND SMOOTH OBSTACLES ( NOTE not tested for long and depends on ssao params)
     float occlusion = 0.0;
     // ambientOcclusion = 0.0;
     ivec2 texsize = textureSize(positions); // assume same for normals
@@ -85,6 +85,11 @@ void main()
         ivec2 P = ivec2(textureCoordinate * texsize);
         vec3 position = texelFetch(positions, P, m).xyz;
         vec3 normal = normalize(texelFetch(normals, P, m).xyz);
+
+         // NOTE: using arbitrary -1000 as background depth
+        if(position.z < -999.9) {
+            continue; // for multisampling reject any sample that happens to land in the background
+        }
 
         // if(position.z == 0) {
         //     ambientOcclusion = 1;
@@ -111,18 +116,14 @@ void main()
             // float sampleDepth = texture(positions, sampleCoords).z;
 
             /* range check & accumulate */
-            float rangeCheck = smoothstep(0.0, 1.0, radius/abs(position.z - sampleDepth));
+            // float rangeCheck = smoothstep(0.0, 1.0, radius/abs(position.z - sampleDepth));
+            float rangeCheck = 1.0; // do this to shadow at any distance
 
             occlusion += (sampleDepth >= randomSample.z + bias ? 1.0 : 0.0)*rangeCheck;
         }
-
-        // ambientOcclusion += 1.0 - (occlusion * invN);
     }
 
     ambientOcclusion = 1.0 - (occlusion * invN * invMSAA);
-    
-
-
 
     #else
 

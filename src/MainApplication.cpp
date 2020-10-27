@@ -322,7 +322,7 @@ void MainApplication::drawEvent() {
              {YarnShader::NormalsOutput, GL::Framebuffer::ColorAttachment{2}}})
         // .clear(GL::FramebufferClear::Depth | GL::FramebufferClear::Color)
         .clearColor(0, _bgColor)
-        .clearColor(1, Color4(0.0, 0.0, 0.0, 1.0))
+        .clearColor(1, Color4(0.0, 0.0, -1000.0, 1.0)) // NOTE: using arbitrary -1000 as background depth
         .clearColor(2, Color4(0.0, 0.0, 1.0, 1.0))
         .clearDepth(1.0)
         .bind();
@@ -597,11 +597,14 @@ void MainApplication::drawSettings() {
       loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
       _yarnGeometryShader.bindMatCap(_matcap);
     });
+    static bool _rep = true;
     ImGui::TextBrowser(*_fileDialog.get(), _clothtexture_file, [&]() {
       loadTexture(_clothtexture_file, _clothTexture,
-                  GL::SamplerWrapping::Repeat);
+                  _rep ? GL::SamplerWrapping::Repeat : GL::SamplerWrapping::ClampToEdge);
       _yarnGeometryShader.bindClothTexture(_clothTexture);
     });
+    ImGui::SameLine();
+    ImGui::Checkbox("Rep", &_rep);
 
     ImGui::Checkbox("Yarns", &_render_yarns);
     ImGui::SameLine();
@@ -681,7 +684,7 @@ void MainApplication::drawSettings() {
                      1.0f);
   ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);
   ImGui::Checkbox("GPU", &_yarnMapperSettings.gpu_compute);
-  ImGui::Checkbox("DBG", &_yarnMapperSettings.debug_toggle);
+  // ImGui::Checkbox("DBG", &_yarnMapperSettings.debug_toggle);
 
   ImGui::TextBrowser(*_folderDialog.get(), _yarnMapperSettings.modelfolder);
 
@@ -741,6 +744,23 @@ void MainApplication::drawSettings() {
   // ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
+
+
+  ImGui::Begin("DBG");
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
+  ImGui::PushItemWidth(100.0f);
+  {
+    ImGui::TextUnformatted("S"); ImGui::SameLine();
+    ImGui::PushItemWidth(20.0f);
+    ImGui::DragFloat("##S0", &_yarnMapper->m_dbg.strain_toggle[0], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
+    ImGui::DragFloat("##S1", &_yarnMapper->m_dbg.strain_toggle[1], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
+    ImGui::DragFloat("##S2", &_yarnMapper->m_dbg.strain_toggle[2], 0.01f, 0.0f, 1.0f);
+    ImGui::PopItemWidth();
+  }
+
+  ImGui::PopItemWidth();
+  ImGui::PopStyleVar();
+  ImGui::End();
 }
 
 void MainApplication::keyPressEvent(KeyEvent &event) {
@@ -796,9 +816,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       case KeyEvent::Key::F:
         _rotate_scene = !_rotate_scene;
         break;
-      case KeyEvent::Key::T:
-        _yarnMapperSettings.debug_toggle = !_yarnMapperSettings.debug_toggle;
-        break;
+      // case KeyEvent::Key::T:
+      //   _yarnMapperSettings.debug_toggle = !_yarnMapperSettings.debug_toggle;
+      //   break;
       case KeyEvent::Key::G:
         _yarnMapperSettings.gpu_compute = !_yarnMapperSettings.gpu_compute;
         break;

@@ -243,7 +243,7 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
       return;
 
     Vector3s abc;
-    abc << bary.a, bary.b, bary.c;
+    abc << bary.a, bary.b, bary.c; // TODO CLAMP BARY HERE AND FOR NORMALS IN SHMAP (GPU AND CPU)
 
     Vector6s s;
     if (flat_strains) {
@@ -253,6 +253,14 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
       s           = mesh.vertex_strains[ms_ixs[0]] * abc[0] +
           mesh.vertex_strains[ms_ixs[1]] * abc[1] +
           mesh.vertex_strains[ms_ixs[2]] * abc[2];
+    }
+
+    // DEBUG
+    {
+      for (size_t i = 0; i < 6; i++)
+      {
+        s[i]*= m_dbg.strain_toggle[i];
+      }
     }
 
     Vector4s g;
@@ -266,7 +274,8 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
     // Xws.row<float, 7>(vix) << Xms.row(vix).transpose() + g,
     //     Xms.block<1, 2>(vix, 0).transpose(), 1;
     Xws.row<float, 7>(vix) << Xms.row(vix).transpose() + g,
-        dbg0,dbg1, 1;
+        // dbg0,dbg1, 1;
+        (s[1] + 0.5f),(s[2] + 0.5f), 1;
 
     // if (vix == 1200)
     //   Debug::log("  ",dbg0);
