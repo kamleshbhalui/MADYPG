@@ -176,6 +176,8 @@ void Mesh::compute_face_data() {
   auto Xc  = X.matrixView<float, 3>();
   auto& invDmU_cpu = invDmU.cpu();
   normals.cpu().resize(Fc.size());
+  auto& defgrads = defF.cpu();
+  defgrads.resize(Fc.size());
   // normals.resize(Fc.size());
   strains.resize(Fc.size());
   threadutils::parallel_for(size_t(0), normals.cpu().size(), [&](size_t f) {
@@ -193,6 +195,8 @@ void Mesh::compute_face_data() {
     defoF.col(1) = e02;
     defoF *= invDmU_cpu[f].mapDinv();
     Vector6s &s = strains[f];
+
+    defgrads[f].map() = defoF;
 
     // in plane
     scalar C00 = defoF.col(0).squaredNorm();
@@ -259,6 +263,21 @@ void Mesh::compute_vertex_normals() {
     }
     v.normalize();  // NOTE: could consider not normalizing until
                            // barycentric interpolation?
+  });
+}
+
+void Mesh::compute_vertex_defF() {
+  const auto &fdata = defF.cpu();
+  auto &vdata       = vertex_defF.cpu();
+
+  vdata.resize(v2f.size());
+
+  threadutils::parallel_for(size_t(0), v2f.size(), [&](size_t i) {
+    auto v = vdata[i].map();
+    v.setZero();
+    for (const auto &fw : v2f[i]) {
+      v += fdata[fw.first].map() * fw.second;
+    }
   });
 }
 

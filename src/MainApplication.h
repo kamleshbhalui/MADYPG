@@ -91,6 +91,7 @@ class MainApplication : public Platform::Application {
   GL::Texture2D _matcapObs{NoCreate};
   GL::Texture2D _matcap{NoCreate};
   GL::Texture2D _clothTexture{NoCreate};
+  GL::Texture1D _normalMap{NoCreate};
   bool _paused                   = false;
   int _min_loop_ms               = 16;
   bool _single_step              = false;
@@ -101,7 +102,11 @@ class MainApplication : public Platform::Application {
   std::string _matcap_file       = "matcaps/lighting1.jpg";
   std::string _matcapObs_file    = "matcaps/lighting1.jpg";
   std::string _clothtexture_file = "textures/colorgridy.jpg";
+  std::string _normalMap_file = "textures/normalMap.jpg";
   float _render_radius_mult      = 1.0f;
+  float _render_nmtwist      = 1.0f;
+  float _render_nmnum        = 4.0f;
+  float _render_nmheight        = 0.1f;
   float _mesh_dz                 = 0.0f;
   float _clothTexture_scale      = 1.0f;
   Color4 _bgColor                = Color4(Color3(0.2f), 1.0f);

@@ -29,8 +29,8 @@ class YarnDrawable {
         .setPrimitive(GL::MeshPrimitive::LineStripAdjacency);
     m_mesh.addVertexBuffer(
         vertexBufferRef.gpu(), 0, YarnShader::Position{},
-        // this->m_vertexBuffer, 0, YarnShader::Position{},
-        4,  // skip twist variable for now
+        YarnShader::Arc{},
+        YarnShader::Director{},
         YarnShader::TextureCoordinates{},
         YarnShader::Radius{});  // something about memory layout of data in
                                 // vertex buffer
@@ -47,13 +47,19 @@ class YarnDrawable {
     const Matrix4 &MV = V;
     m_shader
         .setTransformation(MV)
-        // .setNormalMatrix(MV.normalMatrix())
+        .setNormalMatrix(MV.normalMatrix())
         .setDiffuseColor(Color4(1.0))  // more like tint
         .setRadius(m_radius)
+        .setNormalTwist(m_nmtwist)
+        .setNormalNum(m_nmnum)
+        .setNormalHeight(m_nmheight)
         .draw(m_mesh);
   }
 
   float m_radius = 0.001f;
+  float m_nmtwist = 1.0f;
+  float m_nmnum = 1.0f;
+  float m_nmheight = 0.1f;
 
  protected:
   YarnShader &m_shader;

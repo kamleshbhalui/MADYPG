@@ -12,7 +12,7 @@ uniform vec4 diffuseColor;
 // uniform sampler2D matcap;
 
 void main() {
-    color = diffuseColor;
+    color = diffuseColor;// vec4(0.6,0.8,0.95,1.0);
     // position = viewPosition;
     // normal = viewNormal;
 }

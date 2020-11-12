@@ -39,6 +39,7 @@ class Model {
 
     // Load model / pyp
     m_pyp.deserialize(pypfile);  // DEBUG hardcoded file
+    m_pyp.recompute_VE_table();
     // m_pyp.rectangulize();  // TODO potentially assume that this is true for new
     // pyp, but it should take only a millisecond anyway
     // TODO ACTUALlY RECTANGULIZING HERE MIGHT BE BAD

@@ -34,8 +34,25 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
   //   return local_eix + n_edges_tile * cix;
   // };
 
+
+
+  // precompute tangents
+  AlignedVector<Vector3s> tangents;
+  tangents.reserve(pyp.Q.rows());
+  for (int i = 0; i < pyp.Q.rows(); ++i) {
+    Vector3s x0 = pyp.Q.block<1,3>(i,0);
+    auto edge = pyp.E.row(pyp.VE(i,1));
+    Vector3s x1 = pyp.Q.block<1,3>(i,0);
+    Vector3s shift;
+    shift << edge(2) * pyp.px, edge(3) * pyp.py, 0;  // account for periodic jump
+    tangents[i] = (x1 + shift - x0).normalized();
+  }
+
+  auto& TBcpu = TB.cpu();
+  TBcpu.resize(n_verts);
+
   // allocate memory for vertex data, vertex/edge topology
-  X_ms.resize(n_verts, 4);
+  X_ms.resize(n_verts, 5);
   m_pypix.resize(n_verts);  // TODO parametric fake
   E = MatrixXXRMi::Constant(n_edges, 2,
                             -1);  // NOTE parallelizable? (or just set -1
@@ -52,7 +69,8 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
     // grid has been shifted to be aligned with pyp using pivot, but to copy its
     // geometry we have to undo the pivot
     for (int lvix = 0; lvix < n_verts_tile; ++lvix) {
-      X_ms.row(vix_shift + lvix) = pyp.Q.row(lvix);
+      X_ms.row(vix_shift + lvix).head<4>() = pyp.Q.row(lvix);
+      X_ms(vix_shift + lvix,4) = 0;
       X_ms.row(vix_shift + lvix).head<2>() += vpos_shift;
       // self.v_pp_id[vix_shift + lvix] = lvix TODO IGNORE UNTIL USED
       m_pypix[vix_shift + lvix] = lvix;  // TODO parametric fake
@@ -63,9 +81,17 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
       // should get no triangle assigned and thus be marked for cutting
       auto testij = grid.getIndex(X_ms.row(vix_shift + lvix).head<2>());
       if (testij.first != i || testij.second != j) {
-        X_ms.row(vix_shift + lvix) = pyp.Q.row(lvix) * scalar(0.99);
+        X_ms.row(vix_shift + lvix).head<4>() = pyp.Q.row(lvix) * scalar(0.99);
         X_ms.row(vix_shift + lvix).head<2>() += vpos_shift;
       }
+    }
+
+    for (int lvix = 0; lvix < n_verts_tile; ++lvix) {
+      auto& TBi = TBcpu[vix_shift + lvix];
+      Vector3s b = pyp.RefD1.row(lvix);
+      const Vector3s& t = tangents[lvix];
+      // TBi.mapT() = tangents[lvix];
+      TBi.mapB() = (b - b.dot(t) * t).normalized(); // orthonormalize just in case
     }
 
     int eix_shift = n_edges_tile * cix;
@@ -247,7 +273,7 @@ void YarnSoup::cut_outside() {
   });
 }
 
-void YarnSoup::generate_index_list() {
+void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL) {
   auto delim = std::numeric_limits<uint32_t>::max();
   // [ y0v0 y0v1 y0v2 ... delim y1v0 y1v1 ... ]
 
@@ -271,7 +297,7 @@ void YarnSoup::generate_index_list() {
     if (!hasPrev(i) && hasNext(i))
       starts.push_back(i);
   }
-  std::vector<float> lengths(starts.size());  // #verts per yarn
+  std::vector<int> lengths(starts.size());  // #verts per yarn
 
   // for each start (parallel ?)
   //   walk until end (nextedge<0) to count number of verts
@@ -333,4 +359,41 @@ void YarnSoup::generate_index_list() {
     }
     indices[offset + c] = delim;
   });
+
+
+  
+  // compute arc length
+  threadutils::parallel_for(0, int(starts.size()), [&](int i) {
+    float arc = 0;
+    int vix               = starts[i];
+    X_ms(vix,4) = arc;
+    while (hasNext(vix)) {
+      arc += pypRL[m_pypix[vix]];
+      vix = getNext(vix);
+      X_ms(vix,4) = arc;
+    }
+  });
+  // float arc = 0;
+  // for (size_t i = 0; i < indices.size(); i++)
+  // {
+  //   int vix               = indices[i];
+  //   if (vix != delim) {
+  //     X_ms(vix,4) = arc;
+  //     arc += pypRL[m_pypix[vix]];
+  //     Debug::log(" ",X_ms(vix,4));
+  //   }
+  //   else {
+  //     arc = 0;
+  //     Debug::log(" ------ ");
+  //   }
+  // }
+
+  // for (size_t i = 0; i < indices.size(); i++)
+  // {
+  //   int vix               = indices[i];
+  //   if (vix != delim)
+  //     Debug::log(" ",X_ms(vix,4));
+  //   else
+  //     Debug::log(" ------ ");
+  // }
 }

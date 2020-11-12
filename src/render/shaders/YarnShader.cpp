@@ -71,15 +71,19 @@ YarnShader::YarnShader() {
   bindFragmentDataLocation(NormalsOutput, "normal");
 
   _transformationUniform = uniformLocation("transformation");
-  // _normalMatrixUniform = uniformLocation("normalMatrix");
+  _normalMatrixUniform = uniformLocation("normalMatrix");
   _projectionUniform   = uniformLocation("projection");
   _diffuseColorUniform = uniformLocation("diffuseColor");
   _radiusUniform       = uniformLocation("radius");
+  _normalTwistUniform   = uniformLocation("normalTwist");
+  _normalNumUniform     = uniformLocation("normalNum");
+  _normalHeightUniform     = uniformLocation("normalHeight");
   _texscaleUniform     = uniformLocation("tex_scale");
 
   // get uniform location and immediately use to set to textureunit
   setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
   setUniform(uniformLocation("tex_cloth"), TextureUnit_ClothTexture);
+  setUniform(uniformLocation("normalMap"), TextureUnit_NormalMap);
 }
 
 YarnShader &YarnShader::setTransformation(const Matrix4 &transformation) {
@@ -87,10 +91,10 @@ YarnShader &YarnShader::setTransformation(const Matrix4 &transformation) {
   return *this;
 }
 
-// YarnShader& YarnShader::setNormalMatrix(const Matrix3x3& normalMatrix){
-//    setUniform(_normalMatrixUniform, normalMatrix);
-//    return *this;
-// }
+YarnShader& YarnShader::setNormalMatrix(const Matrix3x3& normalMatrix){
+   setUniform(_normalMatrixUniform, normalMatrix);
+   return *this;
+}
 
 YarnShader &YarnShader::setProjection(const Matrix4 &projection) {
   setUniform(_projectionUniform, projection);
@@ -107,6 +111,21 @@ YarnShader &YarnShader::setRadius(float radius) {
   return *this;
 }
 
+YarnShader &YarnShader::setNormalTwist(float speed) {
+  setUniform(_normalTwistUniform, speed);
+  return *this;
+}
+
+YarnShader &YarnShader::setNormalNum(float num) {
+  setUniform(_normalNumUniform, num);
+  return *this;
+}
+
+YarnShader &YarnShader::setNormalHeight(float height) {
+  setUniform(_normalHeightUniform, height);
+  return *this;
+}
+
 YarnShader &YarnShader::bindMatCap(GL::Texture2D &texture) {
   texture.bind(TextureUnit_Matcap);
   return *this;
@@ -114,6 +133,11 @@ YarnShader &YarnShader::bindMatCap(GL::Texture2D &texture) {
 
 YarnShader &YarnShader::bindClothTexture(GL::Texture2D &texture) {
   texture.bind(TextureUnit_ClothTexture);
+  return *this;
+}
+
+YarnShader &YarnShader::bindNormalMap(GL::Texture1D &texture) {
+  texture.bind(TextureUnit_NormalMap);
   return *this;
 }
 

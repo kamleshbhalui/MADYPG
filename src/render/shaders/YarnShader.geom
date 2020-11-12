@@ -9,19 +9,25 @@ layout (lines_adjacency) in;
 layout (triangle_strip, max_vertices = NVERTICES) out;
 
 in V2G {
-    highp vec2 uv;
-    float r;
+  vec3 d1;
+  float arc;
+  float th;
+  vec2 uv;
+  float r;
 } gs_in[];
 
 out G2F {
-    highp vec2 uv;
+  float a; // radial texture coordinate: actually Na - NVl/2 pi r
+  float r;
+  vec3 p;
+  // vec3 n;
+  mat3 Q; // tangential surface frame T1,T2,N, where T1=t x n, T2=t, N=n. for yarn curve tangent n and normal n. 
+  vec2 uv;
 } gs_out;
 
-out highp vec3 viewPosition;
-out highp vec3 viewNormal;
-out highp vec2 uv;
-
 uniform float radius = 1.0;
+uniform float normalTwist = 1000;
+uniform float normalNum = 4;
 uniform mat4 projection;
 
 // https://github.com/torbjoern/polydraw_scripts/blob/master/geometry/drawcone_geoshader.pss
@@ -74,41 +80,63 @@ void main() {
   float r2 = gs_in[2].r * radius;
 
   // segment tangent, and weighted avg vertex tangents
+  // TODO weigh by arclength!
   vec3 t = V1.gl_Position.xyz - V0.gl_Position.xyz;
   vec3 tv0 = (t + (V0.gl_Position.xyz - Vprv.gl_Position.xyz));
   vec3 tv1 = (t + (Vnxt.gl_Position.xyz - V1.gl_Position.xyz));
 
+  vec3 nv0 = (gs_in[1].d1 + gs_in[0].d1);
+  vec3 nv1 = (gs_in[2].d1 + gs_in[1].d1);
+  // NOTE: when using twists (and should!) probably should compute material frame BEFORE averaging since (m1+m2) != R(thetaavg) (d1+d2)
+  // vec3 d1_0 = cos(gs_in[0].th) * gs_in[0].d1 + sin(gs_in[0].th) * cross(normalize(V0.gl_Position.xyz - Vprv.gl_Position.xyz),gs_in[0].d1);
+  // vec3 d1_1 = cos(gs_in[1].th) * gs_in[1].d1 + sin(gs_in[1].th) * cross(normalize(t),gs_in[1].d1);
+  // vec3 d1_2 = cos(gs_in[2].th) * gs_in[2].d1 + sin(gs_in[2].th) * cross(normalize(Vnxt.gl_Position.xyz - V1.gl_Position.xyz),gs_in[2].d1);
+  // vec3 nv0 = (d1_1+d1_0);
+  // vec3 nv1 = (d1_2+d1_1);
+
   // normals and binormals
-  vec3 nv0 = normalize(createPerp( tv0 ));
+  nv0 = normalize(nv0 - tv0 * dot(tv0,nv0)/dot(tv0,tv0));
+  // vec3 nv0 = normalize(createPerp( tv0 ));
   vec3 bv0 = normalize(cross( tv0, nv0 ));
-  vec3 nv1 = normalize(createPerp( tv1 ));
+  nv1 = normalize(nv1 - tv1 * dot(tv1,nv1)/dot(tv1,tv1));
+  // vec3 nv1 = normalize(createPerp( tv1 ));
   vec3 bv1 = normalize(cross( tv1, nv1 ));
 
   // vec3 n = normalize(createPerp( t ));
   // vec3 b = normalize(cross( t, n ));
 
   int segs = NVERTICES/2;
+  vec3 n;
   for(int i=0; i<segs; i++) {
-    float a = i/float(segs-1) * 2.0 * 3.14159;
+    float alpha = i/float(segs-1);
+    float a = alpha * 2.0 * 3.14159;
     float ca = cos(a); float sa = sin(a);
+    // float ca = cos(a + gs_in[1].th); float sa = sin(a + gs_in[1].th);
 
     // viewNormal = vec3( ca*b.x + sa*n.x,
     //                 ca*b.y + sa*n.y,
     //                 ca*b.z + sa*n.z );
-
-    gs_out.uv = gs_in[2].uv;
-    viewNormal = vec3( ca*nv1.x + sa*bv1.x,
-                ca*nv1.y + sa*bv1.y,
-                ca*nv1.z + sa*bv1.z );
-    viewPosition = V1.gl_Position.xyz + r2 * viewNormal;
-    gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();   
     
+    gs_out.r = r2;
+    // NOTE: -a == (1-a) because of expecting lookup orientation in normal map
+    gs_out.a = normalNum*(-alpha - 0.1591549 * normalTwist * gs_in[2].arc / gs_out.r);
+    gs_out.uv = gs_in[2].uv;
+    // gs_out.uv = vec2(twistSpeed * gs_in[2].arc,0);
+    n = ca*nv1 + sa * bv1;
+    gs_out.Q = mat3(cross(tv1, n), tv1, n);
+    gs_out.p = V1.gl_Position.xyz + r2 * n;
+    gl_Position = projection*vec4(gs_out.p, 1.0);
+    EmitVertex();   
+    
+    gs_out.r = r1;
+    gs_out.a = normalNum*(-alpha - 0.1591549 * normalTwist * gs_in[1].arc / gs_out.r);
     gs_out.uv = gs_in[1].uv;
-    viewNormal = vec3( ca*nv0.x + sa*bv0.x,
-                ca*nv0.y + sa*bv0.y,
-                ca*nv0.z + sa*bv0.z );
-    viewPosition = V0.gl_Position.xyz + r1 * viewNormal;  
-    gl_Position = projection*vec4(viewPosition, 1.0); EmitVertex();  
+    // gs_out.uv = vec2(twistSpeed * gs_in[1].arc,0);
+    n = ca*nv0 + sa * bv0;
+    gs_out.Q = mat3(cross(tv0, n), tv0, n);
+    gs_out.p = V0.gl_Position.xyz + r1 * n;  
+    gl_Position = projection*vec4(gs_out.p, 1.0);
+    EmitVertex();  
 
   }
   EndPrimitive();  

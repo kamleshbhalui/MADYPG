@@ -8,7 +8,7 @@ struct _vertices
   // NOTE: apparently structural alignment takes biggest element of structure. eg. vec3 and vec4 will be aligned like 2 vec4 !
   // either make sure that buffers are aligned nicely like that (if using vec4 for pos then make sure its a multiple of 4x4byte)
   // or use separate floats which make alignent 4byte
-  float x,y,z,t,u,v,r;
+  float x,y,z,th,tarc,dx,dy,dz,u,v,r;
 };
 layout(std430, binding = 0) buffer _vertexBuffer
 {
@@ -154,6 +154,8 @@ void main()
   V.x = phi.x;// + 0.2;
   V.y = phi.y;
   V.z = phi.z;
+
+  // TODO modify dx dy dz
 
   buf_Xws.data[vix] = V;
 

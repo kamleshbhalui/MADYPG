@@ -83,6 +83,8 @@ bool TextBrowser(ImGui::FileBrowser &browser, std::string &txt,
 
 bool loadTexture(const std::string &file, GL::Texture2D &tex2D,
                  GL::SamplerWrapping wrapping = GL::SamplerWrapping::Repeat);
+bool loadTexture1D(const std::string &file, GL::Texture1D &tex1D,
+                 GL::SamplerWrapping wrapping = GL::SamplerWrapping::Repeat);
 bool loadTexture(const std::string &file, GL::Texture2D &tex2D,
                  GL::SamplerWrapping wrapping) {
   PluginManager::Manager<Trade::AbstractImporter> manager;
@@ -110,6 +112,35 @@ bool loadTexture(const std::string &file, GL::Texture2D &tex2D,
       .generateMipmap();
   return true;
 }
+bool loadTexture1D(const std::string &file, GL::Texture1D &tex1D,
+                 GL::SamplerWrapping wrapping) {
+  PluginManager::Manager<Trade::AbstractImporter> manager;
+  Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
+  if (!importer.openFile(file)) {
+    ::Debug::error("Couldn't load texture:", file);
+    return false;
+  }
+  Containers::Optional<Trade::ImageData2D> image = importer.image2D(0);
+  CORRADE_INTERNAL_ASSERT(image);
+  if (!image) {
+    ::Debug::error("Couldn't load texture image:", file);
+    return false;
+  }
+  // 1D view on the first row
+  ImageView1D image1D{image->format(), image->size().x(), image->data()};
+  tex1D = GL::Texture1D();
+  tex1D.setWrapping(wrapping)
+      .setMagnificationFilter(GL::SamplerFilter::Linear)
+      .setMinificationFilter(GL::SamplerFilter::Linear,
+                             GL::SamplerMipmap::Linear)
+      .setStorage(Math::log2(image1D.size()[0]) + 1,
+                  GL::textureFormat(image1D.format()), image1D.size())
+      .setSubImage(0, {}, image1D)
+      .generateMipmap();
+  return true;
+}
+
+
 
 void MainApplication::reset_simulation() {
   if (!_yarnMapper)
@@ -129,6 +160,9 @@ void MainApplication::reset_simulation() {
   // _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
   _yarnDrawable.back().m_radius =
       _yarnMapper->getRadius() * _render_radius_mult;
+  _yarnDrawable.back().m_nmtwist = _render_nmtwist;
+  _yarnDrawable.back().m_nmnum = _render_nmnum;
+  _yarnDrawable.back().m_nmheight = _render_nmheight;
 
   auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
   _meshdrawable.release();
@@ -256,6 +290,7 @@ MainApplication::MainApplication(const Arguments &arguments)
     loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
     loadTexture(_matcapObs_file, _matcapObs, GL::SamplerWrapping::ClampToEdge);
     loadTexture(_clothtexture_file, _clothTexture, GL::SamplerWrapping::Repeat);
+    loadTexture1D(_normalMap_file, _normalMap, GL::SamplerWrapping::Repeat);
   }
 
   /* Set up the arcball and projection */
@@ -330,10 +365,14 @@ void MainApplication::drawEvent() {
     if (_render_yarns && _yarnMapper->isInitialized()) {
       _yarnGeometryShader.bindMatCap(_matcap);
       _yarnGeometryShader.bindClothTexture(_clothTexture);
+      _yarnGeometryShader.bindNormalMap(_normalMap);
       _yarnGeometryShader.setProjection(_projection);
       _yarnGeometryShader.setTextureScale(_clothTexture_scale);
       _yarnDrawable.back().m_radius =
           _yarnMapper->getRadius() * _render_radius_mult;
+      _yarnDrawable.back().m_nmtwist = _render_nmtwist;
+      _yarnDrawable.back().m_nmnum = _render_nmnum;
+      _yarnDrawable.back().m_nmheight = _render_nmheight;
       for (auto &line : _yarnDrawable) line.draw(tf);
     }
 
@@ -617,7 +656,15 @@ void MainApplication::drawSettings() {
       ImGui::PushItemWidth(100.0f);
       ImGui::DragFloat("yarn radius mult", &_render_radius_mult, 0.01f, 0.0f,
                        2.0f);
-      ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
+      static float _ts = _render_nmtwist  * 0.01f;
+      if (ImGui::DragFloat("NM twist(1/cm)", &_ts, 0.1f, 0.0f,
+                       100.0f))
+                       _render_nmtwist = _ts * 100;
+      ImGui::DragFloat("NM num", &_render_nmnum, 1.0f, 0.0f,
+                       10.0f);
+      ImGui::DragFloat("NM height", &_render_nmheight, 1.0f, 0.0f,
+                       10.0f);
+      // ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
       ImGui::DragFloat("tex scale", &_clothTexture_scale, 0.1f, 0.0f, 100.0f);
       ImGui::PopItemWidth();
     }
@@ -683,6 +730,7 @@ void MainApplication::drawSettings() {
   ImGui::SliderFloat("Deform Ref.", &_yarnMapperSettings.deform_reference, 0.0f,
                      1.0f);
   ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);
+  ImGui::DragFloat("Phong", &_yarnMapperSettings.phong_deformation, 0.01f, 0.0f, 1.0f);
   ImGui::Checkbox("GPU", &_yarnMapperSettings.gpu_compute);
   // ImGui::Checkbox("DBG", &_yarnMapperSettings.debug_toggle);
 
@@ -749,6 +797,7 @@ void MainApplication::drawSettings() {
   ImGui::Begin("DBG");
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(100.0f);
+  ImGui::Checkbox("D", &_yarnMapper->m_dbg.toggle);
   {
     ImGui::TextUnformatted("S"); ImGui::SameLine();
     ImGui::PushItemWidth(20.0f);
@@ -757,6 +806,29 @@ void MainApplication::drawSettings() {
     ImGui::DragFloat("##S2", &_yarnMapper->m_dbg.strain_toggle[2], 0.01f, 0.0f, 1.0f);
     ImGui::PopItemWidth();
   }
+  #ifdef DO_DEBUG_STATS
+  {
+    // Treeview with imgui histograms
+    if (ImGui::TreeNode("Histograms")) {
+      static float hist_scale = 0.25f;
+      ImGui::DragFloat("scale", &hist_scale, 0.05f, 0.1f, 1.0f);
+      ImGui::Text("%.2f -- %.2f",double(_yarnMapper->m_dbg.hist_min), double(_yarnMapper->m_dbg.hist_max));
+      // ImGui::PlotHistogram("sx", _yarnMapper->m_dbg.hist_counts[0].data(),  _yarnMapper->m_dbg.hist_nbins, 0, NULL, 0.0f, 1.0f, ImVec2(160.0f,80.0f));
+      ImGui::PlotHistogram("##sx", _yarnMapper->m_dbg.hist_counts[0].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "SX", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f)); 
+      ImGui::PlotHistogram("##sa", _yarnMapper->m_dbg.hist_counts[1].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "SA", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
+      ImGui::PlotHistogram("##sy", _yarnMapper->m_dbg.hist_counts[2].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "SY", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
+
+      if (ImGui::Button("Reset")) {
+        for (size_t i = 0; i < _yarnMapper->m_dbg.hist_counts.size(); i++)
+        {
+          _yarnMapper->m_dbg.hist_counts[i].clear();
+          _yarnMapper->m_dbg.hist_counts[i].resize(_yarnMapper->m_dbg.hist_nbins, 0);
+          _yarnMapper->m_dbg.hist_stepcount = 0;
+        }
+      }
+    }
+  }
+  #endif
 
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
@@ -896,7 +968,10 @@ void MainApplication::mouseScrollEvent(MouseScrollEvent &event) {
     return;
   }
 
-  const Float delta = event.offset().y();
+  Float delta = event.offset().y();
+
+  if (event.modifiers() & MouseMoveEvent::Modifier::Shift)
+    delta *= 0.5f;
   if (Math::abs(delta) < 1.0e-2f)
     return;
 

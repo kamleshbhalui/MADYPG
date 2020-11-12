@@ -97,12 +97,15 @@ void PYP::deserialize(const std::string &filename) {
       this->Q.resize(n, 4);
       this->E.resize(n, 4);
       this->RL.resize(n);
+      this->RefD1.resize(n, 3);
     } else if (header == "*Q") {
       deserialize_matrix_chunk(chunk, this->Q);
     } else if (header == "*E") {
       deserialize_matrix_chunk(chunk, this->E);
     } else if (header == "*RL") {
       deserialize_vector_chunk(chunk, this->RL);
+    } else if (header == "*RefD1") {
+      deserialize_matrix_chunk(chunk, this->RefD1);
     }
   }
 

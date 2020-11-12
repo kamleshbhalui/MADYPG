@@ -54,6 +54,15 @@ struct DinvU {
     return Eigen::Map<const Eigen::Matrix<float, 2, 1, Eigen::ColMajor>, Eigen::Unaligned>(reinterpret_cast<const float*>(this)+4, 2, 1);
   }
 };
+struct FDefo {
+  float F11,F12,F21,F22,F31,F32;
+  auto map() {
+    return Eigen::Map<Eigen::Matrix<float, 3, 2, Eigen::ColMajor>, Eigen::Unaligned>(reinterpret_cast<float*>(this), 3, 2);
+  }
+  auto map() const {
+    return Eigen::Map<const Eigen::Matrix<float, 3, 2, Eigen::ColMajor>, Eigen::Unaligned>(reinterpret_cast<const float*>(this), 3, 2);
+  }
+};
 
   Mesh() {}
   ~Mesh() {}
@@ -71,6 +80,7 @@ struct DinvU {
   void compute_face_adjacency();
   void compute_face_data();  // normals and strains
   void compute_vertex_normals();
+  void compute_vertex_defF();
   void compute_vertex_strains();
 
   bool empty() const { return (U.cpu().size() == 0) || (Fms.cpu().size() == 0); }
@@ -89,6 +99,8 @@ struct DinvU {
   // AlignedVector<Vector3s> vertex_normals;  // world-space vertex normals
   VectorBuffer<WSVertex> normals;
   VectorBuffer<WSVertex> vertex_normals;
+  VectorBuffer<FDefo> defF;
+  VectorBuffer<FDefo> vertex_defF;
   AlignedVector<Vector6s> strains;
   AlignedVector<Vector6s> vertex_strains;
   std::vector<std::deque<std::pair<int, scalar>>> v2f;

@@ -27,6 +27,7 @@ class YarnMapper {
     bool default_same_tri   = true;
     bool repeat_frame       = false;
     bool gpu_compute        = false;
+    float phong_deformation = 0.5f;
     enum Provider {
       ObjSeq = 0,
       BinSeq = 1,
@@ -66,8 +67,16 @@ class YarnMapper {
   Debug::MovingAverageTimer<10, std::chrono::microseconds> m_timer;
 
 
+  #define DO_DEBUG_STATS
   struct DebugSettings {
     std::vector<float> strain_toggle = std::vector<float>{1,1,1,1,1,1};
+    int hist_nbins = 40;
+    float hist_min = -0.8f;
+    float hist_max = 2.0f;
+    std::vector<std::vector<float>> hist_counts;
+    int hist_stepcount = 0;
+
+    bool toggle = false;
   } m_dbg;
 
  private:
