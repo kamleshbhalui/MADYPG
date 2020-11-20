@@ -106,7 +106,7 @@ class MainApplication : public Platform::Application {
   float _render_radius_mult      = 1.0f;
   float _render_nmtwist      = 1.0f;
   float _render_nmnum        = 4.0f;
-  float _render_nmheight        = 0.1f;
+  float _render_nmheight        = 150;//0.1f;
   float _mesh_dz                 = 0.0f;
   float _clothTexture_scale      = 1.0f;
   Color4 _bgColor                = Color4(Color3(0.2f), 1.0f);

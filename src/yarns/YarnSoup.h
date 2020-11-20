@@ -26,6 +26,15 @@ struct VertexWSData {
   float u, v;        // mesh-space ref coords
   float r = 1;       // radius scale
   // float yu,yv; // arclength & radial texture coord
+
+  template <int From, int To> // like python slice arr[from:to]
+  auto mapSlice() {
+    constexpr int Len = To - From;
+    return Eigen::Map<Eigen::Matrix<float, Len, 1, Eigen::ColMajor>, Eigen::Unaligned>(reinterpret_cast<float*>(this) + From, Len);
+  }
+
+  auto mapX() { return mapSlice<0,3>(); }
+  auto mapD() { return mapSlice<5,8>(); }
 };
 struct EdgeTBData {
   // float tx,ty,tz; // tangent

@@ -13,7 +13,7 @@ in V2G {
   float arc;
   float th;
   vec2 uv;
-  float r;
+  float r; // this rlocal will be deprecated once we compute rVolPreserve in here from arc! 
 } gs_in[];
 
 out G2F {

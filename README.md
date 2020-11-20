@@ -9,3 +9,7 @@ or maybe it just always installs too much from vcpkg..
 
 
 NOTE: had to comment out bottom of sdl2 portfile ... line 88 onwards
+
+
+dummy.fbx needed for exporting fbx geometry
+zlib might be required for fbx, works on my pc, but if missing somewhere else problably can download from vcpkg and link in cmake

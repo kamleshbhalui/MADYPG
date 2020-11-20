@@ -28,6 +28,7 @@ class YarnMapper {
     bool repeat_frame       = false;
     bool gpu_compute        = false;
     float phong_deformation = 0.5f;
+    float svdclamp = 0;
     enum Provider {
       ObjSeq = 0,
       BinSeq = 1,
@@ -66,6 +67,8 @@ class YarnMapper {
   // timing
   Debug::MovingAverageTimer<10, std::chrono::microseconds> m_timer;
 
+  // export the current yarn geometry to an FBX file
+  bool export2fbx(const std::string& filename);
 
   #define DO_DEBUG_STATS
   struct DebugSettings {

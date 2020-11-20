@@ -663,7 +663,7 @@ void MainApplication::drawSettings() {
       ImGui::DragFloat("NM num", &_render_nmnum, 1.0f, 0.0f,
                        10.0f);
       ImGui::DragFloat("NM height", &_render_nmheight, 1.0f, 0.0f,
-                       10.0f);
+                       300.0f);
       // ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
       ImGui::DragFloat("tex scale", &_clothTexture_scale, 0.1f, 0.0f, 100.0f);
       ImGui::PopItemWidth();
@@ -731,6 +731,7 @@ void MainApplication::drawSettings() {
                      1.0f);
   ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);
   ImGui::DragFloat("Phong", &_yarnMapperSettings.phong_deformation, 0.01f, 0.0f, 1.0f);
+  ImGui::DragFloat("SVDClamp", &_yarnMapperSettings.svdclamp, 0.01f, 0.0f, 1.0f);
   ImGui::Checkbox("GPU", &_yarnMapperSettings.gpu_compute);
   // ImGui::Checkbox("DBG", &_yarnMapperSettings.debug_toggle);
 
@@ -803,7 +804,11 @@ void MainApplication::drawSettings() {
     ImGui::PushItemWidth(20.0f);
     ImGui::DragFloat("##S0", &_yarnMapper->m_dbg.strain_toggle[0], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
     ImGui::DragFloat("##S1", &_yarnMapper->m_dbg.strain_toggle[1], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
-    ImGui::DragFloat("##S2", &_yarnMapper->m_dbg.strain_toggle[2], 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("sx sa sy##S2", &_yarnMapper->m_dbg.strain_toggle[2], 0.01f, 0.0f, 1.0f);
+    // ImGui::DragFloat("##S3", &_yarnMapper->m_dbg.strain_toggle[3], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
+    // ImGui::DragFloat("##S4", &_yarnMapper->m_dbg.strain_toggle[4], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
+    // ImGui::DragFloat("IIxx IIxy IIyy##S5", &_yarnMapper->m_dbg.strain_toggle[5], 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("IIxx IIxy IIyy##S5", &_yarnMapper->m_dbg.strain_toggle[3], 0.01f, 0.0f, 1.0f);
     ImGui::PopItemWidth();
   }
   #ifdef DO_DEBUG_STATS
@@ -840,6 +845,7 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
     return;
 
   static bool MS = true;
+  bool success;
 
   // key press events, that are only allowed while not editing a text field
   if (!isTextInputActive()) {
@@ -853,6 +859,11 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
     switch (event.key()) {
       case KeyEvent::Key::Esc:
         this->exit();
+        break;
+      case KeyEvent::Key::E:
+        ::Debug::log("Exporting FBX...");
+        success = _yarnMapper->export2fbx("test.fbx"); // TODO filename either by date or incremented number
+        ::Debug::log("Result:", success);
         break;
       case KeyEvent::Key::Space:
         _paused = !_paused;

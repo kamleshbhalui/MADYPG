@@ -64,37 +64,87 @@ class Model {
     // for file sxsasy/y%02d: load tex 
 
     static const auto regex_y02d = std::regex("y(\\d{2})");
-    const auto subfolder = fs::path(folder) / "sxsasy";
-    if (!fs::is_directory(subfolder)) {
-      Debug::error("Could not load yarn model directory:", subfolder);
-      return;
-    }
-    for (auto& p : fs::directory_iterator(subfolder)) {
-      if (!fs::is_regular_file(p))
-        continue;
-      const auto& str = p.path().filename().string();
-      std::smatch match;
-      if (std::regex_search(str, match, regex_y02d)) {
-        int id = std::stoi(match[1].str());
-        if (id >= int(m_tex_sxsasy.size()))
-          m_tex_sxsasy.resize(id + 1);
+    {
+      const auto subfolder = fs::path(folder) / "sxsasy";
+      if (!fs::is_directory(subfolder)) {
+        Debug::error("Could not load yarn model directory:", subfolder);
+        return;
       }
-    }
-    for (auto& p : fs::directory_iterator(subfolder)) {
-      if (!fs::is_regular_file(p))
-        continue;
-      const auto& str = p.path().filename().string();
-      std::smatch match;
-      if (std::regex_search(str, match, regex_y02d)) {
-        int id = std::stoi(match[1].str());
-        m_tex_sxsasy[id].load(p.path());
+      std::vector<std::pair<std::string, int>> files;
+      for (auto& p : fs::directory_iterator(subfolder)) {
+        if (!fs::is_regular_file(p))
+          continue;
+        const auto& str = p.path().filename().string();
+        std::smatch match;
+        if (std::regex_search(str, match, regex_y02d)) {
+          int id = std::stoi(match[1].str());
+          if (id >= int(m_tex_sxsasy.size()))
+            m_tex_sxsasy.resize(id + 1);
+          files.push_back(std::make_pair(p.path().string(), id));
+        }
       }
+      threadutils::parallel_for_each(files, [&](const std::pair<std::string, int>& f) {
+        m_tex_sxsasy[f.second].load(f.first);
+      });
     }
+
+    // bending
+    {
+      const auto subfolder = fs::path(folder) / "IIx";
+      if (!fs::is_directory(subfolder)) {
+        Debug::error("Could not load yarn model directory:", subfolder);
+        return;
+      }
+      std::vector<std::pair<std::string, int>> files;
+      for (auto& p : fs::directory_iterator(subfolder)) {
+        if (!fs::is_regular_file(p))
+          continue;
+        const auto& str = p.path().filename().string();
+        std::smatch match;
+        if (std::regex_search(str, match, regex_y02d)) {
+          int id = std::stoi(match[1].str());
+          if (id >= int(m_tex_IIx.size()))
+            m_tex_IIx.resize(id + 1);
+          files.push_back(std::make_pair(p.path().string(), id));
+        }
+      }
+      threadutils::parallel_for_each(files, [&](const std::pair<std::string, int>& f) {
+        m_tex_IIx[f.second].load(f.first);
+      });
+    }
+    {
+      const auto subfolder = fs::path(folder) / "IIy";
+      if (!fs::is_directory(subfolder)) {
+        Debug::error("Could not load yarn model directory:", subfolder);
+        return;
+      }
+      std::vector<std::pair<std::string, int>> files;
+      for (auto& p : fs::directory_iterator(subfolder)) {
+        if (!fs::is_regular_file(p))
+          continue;
+        const auto& str = p.path().filename().string();
+        std::smatch match;
+        if (std::regex_search(str, match, regex_y02d)) {
+          int id = std::stoi(match[1].str());
+          if (id >= int(m_tex_IIy.size()))
+            m_tex_IIy.resize(id + 1);
+          files.push_back(std::make_pair(p.path().string(), id));
+        }
+      }
+      threadutils::parallel_for_each(files, [&](const std::pair<std::string, int>& f) {
+        m_tex_IIy[f.second].load(f.first);
+      });
+    }
+ 
+
+
+
+
     m_initialized = true;
   }
 
   const std::tuple<Vector4s, scalar, scalar> deformation(const Vector6s& strain,
-                                                         int vix) {
+                                                         int vix, bool dbg) {
     Vector4s g = Vector4s::Zero();
 
     // TODO not pass vix?
@@ -106,13 +156,22 @@ class Model {
       assert(y < int(m_tex_sxsasy.size()));
       scalar dbg0=0, dbg1=0;
       Vector4s x;
-      std::tie(x,dbg0,dbg1) = m_tex_sxsasy[y].sample({t,strain[0],strain[1],strain[2]});
-      // x = m_tex_sxsasy[y].sample({t,strain[0],strain[1],strain[2]});
+      // std::tie(x,dbg0,dbg1) = m_tex_sxsasy[y].sample({t,strain[0],strain[1],strain[2]});
+      x = m_tex_sxsasy[y].sample({t,strain[0],strain[1],strain[2]});
       g += x - xref;
 
-      //if (vix % 10 == 0 && y == 0) {
-      //  Debug::logf("%d: %.8f %.2f\n", vix, t, dbg1);
-      //}
+      if (!dbg) { // bending
+        float l1, l2, c2;
+        std::tie(l1,l2,c2) = robust_eigenstuff(strain[3],strain[4],strain[5]);
+
+        // g += c2 g_x(l1) + (1-c2) g_x(l2)
+        // g += c2 g_y(l2) + (1-c2) g_y(l1)
+
+        g += c2 * (m_tex_IIx[y].sample({t,l1}) + m_tex_IIy[y].sample({t,l2}));
+        g += (1 - c2) * (m_tex_IIx[y].sample({t,l2}) + m_tex_IIy[y].sample({t,l1}));
+        g -= 2 * xref;
+
+      }
       
       return std::make_tuple(g, dbg0, dbg1);
     }
@@ -129,6 +188,20 @@ class Model {
   // vix -> (t,y) until this is part of the main program
   std::vector<scalar> v2t;
   std::vector<int> v2y;
+
+  std::tuple<float, float, float> robust_eigenstuff(float IIxx, float IIxy, float IIyy) {
+    float A = 0.5f * (IIxx + IIyy);
+    float B = 0.5f * (IIxx - IIyy);
+    float eps = 1e-8;
+    float IIxy2 = IIxy*IIxy;
+    float S = std::sqrt(B*B + IIxy2 + eps);
+    int k = (IIxx - IIyy) < 0 ? -1 : 1;
+    float BkS = B + k * S;
+    float lam1 = A + S;
+    float lam2 = A - S;
+    float c2 = 0.5f + k * (0.5f - IIxy2 / (BkS*BkS + IIxy2));
+    return std::make_tuple(lam1, lam2, c2);
+  }
 
   template <typename T>
   T str2num(const std::string& str);
@@ -219,8 +292,8 @@ class Model {
 
       return true;
     }
-    // Vector4s sample (const std::vector<scalar>& in) {
-    std::tuple<Vector4s, scalar, scalar> sample (const std::vector<scalar>& in) {
+    // std::tuple<Vector4s, scalar, scalar> sample (const std::vector<scalar>& in) {
+    Vector4s sample (const std::vector<scalar>& in) {
       std::vector<scalar> A;
       std::vector<int> C;
       A.reserve(N);
@@ -258,8 +331,9 @@ class Model {
 
       ND_lerp_half(samples, A);
       // return samples[0];
-      int K = 0;
-      return std::make_tuple(samples[0], C[K] * 1.0f/m_axes[K].size(), A[K]);
+      // int K = 0;
+      // return std::make_tuple(samples[0], C[K] * 1.0f/m_axes[K].size(), A[K]);
+      return samples[0];
     }
     
     private:
@@ -292,20 +366,8 @@ class Model {
     std::vector<int> m_accsize;
   };
   std::vector<TexND<4>> m_tex_sxsasy;
+  std::vector<TexND<2>> m_tex_IIx, m_tex_IIy;
 
-  /*
-  def robust_eigenstuff(II):
-    # input: II = IIxx, IIxy, IIyy
-    A = 0.5 * (II[0] + II[2])
-    B = 0.5 * (II[0] - II[2])
-    eps = 1e-8
-    S = np.sqrt(B**2 + II[1]**2 + eps)
-    k = -1 if (II[0] - II[2]) < 0 else 1
-    lam1 = A + S
-    lam2 = A - S
-    c2 = 0.5 + k * (0.5 - II[1]**2 / ((B + k * S)**2 + II[1]**2))
-    return lam1, lam2, c2
-  */
 };
 
 #endif  // __MODEL__H__

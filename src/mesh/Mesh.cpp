@@ -171,7 +171,7 @@ void Mesh::compute_face_adjacency() {
   });
 }
 
-void Mesh::compute_face_data() {
+void Mesh::compute_face_data(float svdclamp) {
   auto &Fc = F.cpu();
   auto Xc  = X.matrixView<float, 3>();
   auto& invDmU_cpu = invDmU.cpu();
@@ -197,6 +197,12 @@ void Mesh::compute_face_data() {
     Vector6s &s = strains[f];
 
     defgrads[f].map() = defoF;
+
+    // testing clamping
+    if (svdclamp > 0) {
+      Eigen::JacobiSVD<MatrixNMs<3, 2>> svd(defoF, Eigen::ComputeThinU | Eigen::ComputeThinV);
+      defoF = svd.matrixU() * svd.singularValues().cwiseMax(svdclamp).asDiagonal() * svd.matrixV().transpose();
+    }
 
     // in plane
     scalar C00 = defoF.col(0).squaredNorm();
@@ -229,8 +235,6 @@ void Mesh::compute_face_data() {
       s[4] += c * FTti[0] * FTti[1];
       s[5] += c * FTti[1] * FTti[1];
     }
-
-    // TODO consider eigendecomp of II already here
   });
 
   // Vector6s min = strains[0];

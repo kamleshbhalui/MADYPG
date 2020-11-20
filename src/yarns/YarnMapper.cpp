@@ -2,6 +2,7 @@
 
 #include "../utils/debug_includes.h"
 #include "../utils/threadutils.h"
+#include "../io/export_fbx.h"
 
 void YarnMapper::step() {
   m_timer.tick();
@@ -127,7 +128,7 @@ void YarnMapper::step() {
 
   mesh.X.bufferData();  // push to gpu
 
-  mesh.compute_face_data();
+  mesh.compute_face_data(m_settings.svdclamp);
   if (!m_settings.flat_normals)
     mesh.compute_vertex_normals();
 
@@ -267,7 +268,7 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
       return;
 
     Vector3s abc;
-    abc << bary.a, bary.b, bary.c; // TODO CLAMP BARY HERE AND FOR NORMALS IN SHMAP (GPU AND CPU)
+    abc << bary.a, bary.b, bary.c; // TODO CLAMP BARY HERE AND FOR NORMALS IN SHMAP (GPU AND CPU) ?
 
     Vector6s s;
     if (flat_strains) {
@@ -284,7 +285,7 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
     {
       for (size_t i = 0; i < 6; i++)
       {
-        s[i]*= m_dbg.strain_toggle[i];
+        s[i]*= m_dbg.strain_toggle[std::min(i,size_t(3))]; // NOTE min 3 to mult all bend with same factor
       }
     }
     #endif
@@ -293,7 +294,7 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
     float dbg0, dbg1;
 
     std::tie(g, dbg0, dbg1) =
-        m_model->deformation(s, m_soup.getParametric(vix));
+        m_model->deformation(s, m_soup.getParametric(vix), m_dbg.toggle);
     g *= m_settings.deform_reference;
     // store deformed ms coordinates intm. in ws coords
     // NOTE: buffer.row is a colvector so it expects colvector comma init
@@ -418,4 +419,180 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
   //   // TODO consider making a parameter
   //   // TODO this might also be a bit buggy? maybe some divisions by 0?
   // });
+}
+
+// TODO this takes forever for big garments. probably better to instead prepare appropriate buffers and copy this stuff into a compute shader
+// also if doing this on cpu then have to get Xws back from gpu!
+bool YarnMapper::export2fbx(const std::string& filename) {
+  if (!m_initialized)
+    return false;
+
+  static std::vector<uint32_t> vcids; // id of circle of vertices, for all non-tip midline vertices
+  static std::vector<uint32_t> fcids; // id of circle of faces, for all non-tips exluding also the second to last midline vertex
+
+  auto LIM = std::numeric_limits<uint32_t>::max();
+  const auto& I = m_soup.getIndexBuffer().cpu(); // midline vertex indices of LIM separated yarns
+  
+  // on time setup of vcids and fcids
+  static uint32_t nvcid; // number of vertex ids
+  static uint32_t nfcid; // number of face ids
+  if (vcids.size() == 0) {
+    nvcid = 0;
+    nfcid = 0;
+    vcids.reserve(I.size());
+    fcids.reserve(I.size());
+    for (size_t i = 0; i < I.size(); ++i) {
+      if (i == 0 || i == I.size() - 1 || I[i] == LIM) { // ignore outside verts or tips
+        vcids.push_back(LIM);
+      } else {
+        if (I[i-1] == LIM || I[i+1] == LIM) // LIM-delimited tip
+          vcids.push_back(LIM);
+        else
+          vcids.push_back(nvcid++); // accepted location with existing neighbor left and right
+      }
+    
+      // for faces same as above but one additional skip for second to last vert per yarn
+      if (i == 0 || i >= I.size() - 2 || I[i] == LIM) { 
+        fcids.push_back(LIM);
+      } else {
+        if (I[i-1] == LIM || I[i+1] == LIM || I[i+2] == LIM)
+          fcids.push_back(LIM);
+        else
+          fcids.push_back(nfcid++); // accepted location with existing neighbor left and right
+      }
+    }
+  }
+
+  int NSEGS = 8; // number of cylinder sides
+  float invSEG = 1.0f/(NSEGS);
+  int NVERTICES = NSEGS + 1; // + 1 bc of radial seam
+  float R = m_model->getPYP().r; // yarn radius
+  float normalTwist      = 1.0f; // TODO normal map params from app. as func params here?
+  float normalNum        = 4.0f;
+
+  // allocate export data
+  uint32_t num_total_verts = NVERTICES * nvcid;
+  uint32_t num_total_faces = 2 * NSEGS * nfcid;
+  FBXExportData data;
+  data.vertices.resize(num_total_verts * 3);
+  data.uv0.resize(num_total_verts * 2);
+  data.uv1.resize(num_total_verts * 2);
+  data.faces.resize(num_total_faces * 3);
+  data.uvfaces.resize(num_total_faces * 3);
+  
+  auto& Xws = m_soup.get_Xws().cpu(); // xyzt | arc | d1x d1y d1z | u v | rlocal
+  threadutils::parallel_for(size_t(0),I.size(),[&](size_t i) {
+    uint32_t vcid = vcids[i];
+    if (vcid == LIM)
+      return;
+
+    // [vert_0] ---edge_A--- [vert_1] ---edge_B--- [vert_2]
+
+    //indices of left, self and right yarn segment
+    uint32_t left = I[i-1];
+    uint32_t self = I[i];
+    uint32_t right = I[i+1];
+    auto& x0 = Xws[left];
+    auto& x1 = Xws[self];
+    auto& x2 = Xws[right];
+
+     // edge rest length
+    float lA = x1.a - x0.a;
+    float lB = x2.a - x1.a;
+
+    Vector3s tA = x1.mapX() - x0.mapX();
+    Vector3s tB = x2.mapX() - x1.mapX();
+    
+    Vector3s tv = (lA*tA + lB*tB); // vertex tangent
+    Vector3s nv = (lA*x0.mapD() + lB*x1.mapD()); // vertex normal
+    nv = (nv - tv * tv.dot(nv)/tv.squaredNorm()).normalized(); // orthonormalize
+    Vector3s bv = tv.cross(nv).normalized(); // vertex binormal
+
+    // TODO edge current length, and scale radius
+    float rA = 1 * R; // TODO vol.preserve
+    float rB = 1 * R; // TODO vol.preserve
+    float r1 = (lA*rA + lB*rB)/(lA+lB);
+
+    if (i == 66) {
+      // Debug::log(x0.mapX());
+      // Debug::log(x1.mapX());
+      // Debug::log(x2.mapX());
+      // Debug::log(tv);
+      // Debug::log(nv);
+      // Debug::log(bv);
+    }
+
+
+    for(int cs=0; cs<NSEGS+1; cs++) { // iterate circular vertices, including duplicate end
+      float alpha = cs * invSEG; // 0 to 1, inclusive
+
+      float a = alpha * 2.0f * float(M_PI);
+      float ca = std::cos(a);
+      float sa = std::sin(a);
+      // TODO edge twist theta ~> get average theta and shift a ?
+
+      Vector3s n = ca*nv + sa * bv;
+      Vector3s p = x1.mapX() + r1 * n;  
+      
+      // if (i == 66) {
+      //   std::cout<<p[0]<<", "<<p[1]<<", "<<p[2]<<"\n";
+      //   // Debug::log(x0.mapX());
+      //   // Debug::log(x1.mapX());
+      //   // Debug::log(x2.mapX());
+      //   // Debug::log(tv);
+      //   // Debug::log(nv);
+      //   // Debug::log(bv);
+      // }
+
+      uint32_t vertix = vcid * NVERTICES + cs;
+      data.vertices[3*vertix + 0] = p[0];
+      data.vertices[3*vertix + 1] = p[1];
+      data.vertices[3*vertix + 2] = p[2];
+      data.uv0[2*vertix + 0] = x1.u;
+      data.uv0[2*vertix + 1] = x1.v;
+      data.uv1[2*vertix + 0] = x1.a;
+      data.uv1[2*vertix + 1] =  normalNum*(-alpha - 0.1591549f * normalTwist * x1.a / r1);
+    }
+
+
+    uint32_t fcid = fcids[i];
+    if (fcid == LIM)
+      return;
+
+    uint32_t vcid_next = vcids[i+1]; // assert == vcid+1?
+
+
+    for(int cs=0; cs<NSEGS; cs++) { // iterate circular segments
+      // in 2D pseudo indices, with i radial and f the circle/crosssection index:
+      // { [f,i], [f+1,i+1], [f+1,i] }
+      // { [f,i], [f,i+1], [f+1,i+1] }
+      // note that we model a radial seam explicitly, so cs+1 makes sense even for the cs==NSEGS-1
+
+      uint32_t facedofA = 3*(fcid * 2*NSEGS + 2*cs + 0);
+      uint32_t facedofB = 3*(fcid * 2*NSEGS + 2*cs + 1);
+      uint32_t vertix0 = vcid * NVERTICES + cs; // "[f,cs]"
+      uint32_t vertix1 = vcid_next * NVERTICES + cs; // "[f+1,cs]"
+
+      auto F0 = std::vector<uint32_t>{vertix0,vertix1+1,vertix1};
+      // auto F0 = std::vector<uint32_t>{0,1,2};
+      auto F1 = std::vector<uint32_t>{vertix0,vertix0+1,vertix1+1};
+
+      // last poly index negated with ~
+      data.faces[facedofA+0] = F0[0];
+      data.faces[facedofA+1] = F0[1];
+      data.faces[facedofA+2] = ~int32_t(F0[2]);
+      data.faces[facedofB+0] = F1[0];
+      data.faces[facedofB+1] = F1[1];
+      data.faces[facedofB+2] = ~int32_t(F1[2]);
+
+      data.uvfaces[facedofA+0] = F0[0];
+      data.uvfaces[facedofA+1] = F0[1];
+      data.uvfaces[facedofA+2] = F0[2];
+      data.uvfaces[facedofB+0] = F1[0];
+      data.uvfaces[facedofB+1] = F1[1];
+      data.uvfaces[facedofB+2] = F1[2];
+    }
+  });
+
+  return export_fbx(filename, data);
 }

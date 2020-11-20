@@ -78,7 +78,7 @@ struct FDefo {
   void compute_invDm();
   void compute_v2f_map(bool shepard_weights = true);
   void compute_face_adjacency();
-  void compute_face_data();  // normals and strains
+  void compute_face_data(float svdclamp);  // normals and strains
   void compute_vertex_normals();
   void compute_vertex_defF();
   void compute_vertex_strains();
