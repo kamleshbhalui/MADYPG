@@ -662,8 +662,8 @@ void MainApplication::drawSettings() {
                        _render_nmtwist = _ts * 100;
       ImGui::DragFloat("NM num", &_render_nmnum, 1.0f, 0.0f,
                        10.0f);
-      ImGui::DragFloat("NM height", &_render_nmheight, 1.0f, 0.0f,
-                       300.0f);
+      ImGui::DragFloat("NM height", &_render_nmheight, 0.01f, 0.0f,
+                       2.0f);
       // ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
       ImGui::DragFloat("tex scale", &_clothTexture_scale, 0.1f, 0.0f, 100.0f);
       ImGui::PopItemWidth();

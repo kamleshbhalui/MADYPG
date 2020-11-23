@@ -22,7 +22,7 @@ uniform float tex_scale = 1;
 uniform float radius;
 uniform float normalTwist;
 uniform float normalNum;
-uniform float normalHeight; // multiple  of radius, NOTE for some reason it looks better with H~100*r, maybe got some normal scaling wrong 
+uniform float normalHeight; // multiple  of radius
 
 void main() {
 
@@ -34,6 +34,7 @@ void main() {
   }
   else {
     vec3 tx = texture(normalMap, gs_out.a).rgb;
+    // float nx = (radius - 0.5) * 2;
     float nx = (tx.r - 0.5) * 2;
     // float H = normalHeight * gs_out.r;
     // vec3 nflat = vec3(H*normalNum*nx, -normalTwist * H * normalNum * nx, 6.28318530 * gs_out.r);
