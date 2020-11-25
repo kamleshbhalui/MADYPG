@@ -13,6 +13,7 @@ out V2G {
   float th;
   vec2 uv;
   float r;
+  // float pad0;
 } vs_out;
 
 void main(){

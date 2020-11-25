@@ -25,6 +25,7 @@ struct VertexWSData {
   float dx, dy, dz;  // edge director
   float u, v;        // mesh-space ref coords
   float r = 1;       // radius scale
+  // float pad0;
   // float yu,yv; // arclength & radial texture coord
 
   template <int From, int To> // like python slice arr[from:to]

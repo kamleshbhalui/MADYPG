@@ -29,6 +29,7 @@ ShellMapShader::ShellMapShader()
   _applyUniform   = uniformLocation("apply");
   _flatNormalsUniform = uniformLocation("flat_normals");
   _numVertsUniform = uniformLocation("num_vertices");
+  _phongUniform = uniformLocation("phong_deformation");
 
   // bindFragmentDataLocation(VertexIOBuffer, "ambientOcclusion");
   // setUniform(_samplesUniform, randomSamples);

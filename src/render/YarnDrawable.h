@@ -32,7 +32,9 @@ class YarnDrawable {
         YarnShader::Arc{},
         YarnShader::Director{},
         YarnShader::TextureCoordinates{},
-        YarnShader::Radius{});  // something about memory layout of data in
+        YarnShader::Radius{}
+        // ,YarnShader::Pad{}
+        );  // something about memory layout of data in
                                 // vertex buffer
 
     // enable breaking of linestrips within single index buffer by using the

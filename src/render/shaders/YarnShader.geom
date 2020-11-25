@@ -1,4 +1,4 @@
-#define NVERTICES 16
+#define NVERTICES 16 // NOTE: for cylinder segment, including both ends
 
 #define Vprv gl_in[0]
 #define V0 gl_in[1]
@@ -14,6 +14,7 @@ in V2G {
   float th;
   vec2 uv;
   float r; // this rlocal will be deprecated once we compute rVolPreserve in here from arc! 
+  // float pad0;
 } gs_in[];
 
 out G2F {
@@ -30,51 +31,12 @@ uniform float normalTwist = 1000;
 uniform float normalNum = 4;
 uniform mat4 projection;
 
-// https://github.com/torbjoern/polydraw_scripts/blob/master/geometry/drawcone_geoshader.pss
-vec3 createPerp(vec3 invec)
-{
-  vec3 ret = cross( invec, vec3(0.0, 0.0, 1.0) );
-  if ( length(ret) == 0.0 )
-  {
-    ret = cross( invec, vec3(0.0, 1.0, 0.0) );
-  }
-  return ret;
-}
-
-
-// void main() { 
-
-//    float r1 = 1.0 * radius;
-//    float r2 = 1.0 * radius;
-
-//    vec3 axis = V1.gl_Position.xyz - V0.gl_Position.xyz;
-
-//    vec3 perpx = normalize(createPerp( axis ));
-//    vec3 perpy = normalize(cross( axis, perpx ));
-//    int segs = NVERTICES/2;
-//    for(int i=0; i<segs; i++) {
-//       float a = i/float(segs-1) * 2.0 * 3.14159;
-//       float ca = cos(a); float sa = sin(a);
-
-//       viewNormal = vec3( ca*perpx.x + sa*perpy.x,
-//                      ca*perpx.y + sa*perpy.y,
-//                      ca*perpx.z + sa*perpy.z );
-
-
-//       vec3 p1 = V0.gl_Position.xyz + r1*viewNormal;
-//       vec3 p2 = V1.gl_Position.xyz + r2*viewNormal;
-
-//       viewPosition = p2;
-//       gl_Position = projection*vec4(p2, 1.0); EmitVertex();    
-//       viewPosition = p1;
-//       gl_Position = projection*vec4(p1, 1.0); EmitVertex();   
-//    }
-//    EndPrimitive();  
-// }
-
-
 
 void main() { 
+  // note: variable naming: vertex values indexed as 0 1 2 3, edge values A B C.
+  // [v0] --eA-- [v1] --eB-- [v2] --eC-- [v3]
+  // shader outputs the geometry for segment eB
+  
   // edge rest lengths and inverse for weighted averaging
   float rlA = gs_in[1].arc - gs_in[0].arc;
   float rlB = gs_in[2].arc - gs_in[1].arc;
@@ -82,16 +44,13 @@ void main() {
   float invrlAB = 1.0 / (rlA + rlB);
   float invrlBC = 1.0 / (rlB + rlC);
 
-
-  // current dists
-  vec3 dA =  gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
-  vec3 dB =  gl_in[2].gl_Position.xyz - gl_in[1].gl_Position.xyz;
-  vec3 dC =  gl_in[3].gl_Position.xyz - gl_in[2].gl_Position.xyz;
-
   #define volpreserve
   #ifdef volpreserve
   const float minR = 0.25, maxR = 2.0;
   // r0^2 l0 pi == rt^2 lt pi --> rt = r0 sqrt(l0/lt)
+  vec3 dA =  gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
+  vec3 dB =  gl_in[2].gl_Position.xyz - gl_in[1].gl_Position.xyz;
+  vec3 dC =  gl_in[3].gl_Position.xyz - gl_in[2].gl_Position.xyz;
   float rA = min(max(minR, sqrt(rlA) * pow(dot(dA,dA),-0.25)), maxR);
   float rB = min(max(minR, sqrt(rlB) * pow(dot(dB,dB),-0.25)), maxR);
   float rC = min(max(minR, sqrt(rlC) * pow(dot(dC,dC),-0.25)), maxR);
@@ -103,7 +62,6 @@ void main() {
   #endif
 
   // segment tangent, and weighted avg vertex tangents
-  // TODO weigh by arclength!
   vec3 t = V1.gl_Position.xyz - V0.gl_Position.xyz;
   vec3 tv0 = normalize(rlB * t + rlA * (V0.gl_Position.xyz - Vprv.gl_Position.xyz));
   vec3 tv1 = normalize(rlB * t + rlC * (Vnxt.gl_Position.xyz - V1.gl_Position.xyz));
@@ -118,18 +76,18 @@ void main() {
   // vec3 nv1 = (d1_2+d1_1);
 
   // normals and binormals
-  nv0 = normalize(nv0 - tv0 * dot(tv0,nv0)/dot(tv0,tv0));
-  // vec3 nv0 = normalize(createPerp( tv0 ));
+  nv0 = normalize(nv0 - tv0 * dot(tv0,nv0));///dot(tv0,tv0));
   vec3 bv0 = normalize(cross( tv0, nv0 ));
-  nv1 = normalize(nv1 - tv1 * dot(tv1,nv1)/dot(tv1,tv1));
-  // vec3 nv1 = normalize(createPerp( tv1 ));
+  nv1 = normalize(nv1 - tv1 * dot(tv1,nv1));///dot(tv1,tv1));
   vec3 bv1 = normalize(cross( tv1, nv1 ));
-
-  // vec3 n = normalize(createPerp( t ));
-  // vec3 b = normalize(cross( t, n ));
 
   #define usetheta
   #ifdef usetheta
+  // NOTE actually instead of computing ca1 ca2 sa1 sa2 for each circle vertex,
+  // could instead just apply the twist beforehand to each edge segment, and
+  // then average the material frames. this might cut down on a bunch of
+  // sin/cos, and should work as long as consecutive material frames are
+  // less than +180deg apart
   float th1 = (rlB * gs_in[1].th + rlA * gs_in[0].th) * invrlAB;
   float th2 = (rlC * gs_in[2].th + rlB * gs_in[1].th) * invrlBC;
   #endif

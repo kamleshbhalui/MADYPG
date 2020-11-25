@@ -17,6 +17,7 @@ namespace Magnum
     using Director = GL::Attribute<2, Vector3>;
     using TextureCoordinates = GL::Attribute<3, Vector2>;
     using Radius = GL::Attribute<4, Float>;
+    using Pad = GL::Attribute<5, Float>;
 
     enum
     {

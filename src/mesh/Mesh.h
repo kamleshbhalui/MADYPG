@@ -55,7 +55,7 @@ struct DinvU {
   }
 };
 struct FDefo {
-  float F11,F12,F21,F22,F31,F32;
+  float F11,F21,F31,F12,F22,F32;
   auto map() {
     return Eigen::Map<Eigen::Matrix<float, 3, 2, Eigen::ColMajor>, Eigen::Unaligned>(reinterpret_cast<float*>(this), 3, 2);
   }

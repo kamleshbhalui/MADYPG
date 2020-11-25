@@ -135,7 +135,8 @@ void YarnMapper::step() {
   { // face/vertex-deformation gradients to cpu&gpu, for phong deformation and edge binormal transformation
     mesh.compute_vertex_defF();
     mesh.defF.bufferData();
-    mesh.vertex_defF.bufferData();
+    if (m_settings.phong_deformation > 0)
+      mesh.vertex_defF.bufferData();
   }
 
   if (!m_settings.flat_strains)
@@ -215,7 +216,8 @@ void YarnMapper::step() {
                    m_settings.flat_normals ? mesh.normals.gpu()
                                            : mesh.vertex_normals.gpu(),
                    mesh.X.gpu(), mesh.F.gpu(), mesh.Fms.gpu(),
-                   m_settings.shell_map, m_settings.flat_normals);
+                   mesh.defF.gpu(), mesh.vertex_defF.gpu(), mesh.U.gpu(),
+                   m_settings.shell_map, m_settings.flat_normals, m_settings.phong_deformation);
 
     m_timer.tock("bary & shell map & buf");
   } else {
@@ -268,7 +270,10 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
       return;
 
     Vector3s abc;
-    abc << bary.a, bary.b, bary.c; // TODO CLAMP BARY HERE AND FOR NORMALS IN SHMAP (GPU AND CPU) ?
+    abc << bary.a, bary.b, bary.c;
+    // NOTE might want to clamp barycentric coords in case vertex was layed out
+    // outside of a triangle,and so using naive bary coords would actually
+    // extrapolate strain. or now assuming negligible issue
 
     Vector6s s;
     if (flat_strains) {
@@ -371,10 +376,11 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
     }
 
     {
+      // TODO wrong? not including transformation from uvh0 to uvhdeformed? approximate. or using new barycoords works fine maybe..
       MatrixNMs<3,3> Q; // transformation from uvh to xyz
       Q.setZero();
       Q.block<3,2>(0,0) = defF[tri].map();
-      // TODO phong gradient
+      // TODO phong gradient (without it it's just using the flat triangle & interpolated normal, which is probably a decent approximation (since we orthogonalize in the shader) until cheap-transformed refd1 becomes colinear with phongtransformed tangent).
 
       Q.col(2) = n; // usually not orthogonal, would need to take transpose inverse of Q! TODO discuss
 
@@ -384,7 +390,7 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
       
       // Q.col(0).normalize();
       // Q.col(1).normalize();
-      // Q.col(2) = Q.col(0).cross(Q.col(1)); // IF USING THIS AND SIMPLE Q THAN NEED TO ORTHOGONALIZE COL1!
+      // Q.col(2) = Q.col(0).cross(Q.col(1)); // IF USING THIS AND SIMPLE Q THEN NEED TO ORTHOGONALIZE COL1!
 
       auto _xws = m_soup.get_Xws().row<float, 11>(vix); // TODO def above
       // _xws.block<3,1>(3,0) = Q * _xws.block<3,1>(3,0); // b = Q * b
@@ -393,35 +399,11 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
 
     x_ws.head<3>() = phi + h * n;
 
-
-
-
-    // TODO HERE AND GPU:
-    // transform B with normalized gradient of shell map and interpolated normal. NOTE transforming using surface at vertex position although location in middle of edge would be more correct. assumption that surface varies little compared to segments, and that later reorthonormalization hides issues anyway. 
+    // NOTE transforming using surface (~phong grad and normal) at vertex position although location in middle of edge would be more correct. assumption that surface varies little compared to segments, and that later reorthonormalization hides issues anyway. 
   });
-
-  // const auto& pyp = m_model->getPYP();
-
-  // auto& Xws = m_soup.get_Xws();
-  // threadutils::parallel_for(0, nverts, [&](int vix) {
-  //   int lix      = m_soup.getParametric(vix);
-  //   int next_vix = m_soup.getNext(vix);
-  //   scalar ratio;
-  //   if (next_vix >= 0)
-  //     ratio = pyp.RL[lix] /
-  //             (Xws.row<float,3>(next_vix) - Xws.row<float,3>(vix)).norm();
-  //   else
-  //     ratio = 1;
-
-  //   Xws.cpu()[vix].r = std::min(std::max(scalar(0.8), ratio), scalar(1.2));
-
-  //   // TODO consider volumepreservation-based formula (better for paper)
-  //   // TODO consider making a parameter
-  //   // TODO this might also be a bit buggy? maybe some divisions by 0?
-  // });
 }
 
-// TODO this takes forever for big garments. probably better to instead prepare appropriate buffers and copy this stuff into a compute shader
+// TODO this takes forever for big garments. probably better to instead prepare appropriate buffers and copy this stuff into a compute shader, though maybe the bottleneck is the disk write..
 // also if doing this on cpu then have to get Xws back from gpu!
 bool YarnMapper::export2fbx(const std::string& filename) {
   if (!m_initialized)
