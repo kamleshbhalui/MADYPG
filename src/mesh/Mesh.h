@@ -63,6 +63,15 @@ struct FDefo {
     return Eigen::Map<const Eigen::Matrix<float, 3, 2, Eigen::ColMajor>, Eigen::Unaligned>(reinterpret_cast<const float*>(this), 3, 2);
   }
 };
+struct Strain {
+  float sx,sa,sy,IIxx,IIxy,IIyy;
+  auto map() {
+    return Eigen::Map<Eigen::Matrix<float, 6, 1, Eigen::ColMajor>, Eigen::Unaligned>(reinterpret_cast<float*>(this), 6);
+  }
+  auto map() const {
+    return Eigen::Map<const Eigen::Matrix<float, 6, 1, Eigen::ColMajor>, Eigen::Unaligned>(reinterpret_cast<const float*>(this), 6);
+  }
+};
 
   Mesh() {}
   ~Mesh() {}
@@ -78,7 +87,7 @@ struct FDefo {
   void compute_invDm();
   void compute_v2f_map(bool shepard_weights = true);
   void compute_face_adjacency();
-  void compute_face_data(float svdclamp);  // normals and strains
+  void compute_face_data(float svdclamp, bool bending=true);  // normals and strains
   void compute_vertex_normals();
   void compute_vertex_defF();
   void compute_vertex_strains();
@@ -101,8 +110,8 @@ struct FDefo {
   VectorBuffer<WSVertex> vertex_normals;
   VectorBuffer<FDefo> defF;
   VectorBuffer<FDefo> vertex_defF;
-  AlignedVector<Vector6s> strains;
-  AlignedVector<Vector6s> vertex_strains;
+  VectorBuffer<Strain> strains;
+  VectorBuffer<Strain> vertex_strains;
   std::vector<std::deque<std::pair<int, scalar>>> v2f;
 
  private:

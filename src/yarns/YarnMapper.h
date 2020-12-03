@@ -5,13 +5,14 @@
 // #include "../mesh/AbstractMeshProvider.h"
 #include <Magnum/GL/Buffer.h>
 #include "shaders/ShellMapShader.h"
+#include "shaders/DeformShader.h"
 
 #include <memory>
 
 #include "../mesh/BinSeqAnimation.h"
 #include "../mesh/ObjSeqAnimation.h"
 #include "Grid.h"
-#include "ModelV0.h"
+// #include "ModelV1.h"
 #include "Model.h"
 #include "YarnSoup.h"
 
@@ -26,7 +27,7 @@ class YarnMapper {
     bool shell_map          = true;
     bool default_same_tri   = true;
     bool repeat_frame       = false;
-    bool gpu_compute        = false;
+    bool gpu_compute        = true;
     float phong_deformation = 0.5f;
     float svdclamp = 0;
     enum Provider {
@@ -76,6 +77,7 @@ class YarnMapper {
     int hist_nbins = 40;
     float hist_min = -0.8f;
     float hist_max = 2.0f;
+    float hist_bend = 100.0f;
     std::vector<std::vector<float>> hist_counts;
     int hist_stepcount = 0;
 
@@ -97,9 +99,8 @@ class YarnMapper {
   Magnum::GL::Buffer m_buf_bary;
 
   // GPU compute
-  ShellMapShader m_ssshader;
-
-
+  DeformShader m_deformShader;
+  ShellMapShader m_shellMapShader;
 };
 
 #endif  // __YARNMAPPER__H__

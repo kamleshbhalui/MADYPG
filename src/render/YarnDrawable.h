@@ -52,9 +52,10 @@ class YarnDrawable {
         .setNormalMatrix(MV.normalMatrix())
         .setDiffuseColor(Color4(1.0))  // more like tint
         .setRadius(m_radius)
-        .setNormalTwist(m_nmtwist)
-        .setNormalNum(m_nmnum)
-        .setNormalHeight(m_nmheight)
+        .setPlyTwist(m_nmtwist)
+        .setPlyNum(m_nmnum)
+        .setPlyHeight(m_nmheight)
+        .setPlyLength(m_nmlen)
         .draw(m_mesh);
   }
 
@@ -62,6 +63,7 @@ class YarnDrawable {
   float m_nmtwist = 1.0f;
   float m_nmnum = 1.0f;
   float m_nmheight = 0.1f;
+  float m_nmlen = 1.0f;
 
  protected:
   YarnShader &m_shader;

@@ -15,15 +15,22 @@ find_package(Eigen3 CONFIG REQUIRED)
 
 add_library(tinyxml2 dependencies/tinyxml2/tinyxml2.cpp)
 target_include_directories(tinyxml2 SYSTEM INTERFACE dependencies/)
+target_compile_options(tinyxml2 PRIVATE -Wno-all)
 
 add_library(bitsery INTERFACE)
 target_include_directories(bitsery SYSTEM INTERFACE dependencies/)
+# target_compile_options(bitsery PRIVATE -Wno-all)
+
+add_library(cnpy dependencies/cnpy/cnpy.cpp)
+target_include_directories(cnpy SYSTEM INTERFACE dependencies/)
+target_compile_options(cnpy PRIVATE -Wno-all)
 
 add_library(fbx dependencies/fbx/fbxdocument.cpp
                 dependencies/fbx/fbxnode.cpp
                 dependencies/fbx/fbxproperty.cpp
                 dependencies/fbx/fbxutil.cpp)
 target_include_directories(fbx SYSTEM INTERFACE dependencies/)
+target_compile_options(fbx PRIVATE -Wno-all)
 
 # target: obj2bin. object sequence to binary format converter
 
@@ -120,6 +127,7 @@ target_link_libraries(mesh2yarns PRIVATE
 Eigen3::Eigen
 tinyxml2
 bitsery
+cnpy
 fbx
 stdc++fs # <filesystem> on gcc/g++ 8.4
-stdc++fs)
+)

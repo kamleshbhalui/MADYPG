@@ -35,12 +35,14 @@ namespace Magnum
     YarnShader &setProjection(const Matrix4 &projection);
     YarnShader &setDiffuseColor(const Color4 &color);
     YarnShader &setRadius(float radius);
-    YarnShader &setNormalTwist(float speed);
-    YarnShader &setNormalNum(float num);
-    YarnShader &setNormalHeight(float height);
+    YarnShader &setPlyTwist(float speed);
+    YarnShader &setPlyNum(float num);
+    YarnShader &setPlyHeight(float height);
+    YarnShader &setPlyLength(float len);
     YarnShader &bindMatCap(GL::Texture2D &texture);
     YarnShader &bindClothTexture(GL::Texture2D &texture);
-    YarnShader &bindNormalMap(GL::Texture1D &texture);
+    YarnShader &bindNormalMap(GL::Texture2D &texture);
+    // YarnShader &bindNormalMap(GL::Texture1D &texture);
     YarnShader &setTextureScale(float scale);
 
   private:
@@ -56,9 +58,10 @@ namespace Magnum
         _projectionUniform,
         _diffuseColorUniform,
         _radiusUniform,
-        _normalTwistUniform,
-        _normalNumUniform,
-        _normalHeightUniform,
+        _plyTwistUniform,
+        _plyNumUniform,
+        _plyHeightUniform,
+        _plyLengthUniform,
         _texscaleUniform;
   };
 

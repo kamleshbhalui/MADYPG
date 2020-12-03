@@ -158,11 +158,12 @@ void MainApplication::reset_simulation() {
 
   // _yarnDrawable.back().setIndices(_yarnMapper->getIndices());
   // _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
-  _yarnDrawable.back().m_radius =
-      _yarnMapper->getRadius() * _render_radius_mult;
-  _yarnDrawable.back().m_nmtwist = _render_nmtwist;
-  _yarnDrawable.back().m_nmnum = _render_nmnum;
-  _yarnDrawable.back().m_nmheight = _render_nmheight;
+  // _yarnDrawable.back().m_radius =
+  //     _yarnMapper->getRadius() * _render_radius_mult;
+  // _yarnDrawable.back().m_nmtwist = _render_nmtwist;
+  // _yarnDrawable.back().m_nmnum = _render_nmnum;
+  // _yarnDrawable.back().m_nmheight = _render_nmheight;
+  // _yarnDrawable.back().m_nmlen = _render_nmlen;
 
   auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
   _meshdrawable.release();
@@ -290,7 +291,8 @@ MainApplication::MainApplication(const Arguments &arguments)
     loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
     loadTexture(_matcapObs_file, _matcapObs, GL::SamplerWrapping::ClampToEdge);
     loadTexture(_clothtexture_file, _clothTexture, GL::SamplerWrapping::Repeat);
-    loadTexture1D(_normalMap_file, _normalMap, GL::SamplerWrapping::Repeat);
+    // loadTexture1D(_normalMap_file, _normalMap, GL::SamplerWrapping::Repeat);
+    loadTexture(_normalMap_file, _normalMap, GL::SamplerWrapping::Repeat);
   }
 
   /* Set up the arcball and projection */
@@ -373,6 +375,7 @@ void MainApplication::drawEvent() {
       _yarnDrawable.back().m_nmtwist = _render_nmtwist;
       _yarnDrawable.back().m_nmnum = _render_nmnum;
       _yarnDrawable.back().m_nmheight = _render_nmheight;
+      _yarnDrawable.back().m_nmlen = _render_nmlen;
       for (auto &line : _yarnDrawable) line.draw(tf);
     }
 
@@ -429,60 +432,14 @@ void MainApplication::drawEvent() {
       .bindOcclusionTexture(_occlusion)
       // .bindNormalTexture(_normals)
       .bindPositionTexture(_positions)
-      .setLightPosition({5.0f, 5.0f, 7.0f})
-      .setLightColor(Color3{1.f})
-      .setShininess(80)
-      .setSpecularColor(_specularColor.rgb())
+      // .setLightPosition({5.0f, 5.0f, 7.0f})
+      // .setLightColor(Color3{1.f})
+      // .setShininess(80)
+      // .setSpecularColor(_specularColor.rgb())
       .setAOBlurRadius(_ao_blur_radius)
       .setAOBlurFeature(_ao_blur_feature)
       .setAOPow(_ao_pow)
       .draw(_screenAlignedTriangle);
-
-    
-    // GL::AbstractFramebuffer::blit(_fbo_gbuffer, GL::defaultFramebuffer, {Vector2i(0,0),_positions.imageSize()}, {Vector2i(0,0),_positions.imageSize()},GL::FramebufferBlit::Color,GL::FramebufferBlitFilter::Nearest); // TODO CONTINUE HERE. THIS SEEMS TO WORK, SO GBUFFER FBO AT LEAST HAS COLOR CORRECT (and probably the rest.) so at what stage is it failing then. is the ssao shader not binding gbuffer correct or reading its values? try to blit the output of ssao   
-    // it also doesnt seem to work to blit gbuffer into ssao and then into default. so maybe fbossao is not even set up correctly (like to have a color thing? or bc blit color assumes that it wants to use colorattachment 0 which doesnt exist for ssaofbo?)
-    // i can map any of gbuffer stuff for read into the default framebuffer with working MSAA
-    // however going over ssaofbo does not work, maybe again i dont know to which attachment to draw 
-
-    // _fbo_gbuffer.mapForRead(GL::Framebuffer::ColorAttachment{2});
-    // GL::AbstractFramebuffer::blit(_fbo_gbuffer, GL::defaultFramebuffer, {Vector2i(0,0),_positions.imageSize()}, GL::FramebufferBlit::Color); 
-    
-    // maybe cant blit bc different format texture RGB->R?
-    // _fbo_gbuffer.mapForRead(GL::Framebuffer::ColorAttachment{2});
-    // _fbo_ssao.mapForDraw({{SsaoShader::AmbientOcclusionOutput,
-    //                   GL::Framebuffer::ColorAttachment{3}}});
-    // GL::AbstractFramebuffer::blit(_fbo_gbuffer, _fbo_ssao, {Vector2i(0,0),_positions.imageSize()}, GL::FramebufferBlit::Color); 
-
-
-    // _fbo_ssao.mapForRead(GL::Framebuffer::ColorAttachment{3});    GL::defaultFramebuffer.mapForDraw(GL::DefaultFramebuffer::DrawAttachment::Back);
-    // GL::AbstractFramebuffer::blit(_fbo_ssao, GL::defaultFramebuffer, {Vector2i(0,0),_positions.imageSize()},GL::FramebufferBlit::Color);
-/*
-0th attempt: all below but use texelfetch of fixed sample 0
-
-
-1st attempt
-
---enable opengl multisample
---make albedo normal and position multisample
---keep aotexture single sample
-
---make second framebuffer for ssaoshading
-
-ssao shader: use texelfetch to get avg position, avg normal, for neighborlookup use some random single sample position (eg based on the random normal vector using tangent t or so... biased?)
-  ~~~~ position/normal
-
-ssaoapply shader: use texelfetch for avg color, (if blur use texelfetch for random or average position)
-  try just getting and showing occlusion first using occludraw
-  ~~~~ albedo/position
-
-use second fbo
-
-define MSAA somewhere else
-
-
-multisampled depth??
-*/
-
 
   _imgui.newFrame();
   if (ImGui::GetIO().WantTextInput && !isTextInputActive())
@@ -656,14 +613,20 @@ void MainApplication::drawSettings() {
       ImGui::PushItemWidth(100.0f);
       ImGui::DragFloat("yarn radius mult", &_render_radius_mult, 0.01f, 0.0f,
                        2.0f);
-      static float _ts = _render_nmtwist  * 0.01f;
-      if (ImGui::DragFloat("NM twist(1/cm)", &_ts, 0.1f, 0.0f,
-                       100.0f))
-                       _render_nmtwist = _ts * 100;
+      // static float _ts = _render_nmtwist  * 0.01f;
+      // if (ImGui::DragFloat("NM twist(1/cm)", &_ts, 0.1f, 0.0f,
+      //                  100.0f))
+      //                  _render_nmtwist = _ts * 100;
+      ImGui::DragFloat("NM twist(*r)", &_render_nmtwist, 0.1f, 0.0f,
+                       10.0f);
       ImGui::DragFloat("NM num", &_render_nmnum, 1.0f, 0.0f,
                        10.0f);
-      ImGui::DragFloat("NM height", &_render_nmheight, 0.01f, 0.0f,
+      ImGui::DragFloat("NM height (*r)", &_render_nmheight, 0.01f, 0.0f,
                        2.0f);
+      // ImGui::DragFloat("NM length", &_render_nmlen, 0.01f, 0.0f,
+      //                  2.0f);
+      ImGui::DragFloat("NM length", &_render_nmlen, 0.1f, 0.0f,
+                       20.0f);
       // ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
       ImGui::DragFloat("tex scale", &_clothTexture_scale, 0.1f, 0.0f, 100.0f);
       ImGui::PopItemWidth();
@@ -822,6 +785,9 @@ void MainApplication::drawSettings() {
       ImGui::PlotHistogram("##sx", _yarnMapper->m_dbg.hist_counts[0].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "SX", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f)); 
       ImGui::PlotHistogram("##sa", _yarnMapper->m_dbg.hist_counts[1].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "SA", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
       ImGui::PlotHistogram("##sy", _yarnMapper->m_dbg.hist_counts[2].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "SY", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
+      ImGui::PlotHistogram("##IIxx", _yarnMapper->m_dbg.hist_counts[3].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "IIxx", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
+      ImGui::PlotHistogram("##IIxy", _yarnMapper->m_dbg.hist_counts[4].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "IIxy", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
+      ImGui::PlotHistogram("##IIyy", _yarnMapper->m_dbg.hist_counts[5].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "IIyy", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
 
       if (ImGui::Button("Reset")) {
         for (size_t i = 0; i < _yarnMapper->m_dbg.hist_counts.size(); i++)

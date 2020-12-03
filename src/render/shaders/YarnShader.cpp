@@ -75,9 +75,10 @@ YarnShader::YarnShader() {
   _projectionUniform   = uniformLocation("projection");
   _diffuseColorUniform = uniformLocation("diffuseColor");
   _radiusUniform       = uniformLocation("radius");
-  _normalTwistUniform   = uniformLocation("normalTwist");
-  _normalNumUniform     = uniformLocation("normalNum");
-  _normalHeightUniform     = uniformLocation("normalHeight");
+  _plyTwistUniform   = uniformLocation("plyTwist");
+  _plyNumUniform     = uniformLocation("plyNum");
+  _plyHeightUniform     = uniformLocation("plyHeight");
+  _plyLengthUniform     = uniformLocation("plyLen");
   _texscaleUniform     = uniformLocation("tex_scale");
 
   // get uniform location and immediately use to set to textureunit
@@ -111,18 +112,23 @@ YarnShader &YarnShader::setRadius(float radius) {
   return *this;
 }
 
-YarnShader &YarnShader::setNormalTwist(float speed) {
-  setUniform(_normalTwistUniform, speed);
+YarnShader &YarnShader::setPlyTwist(float speed) {
+  setUniform(_plyTwistUniform, speed);
   return *this;
 }
 
-YarnShader &YarnShader::setNormalNum(float num) {
-  setUniform(_normalNumUniform, num);
+YarnShader &YarnShader::setPlyNum(float num) {
+  setUniform(_plyNumUniform, num);
   return *this;
 }
 
-YarnShader &YarnShader::setNormalHeight(float height) {
-  setUniform(_normalHeightUniform, height);
+YarnShader &YarnShader::setPlyHeight(float height) {
+  setUniform(_plyHeightUniform, height);
+  return *this;
+}
+
+YarnShader &YarnShader::setPlyLength(float len) {
+  setUniform(_plyLengthUniform, len);
   return *this;
 }
 
@@ -136,7 +142,8 @@ YarnShader &YarnShader::bindClothTexture(GL::Texture2D &texture) {
   return *this;
 }
 
-YarnShader &YarnShader::bindNormalMap(GL::Texture1D &texture) {
+// YarnShader &YarnShader::bindNormalMap(GL::Texture1D &texture) {
+YarnShader &YarnShader::bindNormalMap(GL::Texture2D &texture) {
   texture.bind(TextureUnit_NormalMap);
   return *this;
 }

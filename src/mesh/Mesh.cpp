@@ -171,7 +171,7 @@ void Mesh::compute_face_adjacency() {
   });
 }
 
-void Mesh::compute_face_data(float svdclamp) {
+void Mesh::compute_face_data(float svdclamp, bool bending) {
   auto &Fc = F.cpu();
   auto Xc  = X.matrixView<float, 3>();
   auto& invDmU_cpu = invDmU.cpu();
@@ -179,22 +179,23 @@ void Mesh::compute_face_data(float svdclamp) {
   auto& defgrads = defF.cpu();
   defgrads.resize(Fc.size());
   // normals.resize(Fc.size());
-  strains.resize(Fc.size());
+  auto& S = strains.cpu();
+  S.resize(Fc.size());
   threadutils::parallel_for(size_t(0), normals.cpu().size(), [&](size_t f) {
     auto ixs     = Fc[f].map();
     Vector3s e01 = Xc.row(ixs[1]) - Xc.row(ixs[0]);
     Vector3s e02 = Xc.row(ixs[2]) - Xc.row(ixs[0]);
 
     Vector3s n  = (e01.cross(e02));
-    scalar invA = 1 / n.norm();
-    n *= invA;
+    scalar inv2A = 1 / n.norm();
+    n *= inv2A;
     normals.cpu()[f].map() = n;
 
     MatrixNMs<3, 2> defoF;
     defoF.col(0) = e01;
     defoF.col(1) = e02;
     defoF *= invDmU_cpu[f].mapDinv();
-    Vector6s &s = strains[f];
+    auto s = S[f].map();
 
     defgrads[f].map() = defoF;
 
@@ -211,6 +212,9 @@ void Mesh::compute_face_data(float svdclamp) {
     s[0]       = std::sqrt(C00) - 1;          // s_x
     s[2]       = std::sqrt(C11) - 1;          // s_y
     s[1]       = C01 / std::sqrt(C00 * C11);  // s_a
+
+    if (!bending)
+      return;
 
     // bending
     // II = F.T Lam F = sum_i thetai / (2 A li) F^T ti o F^t ti  , with ti of
@@ -230,7 +234,7 @@ void Mesh::compute_face_data(float svdclamp) {
       Vector2s FTti = defoF.transpose() * ei.cross(n);
       scalar invli  = 1 / ei.norm();
       scalar theta  = -signed_angle(n, ni, ei * invli);
-      scalar c      = theta * scalar(0.5) * invA * invli;
+      scalar c      = theta * inv2A * invli;
       s[3] += c * FTti[0] * FTti[0];
       s[4] += c * FTti[0] * FTti[1];
       s[5] += c * FTti[1] * FTti[1];
@@ -286,15 +290,16 @@ void Mesh::compute_vertex_defF() {
 }
 
 void Mesh::compute_vertex_strains() {
-  const auto &fdata = strains;
-  auto &vdata       = vertex_strains;
+  const auto &fdata = strains.cpu();
+  auto &vdata       = vertex_strains.cpu();
 
   vdata.resize(v2f.size());
 
   threadutils::parallel_for(size_t(0), v2f.size(), [&](size_t i) {
-    vdata[i].setZero();
+    auto v = vdata[i].map();
+    v.setZero();
     for (const auto &fw : v2f[i]) {
-      vdata[i] += fdata[fw.first] * fw.second;
+      v += fdata[fw.first].map() * fw.second;
     }
   });
 }

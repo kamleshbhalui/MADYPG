@@ -91,7 +91,7 @@ layout(std430, binding = 9) readonly buffer _meshUBuffer
   vec2 data[];
 } buf_meshU;
 
-uniform bool apply = true;
+// uniform bool apply = true;
 uniform bool flat_normals = false;
 uniform uint num_vertices;
 uniform float phong_deformation = 0.5;
@@ -112,15 +112,13 @@ void main()
   if(tri < 0)
     return;
 
-
   _vertices V = buf_Xws.data[vix];
 
-  if (!apply) { // TODO MOVE OUTSIDE OF COMPUTE()
-    // buf_Xws.data[vix].x = abci.a;
-    // buf_Xws.data[vix].y = abci.b;
-    // buf_Xws.data[vix].z = abci.c; 
-    return;
-  }
+  // if (V.x > -100) { // DEBUG
+  //   // V.y *= 0.5;
+  //   buf_Xws.data[vix] = V;
+  //   return;
+  // }
 
   float[3] abc;
   { // barycentrics

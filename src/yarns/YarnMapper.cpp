@@ -28,7 +28,12 @@ void YarnMapper::step() {
                                     "en_US.UTF-8"));
 
     // m_model = std::make_unique<ModelV0>(m_settings.modelfolder);
+    // m_model = std::make_unique<ModelV1>(m_settings.modelfolder);
     m_model = std::make_unique<Model>(m_settings.modelfolder);
+
+    // buffer model texture to gpu
+    m_model->getTexAxes().bufferData();
+    m_model->getTexData().bufferData();
 
     m_timer.tock("@init: mesh provider & pyp/model init");
   }
@@ -75,6 +80,7 @@ void YarnMapper::step() {
       // meshuv->noise, actually no. still want to do that in uv space (and
       // somehow account for yarns being pushed outside of uvmesh: tribary
       // choose closest tri)
+      // ....
 
       m_timer.tock("@init: soup tiling");
     }
@@ -105,7 +111,6 @@ void YarnMapper::step() {
       // NOTE/TODO: currently skipping deleting by restlength and pruning
       // arrays
 
-
       m_soup.generate_index_list(m_model->getPYP().RL);  // TODO prune by length while assembling!
                                      // @ first parallel count: also sum up RL
                                      // and prune (by not adding their indices
@@ -116,19 +121,23 @@ void YarnMapper::step() {
                                      // it doesnt matter, and its nicer
                                      // however the code is more readable!!)
 
+      m_soup.get_Xms().bufferData(Magnum::GL::BufferUsage::StaticDraw); // NOTE: important to do this here after assigning arc lengths. otherwise geometry shader will produce NaN due to arclength based weigths.
+
       m_soup.getIndexBuffer().bufferData(Magnum::GL::BufferUsage::StaticDraw);
 
-      m_soup.get_TB().bufferData(); // edge reference binormal to gpu
+      // m_soup.get_TB().bufferData(); // edge reference binormal to gpu
 
       m_timer.tock("@init: soup cut & index list & buffer");
     }
   }  // end of MS change
 
+
   // @ WORLD SPACE MESH CHANGES
 
   mesh.X.bufferData();  // push to gpu
 
-  mesh.compute_face_data(m_settings.svdclamp);
+  bool compute_bending_strains = false;
+  mesh.compute_face_data(m_settings.svdclamp, compute_bending_strains);
   if (!m_settings.flat_normals)
     mesh.compute_vertex_normals();
 
@@ -139,24 +148,46 @@ void YarnMapper::step() {
       mesh.vertex_defF.bufferData();
   }
 
+  // DEBUG
+  #ifdef DO_DEBUG_STATS
+  {
+    auto& strns = mesh.strains.cpu();
+    threadutils::parallel_for(size_t(0),strns.size(),[&](size_t i){
+      auto s = strns[i].map();
+      for (size_t k = 0; k < 6; k++)
+      {
+        s[k]*= m_dbg.strain_toggle[std::min(k,size_t(3))]; // NOTE min 3 to mult all bend with same factor
+      }
+    });
+  }
+  #endif
+  
   if (!m_settings.flat_strains)
     mesh.compute_vertex_strains();
+
   
   #ifdef DO_DEBUG_STATS
   m_dbg.hist_stepcount++;
-  float invscale = 1.0f / mesh.strains.size();
+  auto& strns = mesh.strains.cpu();
+  float invscale = 1.0f / strns.size();
   float invrge = 1.0f/(m_dbg.hist_max - m_dbg.hist_min);
-  m_dbg.hist_counts.resize(3);
+  float invrgeB = 1.0f/(m_dbg.hist_bend + m_dbg.hist_bend);
+  m_dbg.hist_counts.resize(6);
   for (auto& counts : m_dbg.hist_counts)
     counts.resize(m_dbg.hist_nbins, 0);
-  for (size_t i = 0; i < mesh.strains.size(); i++)
+  for (size_t i = 0; i < strns.size(); i++)
   {
-    const auto& s = mesh.strains[i];
-    for (size_t j = 0; j < 3; j++)
+    const auto s = strns[i].map();
+    for (size_t j = 0; j < 6; j++)
     {
       auto& counts = m_dbg.hist_counts[j];
-      int bin = std::max(0,std::min(int((s[j] - m_dbg.hist_min) * invrge * (m_dbg.hist_nbins - 1)),m_dbg.hist_nbins-1));
+      int bin;
+      if(j < 3)
+        bin = std::max(0,std::min(int((s[j] - m_dbg.hist_min) * invrge * (m_dbg.hist_nbins - 1)),m_dbg.hist_nbins-1));
+      else
+        bin = std::max(0,std::min(int((s[j] + m_dbg.hist_bend) * invrgeB * (m_dbg.hist_nbins - 1)),m_dbg.hist_nbins-1));
 
+      
       // ++counts[bin];
       // c = (c*prevn+ 1 )/newn;
       // counts[bin] = (counts[bin]*(m_dbg.hist_stepcount-1) + invscale) / m_dbg.hist_stepcount;
@@ -165,62 +196,206 @@ void YarnMapper::step() {
   }
   #endif
 
+  // float s=0,b=0,o=0;
+  // for (size_t i = 0; i < mesh.strains.size(); i++)
+  // {
+  //   const auto& st = mesh.strains[i];
+  //   s += st(0);
+  //   b += st(3);
+  //   o = std::max(abs(st[1]),o);
+  //   o = std::max(abs(st[2]),o);
+  //   o = std::max(abs(st[4]),o);
+  //   o = std::max(abs(st[5]),o);
+  // }
+  // s/=mesh.strains.size();
+  // b/=mesh.strains.size();
+  // Debug::log("STRAINS",s,b,o);
+
+  
+
+
   m_timer.tock("mesh normals & strains");
 
-  if (m_settings.deform_reference > scalar(1e-10)) {
-    deform_reference(mesh, m_settings.flat_strains);
-    m_timer.tock("deform");
-  } else {
-    int n     = m_soup.num_vertices();
-    auto& Xms = m_soup.get_Xms();
-    auto& Xws = m_soup.get_Xws();
-    Xws.cpu().resize(Xms.rows());
-    // Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
-    threadutils::parallel_for(0, n, [&](int i) {
-      Xws.row<float, 11>(i) << Xms.row(i).transpose(), 
-      m_soup.get_TB().cpu()[i].mapB(),
-      // 0,0,0,
-          Xms.block<1, 2>(i, 0).transpose(), 1;
-    });
-    m_timer.tock("deform");
-  }
-
-// {  auto delim = std::numeric_limits<uint32_t>::max();
-//   auto& indices = m_soup.getIndexBuffer().cpu();
-//   auto& X_ws = m_soup.get_Xws().cpu();
-//   for (size_t i = 0; i < indices.size(); i++)
-//   {
-//     int vix               = indices[i];
-//     if (vix != delim) {
-//       Debug::log(" ",X_ws[vix].a);
-//     }
-//     else {
-//       Debug::log(" ------ ");
-//     }
-//   }}
-
-
   if (m_settings.gpu_compute) {
+// auto& xms = m_soup.get_Xms().cpu();
+//     for (size_t i = 200; i < 210; i++)
+//     {
+//       Debug::log(i, xms[i].pix);
+//     }
+    
 
-    m_soup.get_Xws().bufferData(Magnum::GL::BufferUsage::StreamDraw);
-
-
+    // TODO option to switch between vertex or flat strains, here fore buffering and in deformshader for usage.
+    mesh.vertex_strains.bufferData();
+    
     if (m_settings.flat_normals)
       mesh.normals.bufferData();
     else {
       mesh.vertex_normals.bufferData();
     }
-   
-    m_ssshader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(),
+
+    // if(m_dbg.toggle) { // DEBUG trying some stuff
+    //   int n     = m_soup.num_vertices();
+    //   auto& Xms = m_soup.get_Xms().cpu();
+    //   auto& Xws = m_soup.get_Xws();
+    //   Xws.cpu().resize(Xms.size());
+    //   threadutils::parallel_for(0, n, [&](int i) {
+    //     Xws.row<float, 11>(i) << Xms[i].mapXT(), Xms[i].a,
+    //     Xms[i].mapB(),
+    //       Xms[i].mapXT().head<2>(), 1;
+    //   });
+    //   m_soup.get_Xws().bufferData(
+    //     Magnum::GL::BufferUsage::StreamDraw);
+    // }
+
+    // allocate Xws on gpu if necessary
+    if (m_soup.get_Xws().getGPUSize() != m_soup.get_Xms().getGPUSize())
+      m_soup.get_Xws().allocateGPU(m_soup.get_Xms().getCPUSize());
+
+    Debug::log("------deform----");
+
+    // auto check0 = m_soup.get_Xws().getGPUData();
+    // // Debug::log("SIZE",check.size());
+    // for (size_t i = 0; i < 10; i++)
+    // {
+    //   auto& vert = check0[i];
+    //   if (m_soup.get_B0().cpu()[i].tri>=0) {
+    //     Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
+    //   }
+    // }
+
+    // glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
+    // Magnum::GL::Renderer::finish();
+
+
+    // DEFORM REFERENCE
+    // after dispatchcompute the second computeshader suddenly doesnt see the Xws buffer anymore :/
+    m_deformShader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(), m_soup.get_Xms().gpu(), m_soup.get_B0().gpu(), mesh.vertex_strains.gpu(), mesh.Fms.gpu(), m_model->getTexAxes().gpu(), m_model->getTexData().gpu(), m_settings.deform_reference);
+
+    glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
+    // Magnum::GL::Renderer::finish();
+
+    // auto check = m_soup.get_Xws().getGPUData();
+    // for (size_t i = 0; i < 10; i++)
+    // {
+    //   auto& vert = const_cast<VertexWSData&>(check[i]);
+    //   auto& vertms = m_soup.get_Xms().cpu()[i];
+    //   // vert.x += 0.1;
+    //   if (m_soup.get_B0().cpu()[i].tri>=0) {
+    //     Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
+    //     Debug::log(i,"):",vertms.u,vertms.v,vertms.h);
+    //   }
+    // }
+    // for (size_t i = check.size()-10; i < check.size(); i++)
+    // {
+    //   auto& vert = const_cast<VertexWSData&>(check[i]);
+    //   auto& vertms = m_soup.get_Xms().cpu()[i];
+    //   // vert.x += 0.1;
+    //   if (m_soup.get_B0().cpu()[i].tri>=0) {
+    //     Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
+    //     Debug::log(i,"):",vertms.u,vertms.v,vertms.h);
+    //   }
+    // }
+
+    // glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
+    // Magnum::GL::Renderer::finish();
+
+    // auto& cpu = m_soup.get_Xws().cpu();
+    // cpu.resize(check.size());
+    // float abserrmax = 0;
+    // for (size_t i = 0; i < check.size(); i++)
+    // {
+    //   if (m_soup.get_B0().cpu()[i].tri>=0)
+    //     abserrmax = std::max(abserrmax,std::abs(cpu[i].x- check[i].x));
+    // }
+    // Debug::log("maxabs err x",abserrmax);
+    // for (size_t i = 0; i < check.size(); i++)
+    // {
+    //   cpu[i]= check[i];
+    // }
+    // m_soup.get_Xws().bufferData();
+    // m_soup.get_Xws().gpu().setData(check,Magnum::GL::BufferUsage::StreamDraw);
+
+    // glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
+    // Magnum::GL::Renderer::finish();
+
+
+
+    Debug::log("------shmap----");
+
+    m_timer.tock("deform");
+
+    // SHELL MAP
+    if(m_settings.shell_map)
+      m_shellMapShader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(),
                    m_soup.get_B0().gpu(), mesh.invDmU.gpu(),
                    m_settings.flat_normals ? mesh.normals.gpu()
                                            : mesh.vertex_normals.gpu(),
                    mesh.X.gpu(), mesh.F.gpu(), mesh.Fms.gpu(),
                    mesh.defF.gpu(), mesh.vertex_defF.gpu(), mesh.U.gpu(),
-                   m_settings.shell_map, m_settings.flat_normals, m_settings.phong_deformation);
+                   m_settings.flat_normals, m_settings.phong_deformation);
+    else
+      Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
+
+    
+    // {
+    //   auto checkS = m_soup.get_Xws().getGPUData();
+    //   for (size_t i = 0; i < 10; i++)
+    //   {
+    //     auto& vert = const_cast<VertexWSData&>(checkS[i]);
+    //     auto& vertms = m_soup.get_Xms().cpu()[i];
+    //     // vert.x += 0.1;
+    //     if (m_soup.get_B0().cpu()[i].tri>=0) {
+    //       Debug::log(i,"):",vertms.u,vertms.v,vertms.h);
+    //       Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
+    //     }
+    //   }
+    //   for (size_t i = checkS.size()-10; i < checkS.size(); i++)
+    //   {
+    //     auto& vert = const_cast<VertexWSData&>(checkS[i]);
+    //     auto& vertms = m_soup.get_Xms().cpu()[i];
+    //     // vert.x += 0.1;
+    //     if (m_soup.get_B0().cpu()[i].tri>=0) {
+    //       Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
+    //       Debug::log(i,"):",vertms.u,vertms.v,vertms.h);
+    //     }
+    //   }
+      
+    // // auto& cpu = m_soup.get_Xws().cpu();
+    // // cpu.resize(checkS.size());
+    // // for (size_t i = 0; i < checkS.size(); i++)
+    // // {
+    // //   cpu[i]= checkS[i];
+    // // }
+    // // m_soup.get_Xws().bufferData();
+    // // m_soup.get_Xws().gpu().setData(checkS,Magnum::GL::BufferUsage::StreamDraw);
+    // }
+    glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
+
 
     m_timer.tock("bary & shell map & buf");
-  } else {
+    // Magnum::GL::Renderer::finish();
+
+  } else { // CPU compute
+    // DEFORM REFERENCE
+    if (m_settings.deform_reference > scalar(1e-10)) {
+      deform_reference(mesh, m_settings.flat_strains);
+    } else {
+      int n     = m_soup.num_vertices();
+      auto& Xms = m_soup.get_Xms().cpu();
+      auto& Xws = m_soup.get_Xws();
+      Xws.cpu().resize(Xms.size());
+      // Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
+      threadutils::parallel_for(0, n, [&](int i) {
+        Xws.row<float, 11>(i) << Xms[i].mapXT(), Xms[i].a,
+        Xms[i].mapB(),
+        // m_soup.get_TB().cpu()[i].mapB(),
+        // 0,0,0,
+          Xms[i].mapXT().head<2>(), 1;
+      });
+    }
+    m_timer.tock("deform");
+
+    // SHELL MAP
     m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
 
     if (m_settings.shell_map)
@@ -228,40 +403,44 @@ void YarnMapper::step() {
     else {
       int nverts = m_soup.num_vertices();
       threadutils::parallel_for(0, nverts, [&](int vix) {
-        auto x = m_soup.get_Xws().row<float, 4>(vix);
-        x << x(0), x(2), -x(1), x(3), 0, 1,0,0, x(0), x(1), 1; // NOTE: not correct d1. TODO make consistent cpugpu debug functionality
+        auto& x = m_soup.get_Xws().cpu()[vix];
+        float tmp = x.y;
+        x.y = x.z;
+        x.z = -tmp;
       });
     }
 
+    // finally buffer Xws for yarnshader to draw
     m_soup.get_Xws().bufferData(
-        Magnum::GL::BufferUsage::StreamDraw);  // TODO buffer when needed, for
-                                               // cpu-compute mode that is after
-                                               // shell mapping, for gpu-compute
-                                               // it is before deformref
+        Magnum::GL::BufferUsage::StreamDraw);
+    glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
     m_timer.tock("bary & shell map & buf");
   }
 
-
-  // TODO CONTINUE HERE buffer TB after shellmap, shader compute TB update from Xws BARRIERS, bind and use in yarngeom
-
-
-
-  m_timer.tock("rest");
+  Debug::log("---------------");
+  { // DEBUG check for opengl errors.
+    auto err = Magnum::GL::Renderer::error();
+    if(err != Magnum::GL::Renderer::Error::NoError) {
+      Debug::error("ERROREND", int(err));
+    }
+  }
 
   m_initialized = true;
 }
 
 void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
   int nverts = m_soup.num_vertices();
-  auto& Xms  = m_soup.get_Xms();
+  auto& Xms  = m_soup.get_Xms().cpu();
   auto& Xws  = m_soup.get_Xws();
+  auto& S  = mesh.strains.cpu();
+  auto& Sv  = mesh.vertex_strains.cpu();
   // TODO i sometimes need  both cpudata for access, and buf object for row need
   // to write that nicer TODO CONTINUE GETTING RID OF OLD FUNCS AND USE B0 AND B
   // ... maybe always use .cpu()[vix].. or make rowmap available to cpudata?  I
   // guess .cpu is a more verbose and nicer method
   auto& B0 = m_soup.get_B0().cpu();
-  auto& TB = m_soup.get_TB().cpu();
-  Xws.cpu().resize(Xms.rows());
+  // auto& TB = m_soup.get_TB().cpu();
+  Xws.cpu().resize(Xms.size());
   // Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
   threadutils::parallel_for(0, nverts, [&](int vix) {
     const auto& bary = B0[vix];
@@ -277,43 +456,34 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
 
     Vector6s s;
     if (flat_strains) {
-      s = mesh.strains[tri];
+      s = S[tri].map();
     } else {
       auto ms_ixs = mesh.Fms.cpu()[tri].map();
-      s           = mesh.vertex_strains[ms_ixs[0]] * abc[0] +
-          mesh.vertex_strains[ms_ixs[1]] * abc[1] +
-          mesh.vertex_strains[ms_ixs[2]] * abc[2];
+      s           = Sv[ms_ixs[0]].map() * abc[0] +
+          Sv[ms_ixs[1]].map() * abc[1] +
+          Sv[ms_ixs[2]].map() * abc[2];
     }
 
-    // DEBUG
-    #ifdef DO_DEBUG_STATS
-    {
-      for (size_t i = 0; i < 6; i++)
-      {
-        s[i]*= m_dbg.strain_toggle[std::min(i,size_t(3))]; // NOTE min 3 to mult all bend with same factor
-      }
-    }
-    #endif
+    /*const*/ auto& X = Xms[vix];
 
     Vector4s g;
     float dbg0, dbg1;
 
     std::tie(g, dbg0, dbg1) =
-        m_model->deformation(s, m_soup.getParametric(vix), m_dbg.toggle);
+        m_model->deformation(s, X.pix/*, m_dbg.toggle*/);
+        // m_model->deformation(s, m_soup.getParametric(vix), m_dbg.toggle);
     g *= m_settings.deform_reference;
     // store deformed ms coordinates intm. in ws coords
     // NOTE: buffer.row is a colvector so it expects colvector comma init
     // Xws.row<float, 7>(vix) << Xms.row(vix).transpose() + g,
     //     Xms.block<1, 2>(vix, 0).transpose(), 1;
-    Xws.row<float, 11>(vix) << Xms.block<1,4>(vix,0).transpose() + g, Xms(vix,4),
+    Xws.row<float, 11>(vix) << X.mapXT() + g, X.a,
         // 0,0,0,
-        TB[vix].mapB(),
+        X.mapB(),
+        // TB[vix].mapB(),
         // dbg0,dbg1, 1;
-        // (s[1] + 0.5f),(s[2] + 0.5f), 1;
-        Xms.block<1, 2>(vix, 0).transpose(), 1;
-
-    // if (vix == 1200)
-    //   Debug::log("  ",dbg0);
+        // (s[0] + 0.5f),(s[2] + 0.5f), 1;
+        X.mapXT().head<2>(), 1;
   });
 }
 

@@ -10,10 +10,10 @@
 #include <Magnum/GL/DefaultFramebuffer.h>
 #include <Magnum/GL/Framebuffer.h>
 #include <Magnum/GL/Mesh.h>
+#include <Magnum/GL/MultisampleTexture.h>
 #include <Magnum/GL/Renderbuffer.h>
 #include <Magnum/GL/Renderer.h>
 #include <Magnum/GL/Texture.h>
-#include <Magnum/GL/MultisampleTexture.h>
 #include <Magnum/GL/TextureFormat.h>
 #include <Magnum/ImageView.h>
 #include <Magnum/Math/Color.h>
@@ -41,6 +41,7 @@
 #include "render/MeshDrawable.h"
 #include "render/ObsMeshDrawable.h"
 #include "render/YarnDrawable.h"
+#include "render/enableMSAA.h"
 #include "render/shaders/MeshShader.h"
 #include "render/shaders/ObsMeshShader.h"
 #include "render/shaders/SsaoApplyShader.h"
@@ -48,8 +49,6 @@
 #include "render/shaders/YarnShader.h"
 #include "utils/debug_includes.h"
 #include "yarns/YarnMapper.h"
-
-#include "render/enableMSAA.h"
 
 namespace Magnum {
 
@@ -91,7 +90,8 @@ class MainApplication : public Platform::Application {
   GL::Texture2D _matcapObs{NoCreate};
   GL::Texture2D _matcap{NoCreate};
   GL::Texture2D _clothTexture{NoCreate};
-  GL::Texture1D _normalMap{NoCreate};
+  // GL::Texture1D _normalMap{NoCreate};
+  GL::Texture2D _normalMap{NoCreate};
   bool _paused                   = false;
   int _min_loop_ms               = 16;
   bool _single_step              = false;
@@ -102,14 +102,16 @@ class MainApplication : public Platform::Application {
   std::string _matcap_file       = "matcaps/lighting1.jpg";
   std::string _matcapObs_file    = "matcaps/lighting1.jpg";
   std::string _clothtexture_file = "textures/colorgridy.jpg";
-  std::string _normalMap_file = "textures/normalMap.jpg";
-  float _render_radius_mult      = 1.0f;
-  float _render_nmtwist      = 1.0f;
-  float _render_nmnum        = 4.0f;
-  float _render_nmheight        = 0.4f; // relative to radius
-  float _mesh_dz                 = 0.0f;
-  float _clothTexture_scale      = 1.0f;
-  Color4 _bgColor                = Color4(Color3(0.2f), 1.0f);
+  // std::string _normalMap_file = "textures/normalMap.jpg";
+  std::string _normalMap_file = "textures/PLY.jpg";
+  float _render_radius_mult   = 1.0f;
+  float _render_nmtwist       = 1.0f;
+  float _render_nmnum         = 4.0f;
+  float _render_nmheight      = 0.4f;  // relative to radius
+  float _render_nmlen         = 6.0f;  // relative to radius and 1/num
+  float _mesh_dz              = 0.0f;
+  float _clothTexture_scale   = 1.0f;
+  Color4 _bgColor             = Color4(Color3(0.2f), 1.0f);
 
   // std::unique_ptr<ArcBallCamera> _arcballCamera;
 
@@ -122,7 +124,7 @@ class MainApplication : public Platform::Application {
   Containers::Optional<ArcBall> _arcball;
   Matrix4 _projection;
   Deg _proj_fov    = 45.0_degf;
-  float _proj_near = 0.01f; //0.0001f;
+  float _proj_near = 0.01f;  // 0.0001f;
   float _proj_far  = 10.0f;  // TODO reduce further?
 
   GL::Mesh _screenAlignedTriangle{NoCreate};
@@ -144,24 +146,23 @@ class MainApplication : public Platform::Application {
   GL::Texture2D _occlusion{NoCreate};
   GL::Texture2D _noise{NoCreate};
 
-
   /* Profiling */
   DebugTools::GLFrameProfiler _profiler;
 
   // TODO make a rendersettings struct with default init
   // which can the also be used to reset the settings!
-  Color4 _specularColor{0.3};        // TODO remove
-  #ifdef MSAA
-  Float _ao_radius       = 0.015f;   // m
-  Float _ao_bias         = 0.001f;  // m
-  Float _ao_pow          = 1.8f;
-  #else
-  Float _ao_radius       = 0.004f;   // m
-  Float _ao_bias         = 0.0003f;  // m
-  Float _ao_pow          = 2.0f;
-  #endif
-  int _ao_blur_radius    = 0;        // pixels
-  float _ao_blur_feature = 25.0f;    // 1/m
+  Color4 _specularColor{0.3};  // TODO remove
+#ifdef MSAA
+  Float _ao_radius = 0.015f;  // m
+  Float _ao_bias   = 0.001f;  // m
+  Float _ao_pow    = 1.8f;
+#else
+  Float _ao_radius = 0.004f;   // m
+  Float _ao_bias   = 0.0003f;  // m
+  Float _ao_pow    = 2.0f;
+#endif
+  int _ao_blur_radius    = 0;      // pixels
+  float _ao_blur_feature = 25.0f;  // 1/m
 
   SsaoApplyShader::Flag _ssaoApplyFlag = {};
 

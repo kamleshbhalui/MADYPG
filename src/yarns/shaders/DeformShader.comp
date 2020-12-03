@@ -1,0 +1,218 @@
+// NOTE: DEFORMSHADER_WRKGRPSIZE defined during compilation
+layout(local_size_x = DEFORMSHADER_WRKGRPSIZE, local_size_y = 1, local_size_z = 1) in;
+
+struct _XwsVertex
+{
+  float x,y,z,th,tarc,dx,dy,dz,u,v,r;
+};
+layout(std430, binding = 0) /*restrict*/ writeonly buffer _XwsBuffer
+{
+  _XwsVertex data[];
+} buf_Xws;
+
+struct _XmsVertex
+{
+  float u,v,h,th,bx,by,bz,tarc;
+  uint pix;
+};
+layout(std430, binding = 1) readonly buffer _XmsBuffer
+{
+  _XmsVertex data[];
+} buf_Xms;
+
+struct _bary {
+  float[3] abc;
+  int tri;
+};
+layout(std430, binding = 2) readonly buffer _baryBuffer
+{
+  _bary data[];
+} buf_B0;
+
+layout(std430, binding = 3) readonly buffer _meshSBuffer
+{
+  float[6] data[];
+} buf_meshS;
+
+layout(std430, binding = 4) readonly buffer _meshFmsBuffer
+{
+  uint[3] data[];
+} buf_meshFms;
+
+#define AXES_MAX_LENGTH 32
+layout(std430, binding = 5) readonly buffer _texAxesBuffer
+{
+  int lenSX;
+  int lenSA;
+  int lenSY;
+  float[AXES_MAX_LENGTH] SX;
+  float[AXES_MAX_LENGTH] SA;
+  float[AXES_MAX_LENGTH] SY;
+  float[AXES_MAX_LENGTH] invSX;
+  float[AXES_MAX_LENGTH] invSA;
+  float[AXES_MAX_LENGTH] invSY;
+} buf_texAxes;
+
+layout(std430, binding = 6) readonly buffer _texDataBuffer
+{
+  vec4 data[];
+} buf_texData;
+
+uniform float deform_reference = 1;
+uniform uint num_vertices; 
+
+vec4 sample_at(uint i_sx, uint i_sa, uint i_sy, uint pix) {
+  uint loc = i_sx + buf_texAxes.lenSX * (i_sa + buf_texAxes.lenSA * (i_sy + buf_texAxes.lenSY * pix));
+  return buf_texData.data[loc];
+}
+
+// https://en.cppreference.com/w/cpp/algorithm/upper_bound#Possible_implementation
+// note that for a full array ilast would be len(array) and not the index of the last element!
+// which_array is used to decide between the three arrays, hardcoded and with more checks and lookups, but oh well...
+uint upper_bound(uint istart,uint iend, uint which_array, float value) { 
+  uint i,step,count;
+  count = iend-istart;
+  float arrvalue;
+  while (count > 0) {
+    step = count/2;
+    i = istart + step;
+
+    if (which_array == 0)
+      arrvalue = buf_texAxes.SX[i];
+    else if (which_array == 1)
+      arrvalue = buf_texAxes.SA[i];
+    else
+      arrvalue = buf_texAxes.SY[i];
+    
+    if (value < arrvalue) {
+      count = step;
+    } else {
+      istart = i+1;
+      count -= step + 1;
+    }
+  }
+  return istart;
+} 
+
+vec4 sample3D(vec3 strain, uint pix) {
+  // buf_texAxes.lenSX / SX / invSX
+  // vec4 buf_texData.data[loc]
+
+  float a_sx, a_sa, a_sy;
+  // first cell (i,i+1) s.t. val < ax[i+1] else last = size-2
+  uint i_sx, i_sa, i_sy;
+
+  // TODO implement this.
+  // TODO get rid of not important all_barriers and logs etc. in yarmapper and *shader.h
+
+  // use upper bound to find the index st. value<arr[i]
+  // and so upper_bound - 1 is s.t. arr[i] <= value < arr[i+1]
+  i_sx = upper_bound(1, buf_texAxes.lenSX - 1, 0, strain.x) - 1;
+  a_sx = (strain.x - buf_texAxes.SX[i_sx]) * buf_texAxes.invSX[i_sx];
+  a_sx = (strain.x - buf_texAxes.SX[i_sx]) / (buf_texAxes.SX[i_sx+1] - buf_texAxes.SX[i_sx]);
+  i_sa = upper_bound(1, buf_texAxes.lenSA - 1, 1, strain.y) - 1;
+  a_sa = (strain.y - buf_texAxes.SA[i_sa]) * buf_texAxes.invSA[i_sa];
+  i_sy = upper_bound(1, buf_texAxes.lenSY - 1, 2, strain.z) - 1;
+  a_sy = (strain.z - buf_texAxes.SY[i_sy]) * buf_texAxes.invSY[i_sy];
+
+  // i_sa = 12; // DEBUG
+  // i_sy = 12;
+  // a_sa = 0;
+  // a_sy = 0;
+
+  // clamp extrapolation
+  a_sx = clamp(a_sx, 0.0, 1.0);
+  a_sa = clamp(a_sa, 0.0, 1.0);
+  a_sy = clamp(a_sy, 0.0, 1.0);
+  // a_sx = 0;
+  // a_sa = 0;
+  // a_sy = 0;
+  // a_sx = 1;
+  // a_sa = 1;
+  // a_sy = 1;
+
+  vec4 d = (1 - a_sx) * (1 - a_sa) * (1 - a_sy) * sample_at(i_sx, i_sa, i_sy, pix);
+  d +=
+      (1 - a_sx) * (1 - a_sa) * (1 - a_sy) * sample_at(i_sx, i_sa, i_sy, pix);
+  d += (1 - a_sx) * (1 - a_sa) * a_sy * sample_at(i_sx, i_sa, i_sy + 1, pix);
+  d += (1 - a_sx) * a_sa * (1 - a_sy) * sample_at(i_sx, i_sa + 1, i_sy, pix);
+  d += (1 - a_sx) * a_sa * a_sy * sample_at(i_sx, i_sa + 1, i_sy + 1, pix);
+  d += a_sx * (1 - a_sa) * (1 - a_sy) * sample_at(i_sx + 1, i_sa, i_sy, pix);
+  d += a_sx * (1 - a_sa) * a_sy * sample_at(i_sx + 1, i_sa, i_sy + 1, pix);
+  d += a_sx * a_sa * (1 - a_sy) * sample_at(i_sx + 1, i_sa + 1, i_sy, pix);
+  d += a_sx * a_sa * a_sy * sample_at(i_sx + 1, i_sa + 1, i_sy + 1, pix);
+
+  return d;
+}
+
+void main()
+{
+  uint vix = gl_GlobalInvocationID.x;
+  if (vix >= num_vertices) // incase of num_vertices incompatible with workgroup size
+    return;
+
+  _bary B0 = buf_B0.data[vix];
+  int tri = B0.tri;
+
+  if(tri < 0)
+    return;
+
+  _XmsVertex Xms = buf_Xms.data[vix];
+  _XwsVertex Xws; // output vertex
+
+  Xws.x = Xms.u;
+  Xws.y = Xms.v;
+  Xws.z = Xms.h;
+  Xws.th = Xms.th;
+  Xws.tarc = Xms.tarc;
+  Xws.dx = Xms.bx;
+  Xws.dy = Xms.by;
+  Xws.dz = Xms.bz;
+  Xws.u = Xms.u;
+  Xws.v = Xms.v;
+  Xws.r = 1; // deprecate
+  
+  if (deform_reference < 0.0001) {
+    buf_Xws.data[vix] = Xws;
+    return;
+  }
+
+  float[3] abc = B0.abc;
+
+  // interpolate strains
+  // TODO also allow flat strains
+  uint[3] ms_ixs = buf_meshFms.data[tri];
+  vec3 strain = vec3(0);
+  for (int i = 0; i < 3; ++i) {
+    float[6] s = buf_meshS.data[ms_ixs[i]];
+    strain += vec3(s[0], s[1], s[2]) * abc[i];
+  }
+
+  vec4 d = deform_reference * sample3D(strain, Xms.pix);
+  
+  Xws.x += d.x;
+  Xws.y += d.y;
+  Xws.z += d.z;
+  Xws.th += d.w;
+
+  // Xws.u = strain.x*2+0.5;
+  // Xws.v = strain.z*2+0.5;
+  // Xws.u = buf_texAxes.lenSX;
+  // Xws.v = buf_texAxes.lenSY;
+  // if ((buf_texAxes.SX[0]==-0.236 && abs(buf_texAxes.invSA[0] - 15.625)<0.001)) 
+  //   {
+  //     Xws.u = 0;
+  //     Xws.v = 0;
+  //   }
+  // DEBUGGING SO FAR:
+  // .. strain seems to be correct in here (by color)
+  // .. axes buffer seems to be correctly loaded (by bool color and renderdoc)
+  // .. sample lookup location should be same
+  // .. pix appears to be the correct value
+  // upper bound should be the same.. checked by copying the method onto cpu and comparing std vs mine
+  // for strains 0 it works same for both! it might be something about alpha being wrong?
+
+  
+  buf_Xws.data[vix] = Xws; // store in buffer
+}
+

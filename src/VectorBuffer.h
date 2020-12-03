@@ -57,6 +57,14 @@ class VectorBuffer {
     bool realloc = (m_allocatedGPUsize != m_data.size());
     bufferData(realloc, bufferUsage);
   }
+  void allocateGPU(size_t size, Magnum::GL::BufferUsage bufferUsage = Magnum::GL::BufferUsage::StreamDraw) {
+    m_buffer.setData({nullptr, sizeof(T)*size}, bufferUsage);
+    m_allocatedGPUsize = size;
+  }
+
+  auto getGPUData() {
+    return Corrade::Containers::arrayCast<T>(m_buffer.data());
+  }
 
   size_t getGPUSize() const { return m_allocatedGPUsize; }
   size_t getCPUSize() const { return m_data.size(); }

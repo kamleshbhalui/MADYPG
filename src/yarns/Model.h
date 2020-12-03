@@ -1,29 +1,37 @@
 #ifndef __MODEL__H__
 #define __MODEL__H__
 
+#include <cnpy/cnpy.h>
+
 #include "PeriodicYarnPattern.h"
+#include "YarnSoup.h"  // vertexmsdata
 
 // CPP INCLUDES
 
 #include <filesystem>  // requires C++17, g++ >= 8 & linking to stdc++fs)
 // #include <set>
 #include <fstream>
-#include <sstream>
 #include <regex>
+#include <sstream>
 namespace fs = std::filesystem;
 #include "../utils/debug_logging.h"
 #include "../utils/threadutils.h"
 
 // compile time integer pow https://stackoverflow.com/a/1506856
-template<int X, int P>
-struct Pow { enum { result = X*Pow<X,P-1>::result }; };
-template<int X>
-struct Pow<X,0> { enum { result = 1 }; };
-template<int X>
-struct Pow<X,1> { enum { result = X }; }; 
+template <int X, int P>
+struct Pow {
+  enum { result = X * Pow<X, P - 1>::result };
+};
+template <int X>
+struct Pow<X, 0> {
+  enum { result = 1 };
+};
+template <int X>
+struct Pow<X, 1> {
+  enum { result = X };
+};
 
 class Model {
-
  public:
   Model(const std::string& folder) {
     m_initialized = false;
@@ -40,334 +48,216 @@ class Model {
     // Load model / pyp
     m_pyp.deserialize(pypfile);  // DEBUG hardcoded file
     m_pyp.recompute_VE_table();
-    // m_pyp.rectangulize();  // TODO potentially assume that this is true for new
-    // pyp, but it should take only a millisecond anyway
+    // m_pyp.rectangulize();  // TODO potentially assume that this is true for
+    // new pyp, but it should take only a millisecond anyway
     // TODO ACTUALlY RECTANGULIZING HERE MIGHT BE BAD
-    // BECAUSE IF IM USING THE DATA TO LOOK UP G = Xdef - Xref, and Xref is rectangulized while Xdef is deformed version of unrectangulized
-    // THEN THIS IS INCONSISTENT AND WILL PRODUCE ERRORS, SPURIOUS DEFORMATION 
-    // m_pyp.compute_parametric();  // TODO potentially cache // actually ideally
-                                 // already store with python model creation
+    // BECAUSE IF IM USING THE DATA TO LOOK UP G = Xdef - Xref, and Xref is
+    // rectangulized while Xdef is deformed version of unrectangulized THEN THIS
+    // IS INCONSISTENT AND WILL PRODUCE ERRORS, SPURIOUS DEFORMATION
+    // m_pyp.compute_parametric();  // TODO potentially cache // actually
+    // ideally already store with python model creation
 
-    //  load v2t and v2y
-    v2t.reserve(m_pyp.Q.rows());
-    v2y.reserve(m_pyp.Q.rows());
-    if (!load_vector(fs::path(folder) / "v2t", v2t)) {
-      Debug::error("No 'v2t' file found in folder:", folder);
-      return;
-    }
-    if (!load_vector(fs::path(folder) / "v2y", v2y)) {
-      Debug::error("No 'v2y' file found in folder:", folder);
-      return;
-    }
-
-
-    // for file sxsasy/y%02d: load tex 
-
-    static const auto regex_y02d = std::regex("y(\\d{2})");
-    {
-      const auto subfolder = fs::path(folder) / "sxsasy";
-      if (!fs::is_directory(subfolder)) {
-        Debug::error("Could not load yarn model directory:", subfolder);
+    {  // sxsasy texture
+       // load sxsy axes.txt
+      m_tex_sxsasy_axes.cpu().resize(1);
+      AxesInfo& axinf = m_tex_sxsasy_axes.cpu()[0];
+      std::vector<axwrapper> axs{axwrapper(axinf.lenSX, axinf.SX, axinf.invSX),
+                                 axwrapper(axinf.lenSA, axinf.SA, axinf.invSA),
+                                 axwrapper(axinf.lenSY, axinf.SY, axinf.invSY)};
+      if (!load_axes(fs::path(folder) / "sxsasy" / "axes.txt", axs)) {
+        Debug::error("No 'axes.txt' file found in sxsasy subfolder of:",
+                     folder);
         return;
       }
-      std::vector<std::pair<std::string, int>> files;
-      for (auto& p : fs::directory_iterator(subfolder)) {
-        if (!fs::is_regular_file(p))
-          continue;
-        const auto& str = p.path().filename().string();
-        std::smatch match;
-        if (std::regex_search(str, match, regex_y02d)) {
-          int id = std::stoi(match[1].str());
-          if (id >= int(m_tex_sxsasy.size()))
-            m_tex_sxsasy.resize(id + 1);
-          files.push_back(std::make_pair(p.path().string(), id));
+
+      // load data.npy
+      cnpy::NpyArray npyarr =
+          cnpy::npy_load(fs::path(folder) / "sxsasy" / "data.npy");
+      auto& data = m_tex_sxsasy_data.cpu();
+      Debug::msgassert("data.npy is not 2D", npyarr.shape.size() == 2);
+      Debug::msgassert(
+          "data.npy is not (N*len(Q)) x 4",
+          npyarr.shape[1] == 4 && (npyarr.shape[0] % m_pyp.Q.rows() == 0));
+      data.resize(npyarr.shape[0]);
+      float* npydata = npyarr.data<float>();
+      threadutils::parallel_for(size_t(0), npyarr.shape[0], [&](size_t i) {
+        auto g_i = data[i].map();
+        for (size_t j = 0; j < 4; j++) {
+          g_i[j] = npydata[4 * i + j];
         }
-      }
-      threadutils::parallel_for_each(files, [&](const std::pair<std::string, int>& f) {
-        m_tex_sxsasy[f.second].load(f.first);
       });
     }
-
-    // bending
-    {
-      const auto subfolder = fs::path(folder) / "IIx";
-      if (!fs::is_directory(subfolder)) {
-        Debug::error("Could not load yarn model directory:", subfolder);
-        return;
-      }
-      std::vector<std::pair<std::string, int>> files;
-      for (auto& p : fs::directory_iterator(subfolder)) {
-        if (!fs::is_regular_file(p))
-          continue;
-        const auto& str = p.path().filename().string();
-        std::smatch match;
-        if (std::regex_search(str, match, regex_y02d)) {
-          int id = std::stoi(match[1].str());
-          if (id >= int(m_tex_IIx.size()))
-            m_tex_IIx.resize(id + 1);
-          files.push_back(std::make_pair(p.path().string(), id));
-        }
-      }
-      threadutils::parallel_for_each(files, [&](const std::pair<std::string, int>& f) {
-        m_tex_IIx[f.second].load(f.first);
-      });
-    }
-    {
-      const auto subfolder = fs::path(folder) / "IIy";
-      if (!fs::is_directory(subfolder)) {
-        Debug::error("Could not load yarn model directory:", subfolder);
-        return;
-      }
-      std::vector<std::pair<std::string, int>> files;
-      for (auto& p : fs::directory_iterator(subfolder)) {
-        if (!fs::is_regular_file(p))
-          continue;
-        const auto& str = p.path().filename().string();
-        std::smatch match;
-        if (std::regex_search(str, match, regex_y02d)) {
-          int id = std::stoi(match[1].str());
-          if (id >= int(m_tex_IIy.size()))
-            m_tex_IIy.resize(id + 1);
-          files.push_back(std::make_pair(p.path().string(), id));
-        }
-      }
-      threadutils::parallel_for_each(files, [&](const std::pair<std::string, int>& f) {
-        m_tex_IIy[f.second].load(f.first);
-      });
-    }
- 
-
-
-
 
     m_initialized = true;
   }
 
   const std::tuple<Vector4s, scalar, scalar> deformation(const Vector6s& strain,
-                                                         int vix, bool dbg) {
-    Vector4s g = Vector4s::Zero();
-
-    // TODO not pass vix?
-    int y         = v2y[vix]; //m_pyp.param_v2y[vix];
-    scalar t      = v2t[vix]; m_pyp.param_v2t[vix];
-    Vector4s xref = m_pyp.Q.row(vix);
-
-    {
-      assert(y < int(m_tex_sxsasy.size()));
-      scalar dbg0=0, dbg1=0;
-      Vector4s x;
-      // std::tie(x,dbg0,dbg1) = m_tex_sxsasy[y].sample({t,strain[0],strain[1],strain[2]});
-      x = m_tex_sxsasy[y].sample({t,strain[0],strain[1],strain[2]});
-      g += x - xref;
-
-      if (!dbg) { // bending
-        float l1, l2, c2;
-        std::tie(l1,l2,c2) = robust_eigenstuff(strain[3],strain[4],strain[5]);
-
-        // g += c2 g_x(l1) + (1-c2) g_x(l2)
-        // g += c2 g_y(l2) + (1-c2) g_y(l1)
-
-        g += c2 * (m_tex_IIx[y].sample({t,l1}) + m_tex_IIy[y].sample({t,l2}));
-        g += (1 - c2) * (m_tex_IIx[y].sample({t,l2}) + m_tex_IIy[y].sample({t,l1}));
-        g -= 2 * xref;
-
-      }
-      
-      return std::make_tuple(g, dbg0, dbg1);
-    }
+                                                         uint32_t pix) {
+    scalar dbg0 = 0, dbg1 = 0;
+    Vector4s g = sample3D(strain.head<3>(), pix);
+    return std::make_tuple(g, dbg0, dbg1);
   }
 
   const PeriodicYarnPattern& getPYP() const { return m_pyp; }
   bool isInitialized() const { return m_initialized; }
+  auto& getTexAxes() { return m_tex_sxsasy_axes; }
+  auto& getTexData() { return m_tex_sxsasy_data; }
 
  private:
   bool m_initialized;
   PeriodicYarnPattern m_pyp;
-  // static const std::vector<std::string> strain_names;
 
-  // vix -> (t,y) until this is part of the main program
-  std::vector<scalar> v2t;
-  std::vector<int> v2y;
+  struct DeformationEntry {
+    float x, y, z, th;
+    Eigen::Map<Eigen::Matrix<float, 4, 1, Eigen::ColMajor>, Eigen::Unaligned>
+    map() {
+      return Eigen::Map<Eigen::Matrix<float, 4, 1, Eigen::ColMajor>,
+                        Eigen::Unaligned>(reinterpret_cast<float*>(this), 4);
+    }
+    Eigen::Map<const Eigen::Matrix<float, 4, 1, Eigen::ColMajor>,
+               Eigen::Unaligned>
+    map() const {
+      return Eigen::Map<const Eigen::Matrix<float, 4, 1, Eigen::ColMajor>,
+                        Eigen::Unaligned>(reinterpret_cast<const float*>(this),
+                                          4);
+    }
+  };
 
-  std::tuple<float, float, float> robust_eigenstuff(float IIxx, float IIxy, float IIyy) {
-    float A = 0.5f * (IIxx + IIyy);
-    float B = 0.5f * (IIxx - IIyy);
-    float eps = 1e-8;
-    float IIxy2 = IIxy*IIxy;
-    float S = std::sqrt(B*B + IIxy2 + eps);
-    int k = (IIxx - IIyy) < 0 ? -1 : 1;
-    float BkS = B + k * S;
-    float lam1 = A + S;
-    float lam2 = A - S;
-    float c2 = 0.5f + k * (0.5f - IIxy2 / (BkS*BkS + IIxy2));
-    return std::make_tuple(lam1, lam2, c2);
-  }
+#define AXES_MAX_LENGTH 32
+  struct AxesInfo {
+    uint32_t lenSX, lenSA, lenSY;
+    float SX[AXES_MAX_LENGTH];
+    float SA[AXES_MAX_LENGTH];
+    float SY[AXES_MAX_LENGTH];
+    float invSX[AXES_MAX_LENGTH];
+    float invSA[AXES_MAX_LENGTH];
+    float invSY[AXES_MAX_LENGTH];
+  };
 
-  template <typename T>
-  T str2num(const std::string& str);
-
-  template<typename T>
-  bool load_vector(const std::string& filename, std::vector<T>& vec) {
-
-    std::fstream ifs(filename.c_str(), std::ios::in);
+  struct axwrapper {  // helper struct to pass arrays in the 'AxesInfo' uniform
+                      // buffer into the file loading method
+    uint32_t& len;
+    float (&data)[AXES_MAX_LENGTH];  // ref of fixes size array..
+    float (&invdata)[AXES_MAX_LENGTH];
+    axwrapper(uint32_t& lenref, float (&dataref)[AXES_MAX_LENGTH],
+              float (&invdataref)[AXES_MAX_LENGTH])
+        : len(lenref), data(dataref), invdata(invdataref) {}
+  };
+  bool load_axes(const std::string& filepath, std::vector<axwrapper>& axes) {
+    std::fstream ifs(filepath.c_str(), std::ios::in);
     if (!ifs) {
-      std::cerr << "Error: failed to open file " << filename << "\n";
+      std::cerr << "Error: failed to open file " << filepath << "\n";
       return false;
     }
 
+    size_t axi = 0;
     std::string line;
-    while (std::getline(ifs, line))
-      vec.push_back(str2num<T>(line));
+    while (!ifs.eof() && axi < axes.size()) {
+      assert(axi < axes.size());
+      auto& ax = axes[axi];
+      std::getline(ifs, line);
+      std::stringstream ss(line);
+      size_t i = 0;
+      while ((ss >> ax.data[i]) && i < AXES_MAX_LENGTH) {
+        ++i;
+      }
+      ax.len = uint32_t(i);
+
+      for (size_t j = 0; j < ax.len - 1; ++j) {
+        ax.invdata[j] = 1.0f / (ax.data[j + 1] - ax.data[j]);
+      }
+      ++axi;
+    }
 
     return true;
   }
 
-  template <int N>
-  class TexND {
-    public:
-    bool load(const std::string& fname) {
-      Debug::log("loading",fname);
-      
-      std::fstream ifs(fname.c_str(), std::ios::in);
-      if (!ifs) {
-        std::cerr << "Error: failed to open file " << fname << "\n";
-        return false;
-      }
+// // DEBUG
+//   uint upper_bound(uint istart,uint iend, uint which_array, float value) { 
+//     auto axes = m_tex_sxsasy_axes.cpu()[0];
+//   uint i,step,count;
+//   count = iend-istart;
+//   float arrvalue;
+//   while (count > 0) {
+//     step = count/2;
+//     i = istart + step;
 
-      std::string line;
-      
-      
-      m_axes.resize(N);
-      for (size_t i = 0; i < N; ++i) {
-        auto& ax = m_axes[i];
-        if (!std::getline(ifs, line))
-          return false;
-        {
-          std::istringstream iss(line);
-          int n = std::distance(std::istream_iterator<std::string>(iss),
-                      std::istream_iterator<std::string>());
-          if (i > 0)
-            n -= 1; // ignore strain index
-          ax.resize(n);
-        }
-        {
-          std::stringstream linestream(line);
-          scalar value;
-          if (i > 0)
-            linestream >> value; // get rid of dummy first integer
-          for (size_t j = 0; j < ax.size(); j++)
-            linestream >> ax[j];
-        }
-      }
-
-      // precompute axes inverse
-      m_axesinv.resize(m_axes.size());
-      m_accsize.reserve(m_axes.size());
-      for (size_t i = 0; i < N; ++i) {
-        auto& ax = m_axes[i];
-        auto& axinv = m_axesinv[i];
-        axinv.resize(int(ax.size()) - 1);
-        for (size_t j = 0; j < axinv.size(); ++j)
-          axinv[j] = 1 / (ax[j + 1] - ax[j]);
-        
-        if (i == 0)
-          m_accsize.push_back(1);
-        else
-          m_accsize.push_back(m_accsize.back() * m_axes[i-1].size());
-      }
-      
-      // allocate data and load it
-      int totalsize = 1;
-      for (const auto& ax : m_axes) {
-        totalsize *= ax.size();
-      }
-      m_data.reserve(totalsize);
-      for (int i = 0; i < totalsize; ++i) {
-        if (!std::getline(ifs, line))
-          return false;
-        std::stringstream linestream(line);
-        for (size_t j = 0; j < 4; j++)
-          linestream >> m_data[i][j];
-      }
-
-      return true;
-    }
-    // std::tuple<Vector4s, scalar, scalar> sample (const std::vector<scalar>& in) {
-    Vector4s sample (const std::vector<scalar>& in) {
-      std::vector<scalar> A;
-      std::vector<int> C;
-      A.reserve(N);
-      C.reserve(N);
-      // assert(int(in.size())==N && "Incorrect texture sample input length.");
-      // Debug::msgassert("Incorrect texture sample input length.", int(in.size())==N);
-
-      for (int i = 0; i < N; i++) {
-        scalar val = in[i];
-        const auto& ax = m_axes[i];
-        int c = std::distance(ax.begin(),
-                              std::upper_bound(ax.begin() + 1, ax.end() - 1,
-                                                val)) -
-                1;  // first cell (c,c+1) s.t. val < ax[i+1] else last = size-2
-        scalar a = (val - ax[c]) * m_axesinv[i][c];
-        a = std::min(std::max(scalar(0), a), scalar(1)); // clamp extrapolation
-        A.push_back(a);
-        C.push_back(c);
-      }
-
-      AlignedVector<Vector4s> samples;
-      samples.reserve(Pow<2,N>::result);
-
-      for (int i = 0; i < Pow<2,N>::result; i++) {
-        // for halfing procedure order if N=4:
-        // c0   c1 c2 c3
-        // c0+1 c1 c2 c3
-        // ...
-        // slowest change in last axis, so halfing happens over that one
-        // ie halfing inverse axes order
-
-        int dix = data_index(C, i); // using i as binary offset means we are creating data
-        samples.push_back(m_data[dix]);
-      }
-
-      ND_lerp_half(samples, A);
-      // return samples[0];
-      // int K = 0;
-      // return std::make_tuple(samples[0], C[K] * 1.0f/m_axes[K].size(), A[K]);
-      return samples[0];
-    }
+//     if (which_array == 0)
+//       arrvalue = axes.SX[i];
+//     else if (which_array == 1)
+//       arrvalue = axes.SA[i];
+//     else
+//       arrvalue = axes.SY[i];
     
-    private:
+//     if (value < arrvalue) {
+//       count = step;
+//     } else {
+//       istart = i+1;
+//       count -= step + 1;
+//     }
+//   }
+//   return istart;
+// } 
 
-    int data_index (const std::vector<int>& axixs, int binary_offset = 0) {
-      // binary offset offsets individual ixs for hypercube cell lookup
-      int dix = 0;
-      for (int i = 0; i < N; i++)
-        dix += m_accsize[i] * (axixs[i] + ((binary_offset >> i) & 0b1));
-      return dix;
+  Vector4s sample3D(Vector3s strain, uint32_t pix) {
+    const auto& axes = m_tex_sxsasy_axes.cpu()[0];
+    const auto& data = m_tex_sxsasy_data.cpu();
+
+    auto sample_at = [&](int i_sx, int i_sa, int i_sy, int pix) {
+      // from python:
+      // isx + (len(SX)) * isa + (len(SX) * len(SA)) * isy + (len(SX) * len(SA)
+      // * len(SY)) * vix
+      int loc =
+          i_sx + axes.lenSX * (i_sa + axes.lenSA * (i_sy + axes.lenSY * pix));
+      return Vector4s(data[loc].map());
+    };
+    // if(pix == 10)
+    // Debug::log(2 + axes.lenSX * (3 + axes.lenSA * (4 + axes.lenSY * 5)));
+
+    // bad code block here is finding the cell/sample-index the lookup strain falls into, as well as its lerp-weight/fraction
+    float a_sx, a_sa, a_sy;
+    int i_sx, i_sa, i_sy;
+    for (int i = 0; i < 3; i++) {
+      scalar val = strain[i];
+      float& a   = i == 0 ? a_sx : (i == 1 ? a_sa : a_sy);
+      int& c     = i == 0 ? i_sx : (i == 1 ? i_sa : i_sy);
+      const uint32_t& len =
+          i == 0 ? axes.lenSX : (i == 1 ? axes.lenSA : axes.lenSY);
+      const auto& ax = i == 0 ? axes.SX : (i == 1 ? axes.SA : axes.SY);
+      const auto& invax =
+          i == 0 ? axes.invSX : (i == 1 ? axes.invSA : axes.invSY);
+      // first cell (c,c+1) s.t. val < ax[i+1] else last = size-2
+      c =
+          std::distance(ax, std::upper_bound(ax + 1, ax + len - 1, val)) - 1;
+      a = (val - ax[c]) * invax[c];
+      a = std::min(std::max(scalar(0), a), scalar(1));  // clamp extrapolation
+
+      // int check =  upper_bound(1, len - 1, i, val) - 1;
+      // if (check != c) {
+      //   Debug::log("DIFF",c, check );
+      // }
+      // a = 0;
     }
 
-    void ND_lerp_half(AlignedVector<Vector4s> & samples, const std::vector<scalar>& alpha) {
-      size_t sz = samples.size();
-      for (int i = 0; i < N; i++) {
-        // samples[ < len(samples)/2] = (1-a[i]) samples[ < len(samples)/2] + (a[i]) samples[ >= len(samples)/2]
-        // samples.resize(len(samples)/2)
-        size_t sz2 = sz/2;
-        scalar a = alpha[N-1-i]; // inverse order bc sample layout such that last axis changes slowest
-        for (size_t j = 0; j < sz2; j++)
-          samples[j] = (1-a) * samples[j] + a * samples[j + sz2]; // lerp into first half
-        sz = sz2;
-      }
-      assert(sz == 1);
-    }
+    Vector4s g = Vector4s::Zero();
+    g +=
+        (1 - a_sx) * (1 - a_sa) * (1 - a_sy) * sample_at(i_sx, i_sa, i_sy, pix);
+    g += (1 - a_sx) * (1 - a_sa) * a_sy * sample_at(i_sx, i_sa, i_sy + 1, pix);
+    g += (1 - a_sx) * a_sa * (1 - a_sy) * sample_at(i_sx, i_sa + 1, i_sy, pix);
+    g += (1 - a_sx) * a_sa * a_sy * sample_at(i_sx, i_sa + 1, i_sy + 1, pix);
+    g += a_sx * (1 - a_sa) * (1 - a_sy) * sample_at(i_sx + 1, i_sa, i_sy, pix);
+    g += a_sx * (1 - a_sa) * a_sy * sample_at(i_sx + 1, i_sa, i_sy + 1, pix);
+    g += a_sx * a_sa * (1 - a_sy) * sample_at(i_sx + 1, i_sa + 1, i_sy, pix);
+    g += a_sx * a_sa * a_sy * sample_at(i_sx + 1, i_sa + 1, i_sy + 1, pix);
 
-    AlignedVector<Vector4s> m_data;
-    std::vector<std::vector<scalar>> m_axes; // e.g. ax0 = [t0, t1, t2, t3, ...]
-    std::vector<std::vector<scalar>> m_axesinv;
-    std::vector<int> m_accsize;
-  };
-  std::vector<TexND<4>> m_tex_sxsasy;
-  std::vector<TexND<2>> m_tex_IIx, m_tex_IIy;
 
+    return g;
+  }
+
+  VectorBuffer<AxesInfo>
+      m_tex_sxsasy_axes;  // note: axinfo exploiting "vector"buffer for just
+                          // single entry
+  VectorBuffer<DeformationEntry> m_tex_sxsasy_data;
 };
 
 #endif  // __MODEL__H__

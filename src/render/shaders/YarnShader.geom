@@ -1,4 +1,4 @@
-#define NVERTICES 16 // NOTE: for cylinder segment, including both ends
+#define NVERTICES 16 // NOTE: for cylinder segment, including both ends, ie circular crosssection will have nverts/2 vertices
 
 #define Vprv gl_in[0]
 #define V0 gl_in[1]
@@ -6,7 +6,13 @@
 #define Vnxt gl_in[3]
 layout (lines_adjacency) in;
 // layout (lines) in;
+
+// #define DRAW_LINES
+#ifdef DRAW_LINES
+layout (line_strip, max_vertices = 2) out;
+#else
 layout (triangle_strip, max_vertices = NVERTICES) out;
+#endif
 
 in V2G {
   vec3 d1;
@@ -18,7 +24,8 @@ in V2G {
 } gs_in[];
 
 out G2F {
-  float a; // radial texture coordinate: actually Na - NVl/2 pi r
+  vec2 plycoord; // ply texture coordinate: N a, l/L
+  // float a; // radial texture coordinate: actually Na - NVl/2 pi r
   float r;
   vec3 p;
   // vec3 n;
@@ -27,12 +34,30 @@ out G2F {
 } gs_out;
 
 uniform float radius = 1.0;
-uniform float normalTwist = 1000;
-uniform float normalNum = 4;
+uniform float plyTwist = 1000;
+uniform float plyLen = 1; // multiple  of radius
+uniform float plyNum = 4;
 uniform mat4 projection;
 
 
 void main() { 
+  #ifdef DRAW_LINES
+  gs_out.plycoord = vec2(0,0);
+  gs_out.r = radius;
+  gs_out.Q = mat3(vec3(1,0,0),vec3(0,1,0),vec3(0,0,1));
+  gs_out.uv = gs_in[1].uv;
+  gs_out.p = gl_in[1].gl_Position.xyz;
+  gl_Position = projection*vec4(gs_out.p, 1.0);
+  EmitVertex();
+  gs_out.uv = gs_in[2].uv;
+  gs_out.p = gl_in[2].gl_Position.xyz;
+  gl_Position = projection*vec4(gs_out.p, 1.0);
+  EmitVertex();
+  EndPrimitive();
+  return;
+  #endif
+
+
   // note: variable naming: vertex values indexed as 0 1 2 3, edge values A B C.
   // [v0] --eA-- [v1] --eB-- [v2] --eC-- [v3]
   // shader outputs the geometry for segment eB
@@ -43,6 +68,12 @@ void main() {
   float rlC = gs_in[3].arc - gs_in[2].arc;
   float invrlAB = 1.0 / (rlA + rlB);
   float invrlBC = 1.0 / (rlB + rlC);
+
+  // rlA=1;
+  // rlB=1;
+  // rlC=1;
+  // invrlAB=0.5;
+  // invrlBC=0.5;
 
   #define volpreserve
   #ifdef volpreserve
@@ -68,18 +99,13 @@ void main() {
 
   vec3 nv0 = (rlB * gs_in[1].d1 + rlA * gs_in[0].d1);
   vec3 nv1 = (rlC * gs_in[2].d1 + rlB * gs_in[1].d1);
-  // NOTE: when using twists (and should!) probably should compute material frame BEFORE averaging since (m1+m2) != R(thetaavg) (d1+d2)
-  // vec3 d1_0 = cos(gs_in[0].th) * gs_in[0].d1 + sin(gs_in[0].th) * cross(normalize(V0.gl_Position.xyz - Vprv.gl_Position.xyz),gs_in[0].d1);
-  // vec3 d1_1 = cos(gs_in[1].th) * gs_in[1].d1 + sin(gs_in[1].th) * cross(normalize(t),gs_in[1].d1);
-  // vec3 d1_2 = cos(gs_in[2].th) * gs_in[2].d1 + sin(gs_in[2].th) * cross(normalize(Vnxt.gl_Position.xyz - V1.gl_Position.xyz),gs_in[2].d1);
-  // vec3 nv0 = (d1_1+d1_0);
-  // vec3 nv1 = (d1_2+d1_1);
 
   // normals and binormals
   nv0 = normalize(nv0 - tv0 * dot(tv0,nv0));///dot(tv0,tv0));
   vec3 bv0 = normalize(cross( tv0, nv0 ));
   nv1 = normalize(nv1 - tv1 * dot(tv1,nv1));///dot(tv1,tv1));
   vec3 bv1 = normalize(cross( tv1, nv1 ));
+  
 
   #define usetheta
   #ifdef usetheta
@@ -113,7 +139,9 @@ void main() {
     gs_out.r = radius;
     // gs_out.r = r2; // doesnt work well with texture
     // NOTE: -a == (1-a) because of expecting lookup orientation in normal map
-    gs_out.a = normalNum*(-alpha - 0.1591549 * normalTwist * gs_in[2].arc / gs_out.r);
+    // gs_out.a = plyNum*(-alpha - 0.1591549 * plyTwist * gs_in[2].arc / gs_out.r);
+    gs_out.plycoord = vec2(plyNum*-alpha - gs_in[2].arc/(plyLen*radius)*plyTwist*plyNum , gs_in[2].arc / (plyLen*radius)); // TODO precomp invradius and l/L
+    // gs_out.plycoord = vec2(plyNum*-alpha - gs_in[2].arc/(plyLen*radius)*plyTwist , gs_in[2].arc / (plyLen*radius)); // TODO precomp invradius and l/L
     gs_out.uv = gs_in[2].uv;
     // gs_out.uv = vec2(twistSpeed * gs_in[2].arc,0);
     n = ca2*nv1 + sa2 * bv1;
@@ -124,7 +152,9 @@ void main() {
     
     gs_out.r = radius;
     // gs_out.r = r1; // doesnt work well with texture
-    gs_out.a = normalNum*(-alpha - 0.1591549 * normalTwist * gs_in[1].arc / gs_out.r);
+    // gs_out.a = plyNum*(-alpha - 0.1591549 * plyTwist * gs_in[1].arc / gs_out.r);
+    gs_out.plycoord = vec2(plyNum*-alpha - gs_in[1].arc/(plyLen*radius)*plyTwist*plyNum , gs_in[1].arc / (plyLen*radius)); // TODO precomp invradius and l/L
+    // gs_out.plycoord = vec2(plyNum*-alpha - gs_in[1].arc/(plyLen*radius)*plyTwist , gs_in[1].arc / (plyLen*radius)); // TODO precomp invradius and l/L
     gs_out.uv = gs_in[1].uv;
     // gs_out.uv = vec2(twistSpeed * gs_in[1].arc,0);
     n = ca1*nv0 + sa1 * bv0;

@@ -48,12 +48,10 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
     tangents[i] = (x1 + shift - x0).normalized();
   }
 
-  auto& TBcpu = TB.cpu();
-  TBcpu.resize(n_verts);
-
   // allocate memory for vertex data, vertex/edge topology
-  X_ms.resize(n_verts, 5);
-  m_pypix.resize(n_verts);  // TODO parametric fake
+  auto& Xms = X_ms.cpu();
+  Xms.resize(n_verts);
+  // m_pypix.resize(n_verts);  // TODO parametric fake
   E = MatrixXXRMi::Constant(n_edges, 2,
                             -1);  // NOTE parallelizable? (or just set -1
                                   // explicitly in edge copy for borders)
@@ -69,29 +67,31 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
     // grid has been shifted to be aligned with pyp using pivot, but to copy its
     // geometry we have to undo the pivot
     for (int lvix = 0; lvix < n_verts_tile; ++lvix) {
-      X_ms.row(vix_shift + lvix).head<4>() = pyp.Q.row(lvix);
-      X_ms(vix_shift + lvix,4) = 0;
-      X_ms.row(vix_shift + lvix).head<2>() += vpos_shift;
-      // self.v_pp_id[vix_shift + lvix] = lvix TODO IGNORE UNTIL USED
-      m_pypix[vix_shift + lvix] = lvix;  // TODO parametric fake
+      auto& X = Xms[vix_shift + lvix];
+      auto Xvec = X.mapXT();
+      Xvec = pyp.Q.row(lvix);
+      X.a = 0;
+      Xvec.head<2>() += vpos_shift;
+
+      X.pix = lvix;  // TODO parametric fake
+      // m_pypix[vix_shift + lvix] = lvix;  // TODO parametric fake
 
       // optionally check if due to floating point precision ij match the
       // shifted position, and if not try a heuristic of shrinking the copy away
       // from its cell boundaries if even this would fail, then the vertex
       // should get no triangle assigned and thus be marked for cutting
-      auto testij = grid.getIndex(X_ms.row(vix_shift + lvix).head<2>());
+      auto testij = grid.getIndex(Xvec.head<2>());
       if (testij.first != i || testij.second != j) {
-        X_ms.row(vix_shift + lvix).head<4>() = pyp.Q.row(lvix) * scalar(0.99);
-        X_ms.row(vix_shift + lvix).head<2>() += vpos_shift;
+        Xvec = pyp.Q.row(lvix) * scalar(0.99);
+        Xvec.head<2>() += vpos_shift;
       }
     }
 
     for (int lvix = 0; lvix < n_verts_tile; ++lvix) {
-      auto& TBi = TBcpu[vix_shift + lvix];
+      auto Bi = Xms[vix_shift + lvix].mapB();
       Vector3s b = pyp.RefD1.row(lvix);
       const Vector3s& t = tangents[lvix];
-      // TBi.mapT() = tangents[lvix];
-      TBi.mapB() = (b - b.dot(t) * t).normalized(); // orthonormalize just in case
+      Bi = (b - b.dot(t) * t).normalized(); // orthonormalize just in case
     }
 
     int eix_shift = n_edges_tile * cix;
@@ -129,19 +129,22 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
 
 void YarnSoup::assign_triangles(const Grid& grid, const Mesh& mesh) {
   auto& bary0 = B0.cpu();
+  auto& Xms = X_ms.cpu();
 
-  bary0.resize(X_ms.rows());
+  bary0.resize(X_ms.getCPUSize());
 
-  threadutils::parallel_for(0, int(X_ms.rows()), [&](int vix) {
+  threadutils::parallel_for(0, int(X_ms.getCPUSize()), [&](int vix) {
     bary0[vix].tri = -1;
 
     int i, j;
-    Vector2s p     = X_ms.row(vix).head<2>();
+    Vector2s p     = Xms[vix].mapXT().head<2>();
     std::tie(i, j) = grid.getIndex(p);
 
     if (!grid.inside(
             i, j)) {  // NOTE this might happen after deforming reference
                       // (vertex might get pushed outside of previous bounds)
+                      // actually not using this after deform anymore, but for
+                      // rib it still ends up here, why?
       Debug::log("WARNING NODE OUTSIDE");
       Debug::log(i, grid.getNy(), j, grid.getNx());
       // TODO fall back to closest grid node and check with its triangles!
@@ -277,9 +280,11 @@ void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL) {
   auto delim = std::numeric_limits<uint32_t>::max();
   // [ y0v0 y0v1 y0v2 ... delim y1v0 y1v1 ... ]
 
-  // construct temporary vertex-edge table // NOTE not temporary when using fancy radius
+  auto& Xms = X_ms.cpu();
+
+  // construct temporary vertex-edge table // NOTE not temporary when using fancy radius // TODO make temp again?
   VE = MatrixXXRMi::Constant(
-      X_ms.rows(), 2, -1);  // vertex edge table: vix -> [eix_prev, eix_next]
+      X_ms.getCPUSize(), 2, -1);  // vertex edge table: vix -> [eix_prev, eix_next]
   threadutils::parallel_for(0, int(E.rows()), [&](int i) {
     if (E(i, 0) >= 0 && E(i, 1) >= 0) {
       VE(E(i, 0), 1) = i;  // set as edge as next of its first vertex
@@ -366,11 +371,12 @@ void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL) {
   threadutils::parallel_for(0, int(starts.size()), [&](int i) {
     float arc = 0;
     int vix               = starts[i];
-    X_ms(vix,4) = arc;
+    Xms[vix].a = arc;
     while (hasNext(vix)) {
-      arc += pypRL[m_pypix[vix]];
+      // arc += pypRL[m_pypix[vix]];
+      arc += pypRL[Xms[vix].pix];
       vix = getNext(vix);
-      X_ms(vix,4) = arc;
+      Xms[vix].a = arc;
     }
   });
   // float arc = 0;
