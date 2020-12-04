@@ -1,4 +1,11 @@
+
+// #define randomize // randomize cylinder vertices to fake fuzz
+#define volpreserve // scale radius to preserve volume
+#define usetheta // use twist kinematics to twist the cylinders and textures
+// #define DRAW_LINES // if this is active, draws simple lines instead of cylinders, incorrrect lighting
 #define NVERTICES 16 // NOTE: for cylinder segment, including both ends, ie circular crosssection will have nverts/2 vertices
+#define LEVEL_OF_DETAIL // reduce min. number of cylinder vertices for far away geometry
+
 
 #define Vprv gl_in[0]
 #define V0 gl_in[1]
@@ -7,7 +14,6 @@
 layout (lines_adjacency) in;
 // layout (lines) in;
 
-// #define DRAW_LINES
 #ifdef DRAW_LINES
 layout (line_strip, max_vertices = 2) out;
 #else
@@ -39,6 +45,19 @@ uniform float plyLen = 1; // multiple  of radius
 uniform float plyNum = 4;
 uniform mat4 projection;
 
+float rand(int x, int y){
+    return fract(sin(x*12.9898 + y*78.233) * 43758.5453);
+}
+
+// hard coded level of detail, from 1 at 10cm distance to 0 at 1m distance
+const float lod_z_near = -0.1;
+const float lod_z_far = -1.0;
+const float lod_z_inv = 1.0/(lod_z_far-lod_z_near);
+const int NSEGSCLOSE=NVERTICES/2;
+const int NSEGSSFAR=4;
+float LOD(float z){
+  return 1 - clamp((z-lod_z_near)*lod_z_inv,0,1);
+}
 
 void main() { 
   #ifdef DRAW_LINES
@@ -75,7 +94,6 @@ void main() {
   // invrlAB=0.5;
   // invrlBC=0.5;
 
-  #define volpreserve
   #ifdef volpreserve
   const float minR = 0.25, maxR = 2.0;
   // r0^2 l0 pi == rt^2 lt pi --> rt = r0 sqrt(l0/lt)
@@ -107,7 +125,6 @@ void main() {
   vec3 bv1 = normalize(cross( tv1, nv1 ));
   
 
-  #define usetheta
   #ifdef usetheta
   // NOTE actually instead of computing ca1 ca2 sa1 sa2 for each circle vertex,
   // could instead just apply the twist beforehand to each edge segment, and
@@ -118,7 +135,12 @@ void main() {
   float th2 = (rlC * gs_in[2].th + rlB * gs_in[1].th) * invrlBC;
   #endif
 
+  #ifdef LEVEL_OF_DETAIL
+  float lod = LOD(0.5*(V1.gl_Position.z+V0.gl_Position.z));
+  int segs = int(lod*NSEGSCLOSE+(1-lod)*NSEGSSFAR);
+  #else
   int segs = NVERTICES/2;
+  #endif
   vec3 n;
   for(int i=0; i<segs; i++) {
     float alpha = i/float(segs-1);
@@ -143,10 +165,16 @@ void main() {
     gs_out.plycoord = vec2(plyNum*-alpha - gs_in[2].arc/(plyLen*radius)*plyTwist*plyNum , gs_in[2].arc / (plyLen*radius)); // TODO precomp invradius and l/L
     // gs_out.plycoord = vec2(plyNum*-alpha - gs_in[2].arc/(plyLen*radius)*plyTwist , gs_in[2].arc / (plyLen*radius)); // TODO precomp invradius and l/L
     gs_out.uv = gs_in[2].uv;
+    // gs_out.uv = vec2(segs/8.0,0);
     // gs_out.uv = vec2(twistSpeed * gs_in[2].arc,0);
     n = ca2*nv1 + sa2 * bv1;
     gs_out.Q = mat3(cross(tv1, n), tv1, n);
+    // noise? xyz + (r+rand(vertex,i)) * n;
+    #ifdef randomize
+    gs_out.p = V1.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn,2*i)) * r2 * n;
+    #else
     gs_out.p = V1.gl_Position.xyz + r2 * n;
+    #endif
     gl_Position = projection*vec4(gs_out.p, 1.0);
     EmitVertex();   
     
@@ -156,10 +184,15 @@ void main() {
     gs_out.plycoord = vec2(plyNum*-alpha - gs_in[1].arc/(plyLen*radius)*plyTwist*plyNum , gs_in[1].arc / (plyLen*radius)); // TODO precomp invradius and l/L
     // gs_out.plycoord = vec2(plyNum*-alpha - gs_in[1].arc/(plyLen*radius)*plyTwist , gs_in[1].arc / (plyLen*radius)); // TODO precomp invradius and l/L
     gs_out.uv = gs_in[1].uv;
+    // gs_out.uv = vec2(segs/8.0,0);
     // gs_out.uv = vec2(twistSpeed * gs_in[1].arc,0);
     n = ca1*nv0 + sa1 * bv0;
     gs_out.Q = mat3(cross(tv0, n), tv0, n);
-    gs_out.p = V0.gl_Position.xyz + r1 * n;  
+    #ifdef randomize
+    gs_out.p = V0.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn,2*i+1)) * r1 * n;
+    #else
+    gs_out.p = V0.gl_Position.xyz + r1 * n;
+    #endif
     gl_Position = projection*vec4(gs_out.p, 1.0);
     EmitVertex();  
   }

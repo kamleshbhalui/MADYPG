@@ -145,6 +145,7 @@ void YarnSoup::assign_triangles(const Grid& grid, const Mesh& mesh) {
                       // (vertex might get pushed outside of previous bounds)
                       // actually not using this after deform anymore, but for
                       // rib it still ends up here, why?
+                      // grid not allocated large enough? it might also be because of nonrectangulized pyp ie not all vertices of pyp are inside. then would have to make grid larger by tolerance s.t. those verts are respected 
       Debug::log("WARNING NODE OUTSIDE");
       Debug::log(i, grid.getNy(), j, grid.getNx());
       // TODO fall back to closest grid node and check with its triangles!

@@ -217,13 +217,6 @@ void YarnMapper::step() {
   m_timer.tock("mesh normals & strains");
 
   if (m_settings.gpu_compute) {
-// auto& xms = m_soup.get_Xms().cpu();
-//     for (size_t i = 200; i < 210; i++)
-//     {
-//       Debug::log(i, xms[i].pix);
-//     }
-    
-
     // TODO option to switch between vertex or flat strains, here fore buffering and in deformshader for usage.
     mesh.vertex_strains.bufferData();
     
@@ -233,94 +226,12 @@ void YarnMapper::step() {
       mesh.vertex_normals.bufferData();
     }
 
-    // if(m_dbg.toggle) { // DEBUG trying some stuff
-    //   int n     = m_soup.num_vertices();
-    //   auto& Xms = m_soup.get_Xms().cpu();
-    //   auto& Xws = m_soup.get_Xws();
-    //   Xws.cpu().resize(Xms.size());
-    //   threadutils::parallel_for(0, n, [&](int i) {
-    //     Xws.row<float, 11>(i) << Xms[i].mapXT(), Xms[i].a,
-    //     Xms[i].mapB(),
-    //       Xms[i].mapXT().head<2>(), 1;
-    //   });
-    //   m_soup.get_Xws().bufferData(
-    //     Magnum::GL::BufferUsage::StreamDraw);
-    // }
-
     // allocate Xws on gpu if necessary
     if (m_soup.get_Xws().getGPUSize() != m_soup.get_Xms().getGPUSize())
       m_soup.get_Xws().allocateGPU(m_soup.get_Xms().getCPUSize());
 
-    Debug::log("------deform----");
-
-    // auto check0 = m_soup.get_Xws().getGPUData();
-    // // Debug::log("SIZE",check.size());
-    // for (size_t i = 0; i < 10; i++)
-    // {
-    //   auto& vert = check0[i];
-    //   if (m_soup.get_B0().cpu()[i].tri>=0) {
-    //     Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
-    //   }
-    // }
-
-    // glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
-    // Magnum::GL::Renderer::finish();
-
-
     // DEFORM REFERENCE
-    // after dispatchcompute the second computeshader suddenly doesnt see the Xws buffer anymore :/
     m_deformShader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(), m_soup.get_Xms().gpu(), m_soup.get_B0().gpu(), mesh.vertex_strains.gpu(), mesh.Fms.gpu(), m_model->getTexAxes().gpu(), m_model->getTexData().gpu(), m_settings.deform_reference);
-
-    glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
-    // Magnum::GL::Renderer::finish();
-
-    // auto check = m_soup.get_Xws().getGPUData();
-    // for (size_t i = 0; i < 10; i++)
-    // {
-    //   auto& vert = const_cast<VertexWSData&>(check[i]);
-    //   auto& vertms = m_soup.get_Xms().cpu()[i];
-    //   // vert.x += 0.1;
-    //   if (m_soup.get_B0().cpu()[i].tri>=0) {
-    //     Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
-    //     Debug::log(i,"):",vertms.u,vertms.v,vertms.h);
-    //   }
-    // }
-    // for (size_t i = check.size()-10; i < check.size(); i++)
-    // {
-    //   auto& vert = const_cast<VertexWSData&>(check[i]);
-    //   auto& vertms = m_soup.get_Xms().cpu()[i];
-    //   // vert.x += 0.1;
-    //   if (m_soup.get_B0().cpu()[i].tri>=0) {
-    //     Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
-    //     Debug::log(i,"):",vertms.u,vertms.v,vertms.h);
-    //   }
-    // }
-
-    // glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
-    // Magnum::GL::Renderer::finish();
-
-    // auto& cpu = m_soup.get_Xws().cpu();
-    // cpu.resize(check.size());
-    // float abserrmax = 0;
-    // for (size_t i = 0; i < check.size(); i++)
-    // {
-    //   if (m_soup.get_B0().cpu()[i].tri>=0)
-    //     abserrmax = std::max(abserrmax,std::abs(cpu[i].x- check[i].x));
-    // }
-    // Debug::log("maxabs err x",abserrmax);
-    // for (size_t i = 0; i < check.size(); i++)
-    // {
-    //   cpu[i]= check[i];
-    // }
-    // m_soup.get_Xws().bufferData();
-    // m_soup.get_Xws().gpu().setData(check,Magnum::GL::BufferUsage::StreamDraw);
-
-    // glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
-    // Magnum::GL::Renderer::finish();
-
-
-
-    Debug::log("------shmap----");
 
     m_timer.tock("deform");
 
@@ -336,44 +247,7 @@ void YarnMapper::step() {
     else
       Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
 
-    
-    // {
-    //   auto checkS = m_soup.get_Xws().getGPUData();
-    //   for (size_t i = 0; i < 10; i++)
-    //   {
-    //     auto& vert = const_cast<VertexWSData&>(checkS[i]);
-    //     auto& vertms = m_soup.get_Xms().cpu()[i];
-    //     // vert.x += 0.1;
-    //     if (m_soup.get_B0().cpu()[i].tri>=0) {
-    //       Debug::log(i,"):",vertms.u,vertms.v,vertms.h);
-    //       Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
-    //     }
-    //   }
-    //   for (size_t i = checkS.size()-10; i < checkS.size(); i++)
-    //   {
-    //     auto& vert = const_cast<VertexWSData&>(checkS[i]);
-    //     auto& vertms = m_soup.get_Xms().cpu()[i];
-    //     // vert.x += 0.1;
-    //     if (m_soup.get_B0().cpu()[i].tri>=0) {
-    //       Debug::log(i,"):",vert.x,vert.y,vert.z,vert.u,vert.v,vert.r);
-    //       Debug::log(i,"):",vertms.u,vertms.v,vertms.h);
-    //     }
-    //   }
-      
-    // // auto& cpu = m_soup.get_Xws().cpu();
-    // // cpu.resize(checkS.size());
-    // // for (size_t i = 0; i < checkS.size(); i++)
-    // // {
-    // //   cpu[i]= checkS[i];
-    // // }
-    // // m_soup.get_Xws().bufferData();
-    // // m_soup.get_Xws().gpu().setData(checkS,Magnum::GL::BufferUsage::StreamDraw);
-    // }
-    glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
-
-
     m_timer.tock("bary & shell map & buf");
-    // Magnum::GL::Renderer::finish();
 
   } else { // CPU compute
     // DEFORM REFERENCE
@@ -417,13 +291,13 @@ void YarnMapper::step() {
     m_timer.tock("bary & shell map & buf");
   }
 
-  Debug::log("---------------");
-  { // DEBUG check for opengl errors.
-    auto err = Magnum::GL::Renderer::error();
-    if(err != Magnum::GL::Renderer::Error::NoError) {
-      Debug::error("ERROREND", int(err));
-    }
-  }
+  // { // DEBUG check for opengl errors.
+  //   auto err = Magnum::GL::Renderer::error();
+  //   if(err != Magnum::GL::Renderer::Error::NoError) {
+  //     Debug::error("ERROREND", int(err));
+  //   }
+  // }
+  // Debug::log("---------------");
 
   m_initialized = true;
 }

@@ -95,44 +95,28 @@ uint upper_bound(uint istart,uint iend, uint which_array, float value) {
 } 
 
 vec4 sample3D(vec3 strain, uint pix) {
-  // buf_texAxes.lenSX / SX / invSX
-  // vec4 buf_texData.data[loc]
-
   float a_sx, a_sa, a_sy;
   // first cell (i,i+1) s.t. val < ax[i+1] else last = size-2
   uint i_sx, i_sa, i_sy;
 
-  // TODO implement this.
-  // TODO get rid of not important all_barriers and logs etc. in yarmapper and *shader.h
-
   // use upper bound to find the index st. value<arr[i]
   // and so upper_bound - 1 is s.t. arr[i] <= value < arr[i+1]
   i_sx = upper_bound(1, buf_texAxes.lenSX - 1, 0, strain.x) - 1;
-  a_sx = (strain.x - buf_texAxes.SX[i_sx]) * buf_texAxes.invSX[i_sx];
-  a_sx = (strain.x - buf_texAxes.SX[i_sx]) / (buf_texAxes.SX[i_sx+1] - buf_texAxes.SX[i_sx]);
   i_sa = upper_bound(1, buf_texAxes.lenSA - 1, 1, strain.y) - 1;
-  a_sa = (strain.y - buf_texAxes.SA[i_sa]) * buf_texAxes.invSA[i_sa];
   i_sy = upper_bound(1, buf_texAxes.lenSY - 1, 2, strain.z) - 1;
+  a_sx = (strain.x - buf_texAxes.SX[i_sx]) * buf_texAxes.invSX[i_sx];
+  a_sa = (strain.y - buf_texAxes.SA[i_sa]) * buf_texAxes.invSA[i_sa];
   a_sy = (strain.z - buf_texAxes.SY[i_sy]) * buf_texAxes.invSY[i_sy];
-
-  // i_sa = 12; // DEBUG
-  // i_sy = 12;
-  // a_sa = 0;
-  // a_sy = 0;
+  // a_sx = (strain.x - buf_texAxes.SX[i_sx]) / (buf_texAxes.SX[i_sx+1] - buf_texAxes.SX[i_sx]);
+  // a_sa = (strain.y - buf_texAxes.SA[i_sa]) / (buf_texAxes.SA[i_sa+1] - buf_texAxes.SA[i_sa]);
+  // a_sy = (strain.z - buf_texAxes.SY[i_sy]) / (buf_texAxes.SY[i_sy+1] - buf_texAxes.SY[i_sy]);
 
   // clamp extrapolation
   a_sx = clamp(a_sx, 0.0, 1.0);
   a_sa = clamp(a_sa, 0.0, 1.0);
   a_sy = clamp(a_sy, 0.0, 1.0);
-  // a_sx = 0;
-  // a_sa = 0;
-  // a_sy = 0;
-  // a_sx = 1;
-  // a_sa = 1;
-  // a_sy = 1;
 
-  vec4 d = (1 - a_sx) * (1 - a_sa) * (1 - a_sy) * sample_at(i_sx, i_sa, i_sy, pix);
-  d +=
+  vec4 d =
       (1 - a_sx) * (1 - a_sa) * (1 - a_sy) * sample_at(i_sx, i_sa, i_sy, pix);
   d += (1 - a_sx) * (1 - a_sa) * a_sy * sample_at(i_sx, i_sa, i_sy + 1, pix);
   d += (1 - a_sx) * a_sa * (1 - a_sy) * sample_at(i_sx, i_sa + 1, i_sy, pix);
@@ -188,30 +172,12 @@ void main()
     strain += vec3(s[0], s[1], s[2]) * abc[i];
   }
 
-  vec4 d = deform_reference * sample3D(strain, Xms.pix);
+  vec4 d =  deform_reference * sample3D(strain, Xms.pix);
   
   Xws.x += d.x;
   Xws.y += d.y;
   Xws.z += d.z;
   Xws.th += d.w;
-
-  // Xws.u = strain.x*2+0.5;
-  // Xws.v = strain.z*2+0.5;
-  // Xws.u = buf_texAxes.lenSX;
-  // Xws.v = buf_texAxes.lenSY;
-  // if ((buf_texAxes.SX[0]==-0.236 && abs(buf_texAxes.invSA[0] - 15.625)<0.001)) 
-  //   {
-  //     Xws.u = 0;
-  //     Xws.v = 0;
-  //   }
-  // DEBUGGING SO FAR:
-  // .. strain seems to be correct in here (by color)
-  // .. axes buffer seems to be correctly loaded (by bool color and renderdoc)
-  // .. sample lookup location should be same
-  // .. pix appears to be the correct value
-  // upper bound should be the same.. checked by copying the method onto cpu and comparing std vs mine
-  // for strains 0 it works same for both! it might be something about alpha being wrong?
-
   
   buf_Xws.data[vix] = Xws; // store in buffer
 }

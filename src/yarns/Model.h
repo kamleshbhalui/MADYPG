@@ -236,7 +236,6 @@ class Model {
       // if (check != c) {
       //   Debug::log("DIFF",c, check );
       // }
-      // a = 0;
     }
 
     Vector4s g = Vector4s::Zero();

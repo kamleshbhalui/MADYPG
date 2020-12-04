@@ -10,8 +10,8 @@
 #include "../../EigenDefinitions.h"
 #include "../../utils/threadutils.h"
 #include <iostream>
-#define SHELLMAPSHADER_WRKGRPSIZE 32 // for nvidia?
 #include <cmath>
+#include "ShaderSettings.h"
 
 class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
  public:
@@ -55,7 +55,6 @@ class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
     dispatchCompute(Magnum::Vector3ui{uint32_t(std::ceil(N * 1.0f / SHELLMAPSHADER_WRKGRPSIZE)), 1, 1}); // TODO TEST SIZE
 
     Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
-    // Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::ShaderStorage);
   }
 
  private:

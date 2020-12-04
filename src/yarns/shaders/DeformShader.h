@@ -10,7 +10,7 @@
 #include "../../EigenDefinitions.h"
 #include "../../utils/threadutils.h"
 #include <iostream>
-#define DEFORMSHADER_WRKGRPSIZE 32 // for nvidia?
+#include "ShaderSettings.h"
 #include <cmath>
 
 class DeformShader : public Magnum::GL::AbstractShaderProgram {
@@ -48,10 +48,7 @@ class DeformShader : public Magnum::GL::AbstractShaderProgram {
     dispatchCompute(Magnum::Vector3ui{uint32_t(std::ceil(N * 1.0f / DEFORMSHADER_WRKGRPSIZE)), 1, 1}); // TODO TEST SIZE
 
     // Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::ShaderStorage); // the version of Magnum used in this project defines the wrong constant here, defaulting to direct opengl instead
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     glMemoryBarrier(GLbitfield(GL_SHADER_STORAGE_BARRIER_BIT));
-    glMemoryBarrier(GL_ALL_BARRIER_BITS ); // TODO
-
   }
 
  private:
