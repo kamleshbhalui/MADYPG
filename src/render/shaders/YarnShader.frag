@@ -62,6 +62,7 @@ void main() {
 
     ao = 1 - aostrength*(1-tx.b);
     // ao=1;
+    // ao = sqrt(sqrt(ao)); // lighten
   }
 
   vec2 mat_uv = normal.xy * 0.5 + 0.5;

@@ -12,7 +12,9 @@ void YarnMapper::step() {
     switch (m_settings.provider_type) {
       default:
       case Settings::XPBD:
-        Debug::log("XPBD not implemented, defaulting to ObjSeq.");
+        m_meshProvider = std::static_pointer_cast<AbstractMeshProvider>(
+            std::make_shared<PBDSimulation>(m_settings.pbd_settings));
+        break;
       case Settings::ObjSeq:
         m_meshProvider = std::static_pointer_cast<AbstractMeshProvider>(
             std::make_shared<ObjSeqAnimation>(m_settings.objseq_settings));
@@ -55,7 +57,9 @@ void YarnMapper::step() {
 
   if ((m_meshProvider->materialSpaceChanged() && !m_settings.repeat_frame) ||
       !m_initialized) {
-    m_grid.fromTiling(mesh, m_model->getPYP()); // maybe only once unless fast
+
+    if(!m_initialized) // DEBUG doing this only once makes remeshed stuff flicker, and then still lose verts?
+      m_grid.fromTiling(mesh, m_model->getPYP()); // maybe only once unless fast or unnecessary (fixed boundary~)
     m_grid.overlap_triangles(mesh);
 
     m_timer.tock("@uv: grid setup");
@@ -86,12 +90,23 @@ void YarnMapper::step() {
     }
 
 
+
     mesh.compute_invDm();
     mesh.compute_v2f_map(m_settings.shepard_weights);
-    mesh.compute_face_adjacency();  // TODO cache in obj file / or binary cache
+    mesh.compute_face_adjacency();  // TODO cache in obj file / or binary cache?
     m_timer.tock("@uv: mesh invdm v2f adjacency");
 
     m_soup.assign_triangles(m_grid, mesh);
+
+    // { // TODO DEBUGGING, remeshing losing yarn verts. number of nonneg assigned tris remains same.. but still every _reset_/revisit of 0th frame loses stuff.
+    //   int c = 0;
+    //   auto& B0 = m_soup.get_B0().cpu();
+    //   for (size_t i = 0; i < B0.size(); i++)
+    //   {
+    //     c += B0[i].tri < 0;
+    //   }
+    //   Debug::logf("skipping %d/%d = %.2f%%\n",c,B0.size(),c*1.0/B0.size());
+    // }
 
     m_timer.tock("@uv: soup tri bary");
 
@@ -124,8 +139,6 @@ void YarnMapper::step() {
       m_soup.get_Xms().bufferData(Magnum::GL::BufferUsage::StaticDraw); // NOTE: important to do this here after assigning arc lengths. otherwise geometry shader will produce NaN due to arclength based weigths.
 
       m_soup.getIndexBuffer().bufferData(Magnum::GL::BufferUsage::StaticDraw);
-
-      // m_soup.get_TB().bufferData(); // edge reference binormal to gpu
 
       m_timer.tock("@init: soup cut & index list & buffer");
     }

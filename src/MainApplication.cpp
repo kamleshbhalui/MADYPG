@@ -702,13 +702,14 @@ void MainApplication::drawSettings() {
 
   static int elem                = _yarnMapperSettings.provider_type;
   static constexpr auto count    = YarnMapper::Settings::Provider::COUNT;
-  const char *elems_names[count] = {"ObjSeq", "BinSeq", "XPBD"};
+  const char *elems_names[count] = {"ObjSeq", "BinSeq", "PBD"};
   const char *elem_name =
       (elem >= 0 && elem < count) ? elems_names[elem] : "Unknown";
   if (ImGui::SliderInt("slider enum", &elem, 0, count - 1, elem_name))
     _yarnMapperSettings.provider_type =
         static_cast<YarnMapper::Settings::Provider>(elem);
 
+  ImGui::Indent();
   if (_yarnMapperSettings.provider_type ==
       YarnMapper::Settings::Provider::ObjSeq) {
     ImGui::TextBrowser(*_folderDialog.get(),
@@ -718,8 +719,13 @@ void MainApplication::drawSettings() {
     ImGui::TextBrowser(*_fileDialog.get(),
                        _yarnMapperSettings.binseq_settings.filepath);
   } else {
-    ImGui::TextUnformatted("- not implemented -");
+    ImGui::SliderInt("MethodS",&_yarnMapperSettings.pbd_settings.simulationMethod,0,3);
+    ImGui::SliderInt("MethodB",&_yarnMapperSettings.pbd_settings.bendingMethod,0,2);
+    ImGui::DragFloat("dt",&_yarnMapperSettings.pbd_settings.timestep,0.001f,0.0001f,1.0f);
+    ImGui::SliderInt("Substeps",&_yarnMapperSettings.pbd_settings.substeps,1,20);
+    ImGui::DragFloat("Density",&_yarnMapperSettings.pbd_settings.density,0.01f,0.0f,10.0f);
   }
+  ImGui::Unindent();
 
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();

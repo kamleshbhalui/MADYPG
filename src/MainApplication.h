@@ -99,7 +99,7 @@ class MainApplication : public Platform::Application {
   bool _render_yarns             = true;
   bool _render_obstacles         = true;
   bool _rotate_scene             = false;
-  std::string _matcap_file       = "matcaps/lighting1.jpg";
+  std::string _matcap_file       = "matcaps/glossyc.jpg";
   std::string _matcapObs_file    = "matcaps/lighting1.jpg";
   std::string _clothtexture_file = "textures/colorgridy.jpg";
   // std::string _normalMap_file = "textures/normalMap.jpg";

@@ -12,7 +12,7 @@ namespace fs = std::filesystem;
 #include "io/trafoio.h"
 
 // #include "io/bitsery_eigen.h"
-std::vector<Frame> load_folder(const std::string& folder) {
+std::vector<Frame> load_folder(const std::string& folder, bool const_uv=true) {
   std::vector<Frame> frames;
   // Mf cloth_V, cloth_U;
   // Mi cloth_F, cloth_Fms;
@@ -20,10 +20,6 @@ std::vector<Frame> load_folder(const std::string& folder) {
   // std::vector<Mi> obs_F;
   // std::vector<Trafo> obs_trafo;
 
-  // currently using a lot of assumptions, including const_uv of cloth,
-  // constant number of obstacles, with data existing for each frame
-  // cloth data for each frame, ...
-  bool const_uv = true;
 
   // heuristic check for arcsim simulation, with specific file names etc.
   bool arcsim_mode = fs::exists(fs::path(folder) / "conf.json");
@@ -127,9 +123,9 @@ std::vector<Frame> load_folder(const std::string& folder) {
   return frames;
 }
 
-bool convert_folder(const std::string& folder, const std::string& outfile) {
+bool convert_folder(const std::string& folder, const std::string& outfile, bool const_uv = false) {
   std::cout << "Loading folder: " << folder << "\n";
-  std::vector<Frame> frames = load_folder(folder);
+  std::vector<Frame> frames = load_folder(folder, const_uv);
   std::cout << "Loaded folder.\n";
 
   std::fstream s(outfile, std::ios::binary | std::ios::trunc | std::ios::out);
@@ -154,7 +150,22 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  if (!convert_folder(argv[1], argv[2]))
+
+  // currently using a lot of assumptions, including const_uv of cloth,
+  // constant number of obstacles, with data existing for each frame
+  // cloth data for each frame, ...
+  bool const_uv = true;
+    std::cout << "HELLO.\n";
+
+  if (argc >= 4) {
+    const_uv = bool(atof(argv[3]));
+  }
+  if (!const_uv) {
+    std::cout<< "Assuming remeshed simulation, each frame will get updated topology.\n";
+  }
+
+
+  if (!convert_folder(argv[1], argv[2], const_uv))
     return 2;
 
 //   Trafo tf;

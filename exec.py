@@ -50,8 +50,9 @@ args['run'] = args['run'] != "0"
 args['with_parallel'] = args['with_parallel'] != "0"
 
 if args['targets'] is None or len(args['targets']) == 0:
-    args['targets'] = ["mesh2yarns"] # in case multiple targets exist, set default
-target = ' '.join(args['targets'])
+    target = "mesh2yarns"
+else:
+    target = args['targets'] # not tested on multiple targets
 
 # BUILD
 sourcedir = os.path.join(os.getcwd(),"src")  # where the main CMakeLists.txt is

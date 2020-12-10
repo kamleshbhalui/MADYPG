@@ -11,6 +11,7 @@
 
 #include "../mesh/BinSeqAnimation.h"
 #include "../mesh/ObjSeqAnimation.h"
+#include "../mesh/PBDSimulation.h"
 #include "Grid.h"
 // #include "ModelV1.h"
 #include "Model.h"
@@ -38,7 +39,7 @@ class YarnMapper {
     } provider_type = Provider::BinSeq;
     ObjSeqAnimation::Settings objseq_settings;
     BinSeqAnimation::Settings binseq_settings;
-    // TODO XPBDMeshProvider::Settings xpbd_settings;
+    PBDSimulation::Settings pbd_settings;
   } m_settings;
 
   YarnMapper() : m_initialized(false) {}

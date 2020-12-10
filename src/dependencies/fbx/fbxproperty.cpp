@@ -91,27 +91,28 @@ FBXProperty::FBXProperty(std::ifstream &input)
         uint32_t encoding = reader.readUint32(); // 0 .. uncompressed, 1 .. zlib-compressed
         uint32_t compressedLength = reader.readUint32();
         if(encoding) {
-            uint64_t uncompressedLength = arrayElementSize(type - ('a'-'A')) * arrayLength;
+            throw std::runtime_error("trying to use disabled npz functionalitz in fbx");
+            // uint64_t uncompressedLength = arrayElementSize(type - ('a'-'A')) * arrayLength;
 
-            uint8_t *decompressedBuffer = (uint8_t*) malloc(uncompressedLength);
-            if(decompressedBuffer == NULL) throw std::string("Malloc failed");
-            BufferAutoFree baf(decompressedBuffer);
+            // uint8_t *decompressedBuffer = (uint8_t*) malloc(uncompressedLength);
+            // if(decompressedBuffer == NULL) throw std::string("Malloc failed");
+            // BufferAutoFree baf(decompressedBuffer);
 
-            uint8_t compressedBuffer[compressedLength];
-            reader.read((char*)compressedBuffer, compressedLength);
+            // uint8_t compressedBuffer[compressedLength];
+            // reader.read((char*)compressedBuffer, compressedLength);
 
-            uint64_t destLen = uncompressedLength;
-            uint64_t srcLen = compressedLength;
-            uncompress2(decompressedBuffer, &destLen, compressedBuffer, &srcLen);
+            // uint64_t destLen = uncompressedLength;
+            // uint64_t srcLen = compressedLength;
+            // uncompress2(decompressedBuffer, &destLen, compressedBuffer, &srcLen);
 
-            if(srcLen != compressedLength) throw std::string("compressedLength does not match data");
-            if(destLen != uncompressedLength) throw std::string("uncompressedLength does not match data");
+            // if(srcLen != compressedLength) throw std::string("compressedLength does not match data");
+            // if(destLen != uncompressedLength) throw std::string("uncompressedLength does not match data");
 
-            Reader r((char*)decompressedBuffer);
+            // Reader r((char*)decompressedBuffer);
 
-            for(uint32_t i = 0; i < arrayLength; i++) {
-                values.push_back(readPrimitiveValue(r, type - ('a'-'A')));
-            }
+            // for(uint32_t i = 0; i < arrayLength; i++) {
+            //     values.push_back(readPrimitiveValue(r, type - ('a'-'A')));
+            // }
         } else {
             for(uint32_t i = 0; i < arrayLength; i++) {
                 values.push_back(readPrimitiveValue(reader, type - ('a'-'A')));

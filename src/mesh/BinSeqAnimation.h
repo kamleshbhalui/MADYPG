@@ -32,14 +32,6 @@ class BinSeqAnimation : public AbstractMeshProvider {
 
   ~BinSeqAnimation() {}
 
-  // template <typename T, typename _scalar, int _nrows, int _ncols, int _options>
-  // void copy_matrix_to_buffer(VectorBuffer<T> &buf, _scalar TODOMAT) {
-    
-  //   buf.cpu().resize(M.rows());
-
-  //   // FUCK ITS ALL GOING DOWNHILL BAHHHHHHHH
-  // }
-
   void update() {
     if (m_frames.empty()) {
       m_indicesDirty = false;

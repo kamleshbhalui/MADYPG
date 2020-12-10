@@ -11,6 +11,7 @@ struct VertexBaryData {
   int32_t tri;  // can be -1 if unassigned
 };
 struct VertexMSData {
+  // NOTE: instead could just define float uvht[4];
   float u, v, h, t;  // material-space vertexedge
   float bx,by,bz;    // edge binormal
   float a;           // arc length parameter along garment yarn

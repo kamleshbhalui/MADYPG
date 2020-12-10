@@ -19,7 +19,7 @@ target_compile_options(tinyxml2 PRIVATE -Wno-all)
 
 add_library(bitsery INTERFACE)
 target_include_directories(bitsery SYSTEM INTERFACE dependencies/)
-# target_compile_options(bitsery PRIVATE -Wno-all)
+target_compile_options(bitsery INTERFACE -Wno-all)
 
 add_library(cnpy dependencies/cnpy/cnpy.cpp)
 target_include_directories(cnpy SYSTEM INTERFACE dependencies/)
@@ -31,6 +31,26 @@ add_library(fbx dependencies/fbx/fbxdocument.cpp
                 dependencies/fbx/fbxutil.cpp)
 target_include_directories(fbx SYSTEM INTERFACE dependencies/)
 target_compile_options(fbx PRIVATE -Wno-all)
+
+
+# NOTE: internally commented out CubicSDFCollisionDetection.h and .cpp to avoid discregrid
+##### single lib PBD
+file(GLOB_RECURSE glob_PBD_SRCS
+  dependencies/PositionBasedDynamics/PositionBasedDynamics/*.cpp
+  dependencies/PositionBasedDynamics/Simulation/*.cpp
+  dependencies/PositionBasedDynamics/Utils/*.cpp
+)
+add_library(pbd ${glob_PBD_SRCS})
+target_include_directories(pbd
+SYSTEM PUBLIC dependencies/PositionBasedDynamics/ # for "Common/Common.h" etc.
+SYSTEM PUBLIC dependencies/GenericParameters/GenericParameters/) 
+# # target_include_directories(pbd SYSTEM INTERFACE dependencies/)
+target_link_libraries(pbd PRIVATE Eigen3::Eigen)
+find_package(OpenMP REQUIRED)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(pbd PUBLIC OpenMP::OpenMP_CXX)
+endif()
+target_compile_options(pbd PRIVATE -Wno-all)
 
 # target: obj2bin. object sequence to binary format converter
 
@@ -45,6 +65,7 @@ target_link_libraries(obj2binary PRIVATE
   Eigen3::Eigen
   tinyxml2
   bitsery
+  fbx # not actually needed, only because globbing io/*.cpp ...
   stdc++fs # <filesystem> on gcc/g++ 8.4
 )
 
@@ -129,5 +150,8 @@ tinyxml2
 bitsery
 cnpy
 fbx
+pbd
 stdc++fs # <filesystem> on gcc/g++ 8.4
 )
+
+

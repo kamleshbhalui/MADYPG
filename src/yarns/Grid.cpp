@@ -125,6 +125,7 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
 
   // mark cells as filled
   ij2k = MatrixXXi::Constant(ny, nx, -1);
+  k2ij.clear();
   k2ij.reserve(nx * ny);  // conservative / naive upper bound
   int k = 0;
   for (const auto& cells : tri2cells) { // cell list of triangle
@@ -138,6 +139,7 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
   n_filled = k;
 
   // finally invert to cell2tris
+  cellk2tris.clear();
   cellk2tris.resize(n_filled);
   for (int tri = 0; tri < n_tris; ++tri) {
     for (const auto& cell : tri2cells[tri]) {
