@@ -66,6 +66,11 @@ class YarnMapper {
   VectorBuffer<VertexWSData>& getVertexBuffer() { return m_soup.get_Xws(); }
   VectorBuffer<uint32_t>& getIndexBuffer() { return m_soup.getIndexBuffer(); }
 
+
+  void applyForce(float fx , float fy, float fz) {
+    m_meshProvider->applyForce(fx, fy, fz);
+  }
+
   // timing
   Debug::MovingAverageTimer<10, std::chrono::microseconds> m_timer;
 

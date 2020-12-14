@@ -33,8 +33,10 @@ target_include_directories(fbx SYSTEM INTERFACE dependencies/)
 target_compile_options(fbx PRIVATE -Wno-all)
 
 
-# NOTE: internally commented out CubicSDFCollisionDetection.h and .cpp to avoid discregrid
-##### single lib PBD
+#discregrid sublibrary of pbd for collision detection
+add_subdirectory(dependencies/Discregrid)
+target_compile_options(Discregrid PRIVATE -Wno-all)
+
 file(GLOB_RECURSE glob_PBD_SRCS
   dependencies/PositionBasedDynamics/PositionBasedDynamics/*.cpp
   dependencies/PositionBasedDynamics/Simulation/*.cpp
@@ -43,9 +45,12 @@ file(GLOB_RECURSE glob_PBD_SRCS
 add_library(pbd ${glob_PBD_SRCS})
 target_include_directories(pbd
 SYSTEM PUBLIC dependencies/PositionBasedDynamics/ # for "Common/Common.h" etc.
-SYSTEM PUBLIC dependencies/GenericParameters/GenericParameters/) 
+SYSTEM PUBLIC dependencies/GenericParameters/GenericParameters/
+SYSTEM PUBLIC dependencies/Discregrid/discregrid/include/
+) 
 # # target_include_directories(pbd SYSTEM INTERFACE dependencies/)
 target_link_libraries(pbd PRIVATE Eigen3::Eigen)
+target_link_libraries(pbd PUBLIC Discregrid)
 find_package(OpenMP REQUIRED)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(pbd PUBLIC OpenMP::OpenMP_CXX)

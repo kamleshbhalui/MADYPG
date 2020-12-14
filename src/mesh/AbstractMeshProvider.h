@@ -27,6 +27,9 @@ class AbstractMeshProvider {
   const Mesh &getMesh() const { return m_mesh; }
   const std::vector<Obstacle> &getObstacles() const { return m_obstacles; }
 
+  // only implemented for pbd
+  virtual void applyForce(float fx , float fy, float fz) {}
+
  protected:
   std::vector<Obstacle> m_obstacles;
   bool m_indicesDirty = false;

@@ -719,7 +719,7 @@ void MainApplication::drawSettings() {
     ImGui::TextBrowser(*_fileDialog.get(),
                        _yarnMapperSettings.binseq_settings.filepath);
   } else {
-    ImGui::SliderInt("MethodS",&_yarnMapperSettings.pbd_settings.simulationMethod,0,3);
+    ImGui::SliderInt("MethodS",&_yarnMapperSettings.pbd_settings.simulationMethod,0,4);
     ImGui::SliderInt("MethodB",&_yarnMapperSettings.pbd_settings.bendingMethod,0,2);
     ImGui::DragFloat("dt",&_yarnMapperSettings.pbd_settings.timestep,0.001f,0.0001f,1.0f);
     ImGui::SliderInt("Substeps",&_yarnMapperSettings.pbd_settings.substeps,1,20);
@@ -851,6 +851,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
           _single_step = true;
           _paused      = true;
         }
+        break;
+      case KeyEvent::Key::P:
+        _yarnMapper->applyForce(0,-50,2);
         break;
       case KeyEvent::Key::B:
       if (MS)
