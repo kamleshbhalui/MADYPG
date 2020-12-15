@@ -414,9 +414,9 @@ bool PBD::solve_UVStrainTriangleConstraint(
 			corr1 -= lambda * invMass1 * d[1];
 			corr2 -= lambda * invMass2 * d[2];
 
-			if (i+j<1 && invMass0 > 0.001f){
-				std::cout<<"  "<<corr0[0]<<"  "<<corr0[1]<<"  "<<corr0[2]<<" "<<invMass0<<"\n";
-			}
+			// if (i+j<1 && invMass0 > 0.001f){
+			// 	std::cout<<"  "<<corr0[0]<<"  "<<corr0[1]<<"  "<<corr0[2]<<" "<<invMass0<<"\n";
+			// }
 		}
 	}
 	return true;

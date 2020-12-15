@@ -721,8 +721,11 @@ void MainApplication::drawSettings() {
   } else {
     ImGui::SliderInt("MethodS",&_yarnMapperSettings.pbd_settings.simulationMethod,0,4);
     ImGui::SliderInt("MethodB",&_yarnMapperSettings.pbd_settings.bendingMethod,0,2);
-    ImGui::DragFloat("dt",&_yarnMapperSettings.pbd_settings.timestep,0.001f,0.0001f,1.0f);
+    ImGui::DragFloat3("Stiffness",_yarnMapperSettings.pbd_settings.stiffness,0.001f,0.0f,10.0f);
+    ImGui::DragFloat("Bending",&_yarnMapperSettings.pbd_settings.bending_stiffness,0.001f,0.0f,10.0f);
+    ImGui::DragInt("Iterations",&_yarnMapperSettings.pbd_settings.iterations,1,1,100);
     ImGui::SliderInt("Substeps",&_yarnMapperSettings.pbd_settings.substeps,1,20);
+    ImGui::DragFloat("dt",&_yarnMapperSettings.pbd_settings.timestep,0.001f,0.0001f,1.0f);
     ImGui::DragFloat("Density",&_yarnMapperSettings.pbd_settings.density,0.01f,0.0f,10.0f);
   }
   ImGui::Unindent();
@@ -810,6 +813,23 @@ void MainApplication::drawSettings() {
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
+
+
+  ImGui::Begin("##interact");
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
+  ImGui::PushItemWidth(200.0f);
+  static float magn=0;
+  ImGui::SliderFloat("force",&magn, 0.0f, 3.0f, "x%.2f");
+  if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
+    _yarnMapper->applyForce(magn*3,magn*0.5f,magn*0);
+  ImGui::PopItemWidth();
+  ImGui::PushItemWidth(150.0f);
+  ImGui::TextUnformatted("naive"); ImGui::SameLine();
+  ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f, 1.0f, "");
+  ImGui::PopItemWidth();
+  ImGui::PopStyleVar();
+  ImGui::End();
+
 }
 
 void MainApplication::keyPressEvent(KeyEvent &event) {
@@ -821,6 +841,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
 
   // key press events, that are only allowed while not editing a text field
   if (!isTextInputActive()) {
+    float force_mult = 1.0f;
+    if ((event.modifiers() & KeyEvent::Modifier::Shift))
+      force_mult *= 10;
     float cam_d = 2.0f;
     if ((event.modifiers() & KeyEvent::Modifier::Shift))
       cam_d *= 2.0f;
@@ -853,7 +876,10 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         }
         break;
       case KeyEvent::Key::P:
-        _yarnMapper->applyForce(0,-50,2);
+        if ((event.modifiers() & KeyEvent::Modifier::Alt))
+          _yarnMapper->applyForce(0,force_mult*-5,force_mult*0.2f);
+        else
+          _yarnMapper->applyForce(force_mult*3,force_mult*1,0);
         break;
       case KeyEvent::Key::B:
       if (MS)

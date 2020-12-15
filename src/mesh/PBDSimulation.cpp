@@ -1,7 +1,7 @@
 #include "PBDSimulation.h"
 
 // PBD LIBRARY NEEDS THESE DEFINITIONS SOMEWHERE,
-// OTHERWISE IT HAS LOTS OF UNDEFINEDS SYMBOLS !
+// OTHERWISE IT HAS A LOT OF UNDEFINEDS SYMBOLS !
 #include <Utils/Timing.h>
 INIT_LOGGING
 INIT_TIMING
@@ -14,6 +14,7 @@ INIT_TIMING
 #include <Simulation/Simulation.h>
 #include <Simulation/TimeManager.h>
 #include <Simulation/TimeStepController.h>
+// #include <GenericParameters/.h>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -24,8 +25,14 @@ PBDSimulation::PBDSimulation(const Settings& settings) : m_settings(settings) {
   PBD::Simulation::getCurrent()->setModel(m_model.get());
   PBD::TimeManager::getCurrent()->setTimeStepSize(m_settings.timestep);
 
+  std::string filepath = "pbdscene/sock/cloth.obj";
+  std::string obsfilepath = "pbdscene/sock/obstacle.obj";
+
+  // std::string filepath = "pbdscene/cloth.obj";
+  // std::string obsfilepath = "pbdscene/obstacle.obj";
+
   // cloth
-  std::string filepath = "pbdscene/cloth.obj";
+  // std::string filepath = "pbdscene/cloth.obj";
   if (!loadClothMesh(filepath))
     return;
 
@@ -42,12 +49,12 @@ PBDSimulation::PBDSimulation(const Settings& settings) : m_settings(settings) {
   //   {
   //     const unsigned int nVert = tm[i]->getParticleMesh().numVertices();
   //     unsigned int offset = tm[i]->getIndexOffset();
-  //     tm[i]->setFrictionCoeff(static_cast<Real>(0.1));
+      // tm->setRestitutionCoeff(0.2f); // 0.6
+      // tm->setFrictionCoeff(0.1f); // 0.2
   //     m_cd.addCollisionObjectWithoutGeometry(i, PBD::CollisionDetection::CollisionObject::TriangleModelCollisionObjectType, &pd.getPosition(offset), nVert, true);
   //   }
   // }
 
-  std::string obsfilepath = "pbdscene/obstacle.obj";
   if (loadSDFObstacle(obsfilepath)) {
     PBD::Simulation::getCurrent()->getTimeStep()->setCollisionDetection(*m_model.get(), &m_cd2);
     m_cd2.setTolerance(static_cast<Real>(0.005));
@@ -63,13 +70,24 @@ PBDSimulation::PBDSimulation(const Settings& settings) : m_settings(settings) {
       tm->setFrictionCoeff(static_cast<Real>(0.1));
       m_cd2.addCollisionObjectWithoutGeometry(i, PBD::CollisionDetection::CollisionObject::TriangleModelCollisionObjectType, &pd.getPosition(offset), nVert, true);
 
-      // TODO, also for other version
-      // tm->setRestitutionCoeff(tmd.m_restitutionCoeff);
-      // tm->setFrictionCoeff(tmd.m_frictionCoeff);
+
+      tm->setRestitutionCoeff(0.05f); // 0.6
+      tm->setFrictionCoeff(0.1f); // 0.2
+      m_model->setContactStiffnessParticleRigidBody(m_settings.contact_stiffness);
     }
   }
 
-  
+  // set cloth stiffnesses
+  m_model->setValue(PBD::SimulationModel::CLOTH_STIFFNESS_XX, m_settings.stiffness[0]);
+  m_model->setValue(PBD::SimulationModel::CLOTH_STIFFNESS_XY, m_settings.stiffness[1]);
+  m_model->setValue(PBD::SimulationModel::CLOTH_STIFFNESS_YY, m_settings.stiffness[2]);
+  m_model->setValue(PBD::SimulationModel::CLOTH_BENDING_STIFFNESS, m_settings.bending_stiffness);
+  // for distance constraint stiffness just use average
+  m_model->setValue(PBD::SimulationModel::CLOTH_STIFFNESS, (m_settings.stiffness[0]+m_settings.stiffness[1]+m_settings.stiffness[2])/3);
+  // skipping:
+  // FEM: CLOTH_POISSON_RATIO_XY, CLOTH_POISSON_RATIO_YX
+  // STRAIN: CLOTH_NORMALIZE_STRETCH, CLOTH_NORMALIZE_SHEAR
+  // SOLID: ...
 
   // initial flags
   m_indicesDirty = true;
@@ -159,6 +177,8 @@ bool PBDSimulation::loadClothMesh(const std::string& filepath) {
   // calculate vertex mass
   // TODO currently vertex mass doesnt do anything! maybe just remove computation then...
   std::vector<float> voronoi(X.size(),0.0f);
+  std::vector<float> avguvheight(X.size(),0.0f);
+  std::vector<int> avguvheight_count(X.size(),0);
   for (size_t i = 0; i < Fms.size(); i++) {
     // compute material space area
     auto ixs     = Fms[i].map();
@@ -170,7 +190,25 @@ bool PBDSimulation::loadClothMesh(const std::string& filepath) {
     voronoi[wsixs[0]] += A3;
     voronoi[wsixs[1]] += A3;
     voronoi[wsixs[2]] += A3;
+
+    float v = U[ixs[0]].v+U[ixs[1]].v+U[ixs[2]].v;
+    for (size_t j = 0; j < 3; ++j) {
+      voronoi[wsixs[j]] += A3;
+      avguvheight[wsixs[j]] += v;
+      avguvheight_count[wsixs[j]] += 3;
+    }
   }
+  m_selected.reserve(avguvheight.size());
+  for (size_t i = 0; i < avguvheight.size(); i++) {
+    float avgv = avguvheight[i]/avguvheight_count[i];
+    if (avgv > 0.26f)
+      m_selected.push_back(uint32_t(i));
+  }
+
+  Debug::log("SELECTED:", m_selected.size());
+  
+
+
 
   PBD::ParticleData &pd = m_model->getParticles();
   for (unsigned int i = 0; i < pd.getNumberOfParticles(); i++)
@@ -180,16 +218,14 @@ bool PBDSimulation::loadClothMesh(const std::string& filepath) {
     // pd.setMass(i, 1);
   }
 
-  // TODO SET FIXED VERTS (imgui, by height or list of vertex ids, or both, default none)
-  // Set mass of points to zero => make it static
-  // pd.setMass(0, 0.0);
-  // pd.setMass(100, 0.0);
-  for (unsigned int i = 0; i < pd.getNumberOfParticles(); i++)
-  {
-    // if(pd.getPosition(i)[1] > 0.2f)
-    if(pd.getPosition(i)[1] > 0.09f)
-      pd.setMass(i, 0.0f);
-  }
+  // // TODO SET FIXED VERTS (imgui, by height or list of vertex ids, or both, default none)
+  // // Set mass of points to zero => make it static
+  // for (unsigned int i = 0; i < pd.getNumberOfParticles(); i++)
+  // {
+  //   // if(pd.getPosition(i)[1] > 0.2f)
+  //   if(pd.getPosition(i)[1] > 0.09f)
+  //     pd.setMass(i, 0.0f);
+  // }
 
   // init constraints
   for (unsigned int cm = 0; cm < m_model->getTriangleModels().size(); cm++)
@@ -268,22 +304,6 @@ bool PBDSimulation::loadClothMesh(const std::string& filepath) {
           m_model->m_groupsInitialized = false;
         }
       }
-
-      // TODO log mesh verts, compare to particle verts because 891 seems small..
-      // then step through constraintgroups setup bc this is wheere it crashed because size 0 - 1.. missing some inital setup or something else makes it not create a group...
-
-      // TODO check why PBD doesnt seem to be parallel
-      // is there some omp that has to be activated in cmake? in cpp? actually maybe it does
-
-      // TODO for some reason both uvfem and uvstrain dont do anything with the mass? although invmass seems to be set??
-      // TODO why is straintriangle pointy at start, are some indices messed up? something about x0?
-      // maybe same issue caused by incorrect usage of something somewhere else.. maybe even using uvs wrong ..
-      // straintriangle vertex even for corr * 0.01 jumping to a position sounds like an underlying issue somewhere
-
-      // TODO could try not using uv stuff but instead actual worldspace?
-
-      // acctually seems to work, maybe the cloth model is broken? or the initial state is so bad that the constraints explode?
-
     }
 
     if (m_settings.bendingMethod != 0)
@@ -457,12 +477,17 @@ bool PBDSimulation::loadSDFObstacle(const std::string& filepath) {
   for (auto const& x : sdfMesh.vertices()) {
     domain.extend(x);
   }
+  Eigen::Vector3d extents = domain.max() - domain.min();
+  auto resolution = std::array<unsigned int, 3>({
+    static_cast<unsigned int>(float(extents[0]) * m_settings.sdf_samples_per_m)+1,
+    static_cast<unsigned int>(float(extents[1]) * m_settings.sdf_samples_per_m)+1,
+    static_cast<unsigned int>(float(extents[2]) * m_settings.sdf_samples_per_m)+1
+  });
   domain.max() += 0.01 * Eigen::Vector3d::Ones();
   domain.min() -= 0.01 * Eigen::Vector3d::Ones();
+  // Debug::log("res",resolution[0],resolution[1],resolution[2]);
 
-  const unsigned int resolution = 20;
-
-  m_rbsdfs.push_back(std::make_shared<PBD::CubicSDFCollisionDetection::Grid>(domain, std::array<unsigned int, 3>({ resolution, resolution, resolution })));
+  m_rbsdfs.push_back(std::make_shared<PBD::CubicSDFCollisionDetection::Grid>(domain, resolution));
 
   auto func = Discregrid::DiscreteGrid::ContinuousFunction{};
   func = [&md](Eigen::Vector3d const& xi) {return md.signedDistanceCached(xi); };
@@ -489,8 +514,12 @@ bool PBDSimulation::loadSDFObstacle(const std::string& filepath) {
 void PBDSimulation::update() {
   m_indicesDirty = false;
 
+  auto ts = PBD::Simulation::getCurrent()->getTimeStep();
+  
+	PBD::Simulation::getCurrent()->getTimeStep()->setValue(PBD::TimeStepController::MAX_ITERATIONS, static_cast<unsigned int>(m_settings.iterations));
   for (unsigned int i = 0; i < m_settings.substeps; i++)
-    PBD::Simulation::getCurrent()->getTimeStep()->step(*m_model.get());
+    ts->step(*m_model.get());
+  
 
   // sync mesh update
   auto& particles = m_model->getParticles();
@@ -509,13 +538,19 @@ void PBDSimulation::applyForce(float fx , float fy, float fz) {
   auto *tm = PBD::TimeManager::getCurrent();
   const Real h = tm->getTimeStepSize();
   auto &pd = m_model->getParticles();
-  float factor = 1.0f/pd.size();
-  for (unsigned int j = 0; j < pd.size(); j++)
-  {
-    const Real mass = pd.getMass(j);
-    if (mass != 0.0f)
-    {  pd.getVelocity(j) += factor*pd.getInvMass(j)*h*force;
-  // Debug::log("applying force: ",(pd.getInvMass(j)*force*h).transpose());
-    }
+  // float factor = 1.0f/pd.size();
+  // for (unsigned int j = 0; j < pd.size(); j++)
+  // {
+  //   const Real mass = pd.getMass(j);
+  //   if (mass != 0.0f)
+  //   {  pd.getVelocity(j) += factor*pd.getInvMass(j)*h*force;
+  // // Debug::log("applying force: ",(pd.getInvMass(j)*force*h).transpose());
+  //   }
+  // }
+
+  float factor = 1.0f/m_selected.size();
+  for (auto i : m_selected) {
+    pd.getVelocity(i) += factor * pd.getInvMass(i) * h * force; // note setting, not adding
+    // pd.getPosition(i) += Vector3s(0.0,0.01,0.0); 
   }
 }

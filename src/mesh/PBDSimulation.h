@@ -11,9 +11,14 @@ class PBDSimulation : public AbstractMeshProvider {
   struct Settings {
     int simulationMethod = 4;
     int bendingMethod = 2;
+    float stiffness[3] = {0.1f,0.1f,0.1f};
+    float bending_stiffness = 0.05f;
+    float contact_stiffness = 3000.0f;
+    int iterations = 5;
     int substeps = 1;
     float timestep = 0.001;
-    float density = 0.3; // doesn't do anything?
+    float density = 0.3; // doesn't do anything in pbd :(
+    float sdf_samples_per_m = 200;
   } m_settings;
 
   PBDSimulation(const Settings& settings);
@@ -29,6 +34,7 @@ class PBDSimulation : public AbstractMeshProvider {
   PBD::DistanceFieldCollisionDetection m_cd; 
   PBD::CubicSDFCollisionDetection m_cd2; 
   std::vector<std::shared_ptr<PBD::CubicSDFCollisionDetection::Grid>> m_rbsdfs;
+  std::vector<uint32_t> m_selected; 
   // ...
 
   bool loadClothMesh(const std::string& filepath);
