@@ -61,7 +61,7 @@ class YarnSoup {
   void assign_triangles(const Grid& grid, const Mesh& mesh);
   void reassign_triangles(const Grid& grid, const Mesh& mesh,
                           bool default_same = false);
-  void generate_index_list(const std::vector<scalar> & pypRL);
+  void generate_index_list(const std::vector<scalar> & pypRL, scalar min_length=0);
   void compute_arclengths(const std::vector<scalar> & pypRL);
   auto& getIndexBuffer() { return m_indices; }
   auto& get_Xms() { return X_ms; }
@@ -79,11 +79,6 @@ class YarnSoup {
   // const auto& getPYPixmap(int vix) { return m_pypix; }
   // int getParametric(int vix) { return m_pypix[vix]; }
   // int getParametric(int vix) { return X_ms[vix].pix; } // maybe reenable this for V1 model if using that to show bending
-  int getNext(int vix) const {  // DEBUG for fancy radius
-    if (VE(vix, 1) < 0)
-      return -1;
-    return E(VE(vix, 1), 1);
-  }
 
  private:
   VectorBuffer<VertexMSData> X_ms;                   // [u v h t a ... ] undeformed material space
@@ -93,10 +88,6 @@ class YarnSoup {
   VectorBuffer<VertexBaryData> B, B0;  // [abc,tri] for WS and MS
 
   // VectorBuffer<EdgeTBData> TB;  // edge tangent and binormal, actually just refd1 now, TODO might merge into Xms
-
-
-  MatrixXXRMi
-      VE;  // [eix_prev, eix_next] incident edges, ONLY NEEDED FOR FANCY RADIUS
 
   VectorBuffer<uint32_t>
       m_indices;  // [ y0v0 y0v1 y0v2 ... delim y1v0 y1v1 ... ]

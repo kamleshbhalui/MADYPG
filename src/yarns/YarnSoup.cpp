@@ -277,14 +277,14 @@ void YarnSoup::cut_outside() {
   });
 }
 
-void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL) {
+void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL, scalar min_length) {
   auto delim = std::numeric_limits<uint32_t>::max();
   // [ y0v0 y0v1 y0v2 ... delim y1v0 y1v1 ... ]
 
   auto& Xms = X_ms.cpu();
 
-  // construct temporary vertex-edge table // NOTE not temporary when using fancy radius // TODO make temp again?
-  VE = MatrixXXRMi::Constant(
+  // construct temporary vertex-edge table
+  MatrixXXRMi VE = MatrixXXRMi::Constant(
       X_ms.getCPUSize(), 2, -1);  // vertex edge table: vix -> [eix_prev, eix_next]
   threadutils::parallel_for(0, int(E.rows()), [&](int i) {
     if (E(i, 0) >= 0 && E(i, 1) >= 0) {
@@ -303,17 +303,24 @@ void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL) {
     if (!hasPrev(i) && hasNext(i))
       starts.push_back(i);
   }
-  std::vector<int> lengths(starts.size());  // #verts per yarn
+
+  std::vector<int> counts(starts.size());  // #verts per yarn
+  std::vector<scalar> arclens(starts.size());  // arclengths of yarn
 
   // for each start (parallel ?)
   //   walk until end (nextedge<0) to count number of verts
-  //   store count in lengths
+  //   store count in counts
+  //   .. also accumulate rest lengths as arclength
 
   threadutils::parallel_for(0, int(starts.size()), [&](int i) {
     int vix = starts[i];
     int c   = 1;
+    float arc = 0;
+    Xms[vix].a = arc;
     while (hasNext(vix)) {
+      arc += pypRL[Xms[vix].pix];
       vix = getNext(vix);
+      Xms[vix].a = arc;
       // TODO  assert(self.v_tri_id[vw.vix] >= 0)
       ++c;
       if (c >= VE.rows() + 1) {
@@ -321,36 +328,42 @@ void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL) {
         break;
       }
     }
-    lengths[i] = c;
+    counts[i] = c;
+    arclens[i] = arc;
   });
 
-  // sum up lengths and at the same time overwrite array to encode accumulated
-  // lengths (inc delims)
+  std::vector<int> skip_yarn(starts.size()); // int because bool is not thread-safe
+  threadutils::parallel_for(size_t(0), starts.size(), [&](size_t i) {
+    skip_yarn[i] = (counts[i] < 4 || arclens[i] < min_length) ? 1 : 0;
+    // NOTE: 4 due to rendering using 4 adjacent verts
+  });
+
+  // sum up counts and at the same time overwrite array to encode accumulated counts (inc delims)
   int total = 0;
+  int nyarns = 0;
   for (size_t i = 0; i < starts.size(); ++i) {
-    int len    = lengths[i];
-    lengths[i] = total;
+    if (skip_yarn[i]) {
+      counts[i] = 0;
+      continue;
+    }
+    int len    = counts[i];
+    counts[i] = total; // replace with offset
     total += len + 1;  // inc delim
+    ++nyarns;
   }
 
-  int n_vertices_total = total - int(lengths.size());
+  int n_vertices_total = total - nyarns; // - #delims
 
-  // if (n_vertices_total > 1e6)
-  //   Debug::logf("# yarn vertices:
-  //   %d,%03d,%03d\n",n_vertices_total/1000000,(n_vertices_total%1000000)/1000,(n_vertices_total%1000));
-  // else if (n_vertices_total > 1e3)
-  //   Debug::logf("# yarn vertices:
-  //   %d,%03d\n",n_vertices_total/1000,(n_vertices_total%1000));
-  // else
-  //   Debug::logf("# yarn vertices: %d\n",n_vertices_total);
   Debug::log("# yarn vertices:",
              Debug::format_locale(n_vertices_total, "en_US.UTF-8"));
 
-  // use accum. lengths to set indices per yarn in parallel
+  // use accum. counts to set indices per yarn in parallel
   auto& indices = m_indices.cpu();
   indices.resize(total);
   threadutils::parallel_for(0, int(starts.size()), [&](int i) {
-    int offset            = lengths[i];
+    if (skip_yarn[i])
+      return;
+    int offset            = counts[i];
     int vix               = starts[i];
     indices[offset + 0] = vix;
     int c                 = 1;
@@ -366,20 +379,19 @@ void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL) {
     indices[offset + c] = delim;
   });
 
-
   
-  // compute arc length
-  threadutils::parallel_for(0, int(starts.size()), [&](int i) {
-    float arc = 0;
-    int vix               = starts[i];
-    Xms[vix].a = arc;
-    while (hasNext(vix)) {
-      // arc += pypRL[m_pypix[vix]];
-      arc += pypRL[Xms[vix].pix];
-      vix = getNext(vix);
-      Xms[vix].a = arc;
-    }
-  });
+  // // compute arc length
+  // threadutils::parallel_for(0, int(starts.size()), [&](int i) {
+  //   float arc = 0;
+  //   int vix               = starts[i];
+  //   Xms[vix].a = arc;
+  //   while (hasNext(vix)) {
+  //     // arc += pypRL[m_pypix[vix]];
+  //     arc += pypRL[Xms[vix].pix];
+  //     vix = getNext(vix);
+  //     Xms[vix].a = arc;
+  //   }
+  // });
   // float arc = 0;
   // for (size_t i = 0; i < indices.size(); i++)
   // {

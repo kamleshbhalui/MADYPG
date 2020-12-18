@@ -1,8 +1,8 @@
 
-// #define randomize // randomize cylinder vertices to fake fuzz
+#define randomize // randomize cylinder vertices to fake fuzz
 #define volpreserve // scale radius to preserve volume
 #define usetheta // use twist kinematics to twist the cylinders and textures
-// #define DRAW_LINES // if this is active, draws simple lines instead of cylinders, incorrrect lighting
+// #define DRAW_LINES // if this is active, draws simple lines instead of cylinders, incorrect lighting due to constant normal
 #define NVERTICES 16 // NOTE: for cylinder segment, including both ends, ie circular crosssection will have nverts/2 vertices
 #define LEVEL_OF_DETAIL // reduce min. number of cylinder vertices for far away geometry
 
@@ -60,10 +60,18 @@ float LOD(float z){
 }
 
 void main() { 
-  #ifdef DRAW_LINES
+#ifdef DRAW_LINES
   gs_out.plycoord = vec2(0,0);
   gs_out.r = radius;
-  gs_out.Q = mat3(vec3(1,0,0),vec3(0,1,0),vec3(0,0,1));
+  vec3 t = normalize(V1.gl_Position.xyz - V0.gl_Position.xyz);
+  vec3 n = vec3(0,0,1) - t * t.z; // n - n.t t
+  float n2 = dot(n,n);
+  if (n2 < 0.0001)
+    n = normalize(vec3(1,0,0) - t * t.x);
+  else
+    n /= sqrt(n2);
+  gs_out.Q = mat3(cross(t, n), t, n);
+  // gs_out.Q = mat3(vec3(1,0,0),vec3(0,1,0),vec3(0,0,1));
   gs_out.uv = gs_in[1].uv;
   gs_out.p = gl_in[1].gl_Position.xyz;
   gl_Position = projection*vec4(gs_out.p, 1.0);
@@ -74,7 +82,7 @@ void main() {
   EmitVertex();
   EndPrimitive();
   return;
-  #endif
+#else
 
 
   // note: variable naming: vertex values indexed as 0 1 2 3, edge values A B C.
@@ -171,6 +179,7 @@ void main() {
     gs_out.Q = mat3(cross(tv1, n), tv1, n);
     // noise? xyz + (r+rand(vertex,i)) * n;
     #ifdef randomize
+    // gs_out.p = V1.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn+1,i)) * r2 * n;
     gs_out.p = V1.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn,2*i)) * r2 * n;
     #else
     gs_out.p = V1.gl_Position.xyz + r2 * n;
@@ -189,6 +198,7 @@ void main() {
     n = ca1*nv0 + sa1 * bv0;
     gs_out.Q = mat3(cross(tv0, n), tv0, n);
     #ifdef randomize
+    // gs_out.p = V0.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn+0,i)) * r1 * n;
     gs_out.p = V0.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn,2*i+1)) * r1 * n;
     #else
     gs_out.p = V0.gl_Position.xyz + r1 * n;
@@ -197,4 +207,7 @@ void main() {
     EmitVertex();  
   }
   EndPrimitive();  
+
+#endif // DRAW_LINES
+
 }

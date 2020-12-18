@@ -170,9 +170,11 @@ void main()
   for (int i = 0; i < 3; ++i) {
     float[6] s = buf_meshS.data[ms_ixs[i]];
     strain += vec3(s[0], s[1], s[2]) * abc[i];
+    // strain -= deform_reference *Xms.h * vec3(s[3], s[4], s[5]) * abc[i];
   }
 
   vec4 d =  deform_reference * sample3D(strain, Xms.pix);
+  // vec4 d =   sample3D(strain, Xms.pix);
   
   Xws.x += d.x;
   Xws.y += d.y;

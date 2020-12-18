@@ -550,6 +550,12 @@ void MainApplication::drawSettings() {
     _yarnGeometryShader = YarnShader{};
     _meshShader         = MeshShader{};
     _obsMeshShader      = ObsMeshShader{};
+
+
+
+    Utility::Resource::overrideGroup("compute-shaders",
+                                     "src/yarns/shaders/resources.conf");
+    _yarnMapper->reloadShaders();
   }
 
   if (ImGui::CollapsingHeader("SSAO" /*, ImGuiTreeNodeFlags_DefaultOpen*/)) {
@@ -690,6 +696,8 @@ void MainApplication::drawSettings() {
   ImGui::Checkbox("Shepard Weights", &_yarnMapperSettings.shepard_weights);
   // if (_yarnMapperSettings.flat_normals)
   //   ImGui::PopStyleVar();
+  ImGui::DragFloat("Min len/r", &_yarnMapperSettings.min_yarn_length_per_r, 0.1f, 0.0f,
+                     100.0f);
   ImGui::SliderFloat("Deform Ref.", &_yarnMapperSettings.deform_reference, 0.0f,
                      1.0f);
   ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);

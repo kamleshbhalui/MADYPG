@@ -5,6 +5,7 @@
 
 namespace PBD {
 
+/*
 class UVFEMTriangleConstraint : public Constraint
 {
 public:
@@ -31,6 +32,7 @@ bool solve_UVFEMTriangleConstraint(
   const Real poissonRatioXY,
   const Real poissonRatioYX,
   Vector3r &corr0, Vector3r &corr1, Vector3r &corr2);
+*/
 
 class UVStrainTriangleConstraint : public Constraint
 {
@@ -58,5 +60,20 @@ bool solve_UVStrainTriangleConstraint(
   const bool normalizeShear,
   Vector3r &corr0, Vector3r &corr1, Vector3r &corr2);
 }
+
+
+// class UVIsometricBendingConstraint : public Constraint
+// {
+// public:
+//   static int TYPE_ID;
+// 		Matrix4r m_Q;
+
+// 		UVIsometricBendingConstraint() : Constraint(4) {}
+// 		virtual int &getTypeId() const { return TYPE_ID; }
+
+// 		virtual bool initConstraint(SimulationModel &model, const unsigned int particle1, const unsigned int particle2,
+// 									const unsigned int particle3, const unsigned int particle4, const Vector2r& u1, const Vector2r& u2, const Vector2r& u3, const Vector2r& u4);
+// 		virtual bool solvePositionConstraint(SimulationModel &model, const unsigned int iter);
+// };
 
 #endif // __PBDCONSTRAINTS__H__	

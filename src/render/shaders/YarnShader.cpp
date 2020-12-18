@@ -42,13 +42,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 using namespace Magnum;
 
 YarnShader::YarnShader() {
-  MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL330);
+  MAGNUM_ASSERT_GL_VERSION_SUPPORTED(GL::Version::GL430);
 
   const Utility::Resource rs{"ssao-data"};
 
-  GL::Shader vert{GL::Version::GL330, GL::Shader::Type::Vertex};
-  GL::Shader geom{GL::Version::GL330, GL::Shader::Type::Geometry};
-  GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
+  GL::Shader vert{GL::Version::GL430, GL::Shader::Type::Vertex};
+  GL::Shader geom{GL::Version::GL430, GL::Shader::Type::Geometry};
+  GL::Shader frag{GL::Version::GL430, GL::Shader::Type::Fragment};
 
   vert.addSource(rs.get("YarnShader.vert"));
 

@@ -14,7 +14,7 @@ class PBDSimulation : public AbstractMeshProvider {
     float stiffness[3] = {0.1f,0.1f,0.1f};
     float bending_stiffness = 0.05f;
     float contact_stiffness = 3000.0f;
-    int iterations = 5;
+    int iterations = 25; // default 5
     int substeps = 1;
     float timestep = 0.001;
     float density = 0.3; // doesn't do anything in pbd :(

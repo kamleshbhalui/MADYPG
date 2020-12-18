@@ -3,6 +3,7 @@
 #include "../utils/debug_includes.h"
 #include "../utils/threadutils.h"
 #include "../io/export_fbx.h"
+#include <Magnum/GL/Renderer.h>
 
 void YarnMapper::step() {
   m_timer.tick();
@@ -11,7 +12,7 @@ void YarnMapper::step() {
     // set up mesh provider
     switch (m_settings.provider_type) {
       default:
-      case Settings::XPBD:
+      case Settings::PBD:
         m_meshProvider = std::static_pointer_cast<AbstractMeshProvider>(
             std::make_shared<PBDSimulation>(m_settings.pbd_settings));
         break;
@@ -123,18 +124,13 @@ void YarnMapper::step() {
     if (!m_initialized) {
       m_soup.cut_outside();  // 'delete' unassigned vertices
 
-      // NOTE/TODO: currently skipping deleting by restlength and pruning
-      // arrays
-
-      m_soup.generate_index_list(m_model->getPYP().RL);  // TODO prune by length while assembling!
-                                     // @ first parallel count: also sum up RL
-                                     // and prune (by not adding their indices
-                                     // and also deleting their edges), or
-                                     // just prune before assembly but that
-                                     // means I need to pass through yarns
-                                     // before.. (i guess if this happens once
-                                     // it doesnt matter, and its nicer
+      // generate index list of yarns for rendering,
+      // and also set arclengths along each yarn,
+      // remove yarns that are too short
+      m_soup.generate_index_list(m_model->getPYP().RL, m_settings.min_yarn_length_per_r * m_model->getPYP().r);
                                      // however the code is more readable!!)
+
+      // NOTE/TODO: currently skipping pruning arrays (actually shrinking arrays by removing "deleted" tri=-1 vertices)
 
       m_soup.get_Xms().bufferData(Magnum::GL::BufferUsage::StaticDraw); // NOTE: important to do this here after assigning arc lengths. otherwise geometry shader will produce NaN due to arclength based weigths.
 
@@ -150,6 +146,7 @@ void YarnMapper::step() {
   mesh.X.bufferData();  // push to gpu
 
   bool compute_bending_strains = false;
+  // compute_bending_strains = true;
   mesh.compute_face_data(m_settings.svdclamp, compute_bending_strains);
   if (!m_settings.flat_normals)
     mesh.compute_vertex_normals();
@@ -224,9 +221,6 @@ void YarnMapper::step() {
   // b/=mesh.strains.size();
   // Debug::log("STRAINS",s,b,o);
 
-  
-
-
   m_timer.tock("mesh normals & strains");
 
   if (m_settings.gpu_compute) {
@@ -246,6 +240,12 @@ void YarnMapper::step() {
     // DEFORM REFERENCE
     m_deformShader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(), m_soup.get_Xms().gpu(), m_soup.get_B0().gpu(), mesh.vertex_strains.gpu(), mesh.Fms.gpu(), m_model->getTexAxes().gpu(), m_model->getTexData().gpu(), m_settings.deform_reference);
 
+    // memory barrier so that the next compute shader gets updated values
+    // Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::ShaderStorage);
+    // // the version of Magnum used in this project defines the wrong constant
+    // here, defaulting to direct opengl instead
+    glMemoryBarrier(GLbitfield(GL_SHADER_STORAGE_BARRIER_BIT));
+    
     m_timer.tock("deform");
 
     // SHELL MAP
@@ -257,8 +257,9 @@ void YarnMapper::step() {
                    mesh.X.gpu(), mesh.F.gpu(), mesh.Fms.gpu(),
                    mesh.defF.gpu(), mesh.vertex_defF.gpu(), mesh.U.gpu(),
                    m_settings.flat_normals, m_settings.phong_deformation);
-    else
-      Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
+
+    // memory barrier so that vertex shader gets updated values
+    Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
 
     m_timer.tock("bary & shell map & buf");
 
@@ -635,3 +636,8 @@ bool YarnMapper::export2fbx(const std::string& filename) {
 
   return export_fbx(filename, data);
 }
+
+// TODO attempt to export X & U & U2, F (or other split) using cnpy
+// and then load into blender python - using the fast setter funcs?
+// it would be much better to export USD (but i cant even get the library running from vcpkg)
+// and second best to export alembic (but i cant even find any code on that ...)

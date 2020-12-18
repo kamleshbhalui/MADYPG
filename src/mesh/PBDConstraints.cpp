@@ -6,10 +6,10 @@
 
 using namespace PBD;
 
-int UVFEMTriangleConstraint::TYPE_ID = IDFactory::getId();
-int UVStrainTriangleConstraint::TYPE_ID = IDFactory::getId();
 const Real eps = static_cast<Real>(1e-6);
 
+/*
+int UVFEMTriangleConstraint::TYPE_ID = IDFactory::getId();
 bool UVFEMTriangleConstraint::initConstraint(SimulationModel &model, const Vector2r& u0, const Vector2r& u1, const Vector2r& u2)
 {
   // m_bodies[0] = particle1;
@@ -232,8 +232,10 @@ bool PBD::solve_UVFEMTriangleConstraint(
 
 	return false;
 }
+*/
 
 
+int UVStrainTriangleConstraint::TYPE_ID = IDFactory::getId();
 bool UVStrainTriangleConstraint::initConstraint(SimulationModel &model, const Vector2r& u0, const Vector2r& u1, const Vector2r& u2)
 {
   // Matrix2r D;
@@ -421,3 +423,64 @@ bool PBD::solve_UVStrainTriangleConstraint(
 	}
 	return true;
 }
+
+/*
+int UVIsometricBendingConstraint::TYPE_ID = IDFactory::getId();
+bool UVIsometricBendingConstraint::initConstraint(SimulationModel &model, const unsigned int particle1, const unsigned int particle2,
+												const unsigned int particle3, const unsigned int particle4)
+{
+	m_bodies[0] = particle1;
+	m_bodies[1] = particle2;
+	m_bodies[2] = particle3;
+	m_bodies[3] = particle4;
+
+	ParticleData &pd = model.getParticles();
+
+	const Vector3r &x1 = pd.getPosition0(particle1);
+	const Vector3r &x2 = pd.getPosition0(particle2);
+	const Vector3r &x3 = pd.getPosition0(particle3);
+	const Vector3r &x4 = pd.getPosition0(particle4);
+
+	return PositionBasedDynamics::init_IsometricBendingConstraint(x1, x2, x3, x4, m_Q);
+}
+
+bool UVIsometricBendingConstraint::solvePositionConstraint(SimulationModel &model, const unsigned int iter)
+{
+	ParticleData &pd = model.getParticles();
+
+	const unsigned i1 = m_bodies[0];
+	const unsigned i2 = m_bodies[1];
+	const unsigned i3 = m_bodies[2];
+	const unsigned i4 = m_bodies[3];
+
+	Vector3r &x1 = pd.getPosition(i1);
+	Vector3r &x2 = pd.getPosition(i2);
+	Vector3r &x3 = pd.getPosition(i3);
+	Vector3r &x4 = pd.getPosition(i4);
+
+	const Real invMass1 = pd.getInvMass(i1);
+	const Real invMass2 = pd.getInvMass(i2);
+	const Real invMass3 = pd.getInvMass(i3);
+	const Real invMass4 = pd.getInvMass(i4);
+
+	Vector3r corr1, corr2, corr3, corr4;
+	const bool res = PositionBasedDynamics::solve_IsometricBendingConstraint(
+		x1, invMass1, x2, invMass2, x3, invMass3, x4, invMass4,
+		m_Q,
+		model.getValue<Real>(SimulationModel::CLOTH_BENDING_STIFFNESS),
+		corr1, corr2, corr3, corr4);
+
+	if (res)
+	{
+		if (invMass1 != 0.0)
+			x1 += corr1;
+		if (invMass2 != 0.0)
+			x2 += corr2;
+		if (invMass3 != 0.0)
+			x3 += corr3;
+		if (invMass4 != 0.0)
+			x4 += corr4;
+	}
+	return res;
+}
+*/

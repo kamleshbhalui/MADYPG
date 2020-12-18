@@ -21,6 +21,7 @@ class YarnMapper {
  public:
   struct Settings {
     std::string modelfolder = "";
+    float min_yarn_length_per_r = 16.0f;
     bool flat_normals       = false;
     bool flat_strains       = false;
     bool shepard_weights    = true;
@@ -34,7 +35,7 @@ class YarnMapper {
     enum Provider {
       ObjSeq = 0,
       BinSeq = 1,
-      XPBD   = 2,
+      PBD   = 2,
       COUNT
     } provider_type = Provider::BinSeq;
     ObjSeqAnimation::Settings objseq_settings;
@@ -66,6 +67,10 @@ class YarnMapper {
   VectorBuffer<VertexWSData>& getVertexBuffer() { return m_soup.get_Xws(); }
   VectorBuffer<uint32_t>& getIndexBuffer() { return m_soup.getIndexBuffer(); }
 
+  void reloadShaders() {
+    m_deformShader = DeformShader();
+    m_shellMapShader = ShellMapShader();
+  }
 
   void applyForce(float fx , float fy, float fz) {
     m_meshProvider->applyForce(fx, fy, fz);
