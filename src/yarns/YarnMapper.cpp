@@ -1,12 +1,17 @@
 #include "YarnMapper.h"
 
-#include "../utils/debug_includes.h"
-#include "../utils/threadutils.h"
-#include "../io/export_fbx.h"
 #include <Magnum/GL/Renderer.h>
 
+#include "../io/export_fbx.h"
+#include "../utils/debug_includes.h"
+#include "../utils/threadutils.h"
+
 void YarnMapper::step() {
-  m_timer.tick();
+  m_glq3.end();
+  // m_timer.tick();
+  m_timer.tock("outside CPU");
+  m_timer.tockForeign("outside GPU",
+                      m_glq3.result<Magnum::UnsignedInt>() / 1000);
 
   if (!m_initialized) {
     // set up mesh provider
@@ -56,12 +61,24 @@ void YarnMapper::step() {
     }
   }
 
+  // m_initialized = false; // DEBUG
+  // m_soup.reset();
+  // m_grid = Grid();
+
   if ((m_meshProvider->materialSpaceChanged() && !m_settings.repeat_frame) ||
       !m_initialized) {
+    // m_grid = Grid();
+    if (!m_initialized)  // DEBUG doing this only once makes remeshed stuff
+                         // flicker, and then still lose verts?
+      m_grid.fromTiling(mesh,
+                        m_model->getPYP());  // maybe only once unless fast or
+                                             // unnecessary (fixed boundary~)
+    m_grid.overlap_triangles(
+        mesh);  // NOTE: for tiny patterns with small periodic patch size, the
+                // grid is very large and this computation becomes an overhead.
+                // if that is important, consider implementing this on the gpu.
 
-    if(!m_initialized) // DEBUG doing this only once makes remeshed stuff flicker, and then still lose verts?
-      m_grid.fromTiling(mesh, m_model->getPYP()); // maybe only once unless fast or unnecessary (fixed boundary~)
-    m_grid.overlap_triangles(mesh);
+    // m_grid.print();
 
     m_timer.tock("@uv: grid setup");
 
@@ -90,8 +107,6 @@ void YarnMapper::step() {
       m_timer.tock("@init: soup tiling");
     }
 
-
-
     mesh.compute_invDm();
     mesh.compute_v2f_map(m_settings.shepard_weights);
     mesh.compute_face_adjacency();  // TODO cache in obj file / or binary cache?
@@ -99,7 +114,9 @@ void YarnMapper::step() {
 
     m_soup.assign_triangles(m_grid, mesh);
 
-    // { // TODO DEBUGGING, remeshing losing yarn verts. number of nonneg assigned tris remains same.. but still every _reset_/revisit of 0th frame loses stuff.
+    // { // TODO DEBUGGING, remeshing losing yarn verts. number of nonneg
+    // assigned tris remains same.. but still every _reset_/revisit of 0th frame
+    // loses stuff.
     //   int c = 0;
     //   auto& B0 = m_soup.get_B0().cpu();
     //   for (size_t i = 0; i < B0.size(); i++)
@@ -119,7 +136,8 @@ void YarnMapper::step() {
         Magnum::GL::BufferUsage::StaticDraw);  // push to gpu // current hint
                                                // static bc expecting no change
                                                // in matspace
-    m_timer.tock("@uv: gpu buffers");
+    m_timer.tock("@uv: gpu buffers");  // NOTE: this might not actually count
+                                       // the gpu time spent?
 
     if (!m_initialized) {
       m_soup.cut_outside();  // 'delete' unassigned vertices
@@ -127,12 +145,19 @@ void YarnMapper::step() {
       // generate index list of yarns for rendering,
       // and also set arclengths along each yarn,
       // remove yarns that are too short
-      m_soup.generate_index_list(m_model->getPYP().RL, m_settings.min_yarn_length_per_r * m_model->getPYP().r);
-                                     // however the code is more readable!!)
+      m_soup.generate_index_list(
+          m_model->getPYP().RL,
+          m_settings.min_yarn_length_per_r * m_model->getPYP().r);
+      // however the code is more readable!!)
 
-      // NOTE/TODO: currently skipping pruning arrays (actually shrinking arrays by removing "deleted" tri=-1 vertices)
+      // NOTE/TODO: currently skipping pruning arrays (actually shrinking arrays
+      // by removing "deleted" tri=-1 vertices)
 
-      m_soup.get_Xms().bufferData(Magnum::GL::BufferUsage::StaticDraw); // NOTE: important to do this here after assigning arc lengths. otherwise geometry shader will produce NaN due to arclength based weigths.
+      m_soup.get_Xms().bufferData(
+          Magnum::GL::BufferUsage::
+              StaticDraw);  // NOTE: important to do this here after assigning
+                            // arc lengths. otherwise geometry shader will
+                            // produce NaN due to arclength based weigths.
 
       m_soup.getIndexBuffer().bufferData(Magnum::GL::BufferUsage::StaticDraw);
 
@@ -140,71 +165,70 @@ void YarnMapper::step() {
     }
   }  // end of MS change
 
-
   // @ WORLD SPACE MESH CHANGES
 
   mesh.X.bufferData();  // push to gpu
 
-  bool compute_bending_strains = false;
-  // compute_bending_strains = true;
-  mesh.compute_face_data(m_settings.svdclamp, compute_bending_strains);
+  // bool compute_bending_strains = m_settings.linearized_bending > 0.0001f;
+  mesh.compute_face_data(m_settings.svdclamp /*, compute_bending_strains*/);
   if (!m_settings.flat_normals)
     mesh.compute_vertex_normals();
 
-  { // face/vertex-deformation gradients to cpu&gpu, for phong deformation and edge binormal transformation
+  {  // face/vertex-deformation gradients to cpu&gpu, for phong deformation and
+     // edge binormal transformation
     mesh.compute_vertex_defF();
     mesh.defF.bufferData();
     if (m_settings.phong_deformation > 0)
       mesh.vertex_defF.bufferData();
   }
 
-  // DEBUG
-  #ifdef DO_DEBUG_STATS
+// DEBUG
+#ifdef DO_DEBUG_STATS
   {
     auto& strns = mesh.strains.cpu();
-    threadutils::parallel_for(size_t(0),strns.size(),[&](size_t i){
+    threadutils::parallel_for(size_t(0), strns.size(), [&](size_t i) {
       auto s = strns[i].map();
-      for (size_t k = 0; k < 6; k++)
-      {
-        s[k]*= m_dbg.strain_toggle[std::min(k,size_t(3))]; // NOTE min 3 to mult all bend with same factor
+      for (size_t k = 0; k < 6; k++) {
+        s[k] *= m_dbg.strain_toggle[std::min(
+            k, size_t(3))];  // NOTE min 3 to mult all bend with same factor
       }
     });
   }
-  #endif
-  
+#endif
+
   if (!m_settings.flat_strains)
     mesh.compute_vertex_strains();
 
-  
-  #ifdef DO_DEBUG_STATS
+#ifdef DO_DEBUG_STATS
   m_dbg.hist_stepcount++;
-  auto& strns = mesh.strains.cpu();
+  auto& strns    = mesh.strains.cpu();
   float invscale = 1.0f / strns.size();
-  float invrge = 1.0f/(m_dbg.hist_max - m_dbg.hist_min);
-  float invrgeB = 1.0f/(m_dbg.hist_bend + m_dbg.hist_bend);
+  float invrge   = 1.0f / (m_dbg.hist_max - m_dbg.hist_min);
+  float invrgeB  = 1.0f / (m_dbg.hist_bend + m_dbg.hist_bend);
   m_dbg.hist_counts.resize(6);
-  for (auto& counts : m_dbg.hist_counts)
-    counts.resize(m_dbg.hist_nbins, 0);
-  for (size_t i = 0; i < strns.size(); i++)
-  {
+  for (auto& counts : m_dbg.hist_counts) counts.resize(m_dbg.hist_nbins, 0);
+  for (size_t i = 0; i < strns.size(); i++) {
     const auto s = strns[i].map();
-    for (size_t j = 0; j < 6; j++)
-    {
+    for (size_t j = 0; j < 6; j++) {
       auto& counts = m_dbg.hist_counts[j];
       int bin;
-      if(j < 3)
-        bin = std::max(0,std::min(int((s[j] - m_dbg.hist_min) * invrge * (m_dbg.hist_nbins - 1)),m_dbg.hist_nbins-1));
+      if (j < 3)
+        bin = std::max(0, std::min(int((s[j] - m_dbg.hist_min) * invrge *
+                                       (m_dbg.hist_nbins - 1)),
+                                   m_dbg.hist_nbins - 1));
       else
-        bin = std::max(0,std::min(int((s[j] + m_dbg.hist_bend) * invrgeB * (m_dbg.hist_nbins - 1)),m_dbg.hist_nbins-1));
+        bin = std::max(0, std::min(int((s[j] + m_dbg.hist_bend) * invrgeB *
+                                       (m_dbg.hist_nbins - 1)),
+                                   m_dbg.hist_nbins - 1));
 
-      
       // ++counts[bin];
       // c = (c*prevn+ 1 )/newn;
-      // counts[bin] = (counts[bin]*(m_dbg.hist_stepcount-1) + invscale) / m_dbg.hist_stepcount;
+      // counts[bin] = (counts[bin]*(m_dbg.hist_stepcount-1) + invscale) /
+      // m_dbg.hist_stepcount;
       counts[bin] += invscale;
     }
   }
-  #endif
+#endif
 
   // float s=0,b=0,o=0;
   // for (size_t i = 0; i < mesh.strains.size(); i++)
@@ -224,48 +248,65 @@ void YarnMapper::step() {
   m_timer.tock("mesh normals & strains");
 
   if (m_settings.gpu_compute) {
-    // TODO option to switch between vertex or flat strains, here fore buffering and in deformshader for usage.
+    // TODO option to switch between vertex or flat strains, here fore buffering
+    // and in deformshader for usage.
     mesh.vertex_strains.bufferData();
-    
+
     if (m_settings.flat_normals)
       mesh.normals.bufferData();
     else {
       mesh.vertex_normals.bufferData();
     }
 
+    m_glq1.begin();
+
     // allocate Xws on gpu if necessary
     if (m_soup.get_Xws().getGPUSize() != m_soup.get_Xms().getGPUSize())
       m_soup.get_Xws().allocateGPU(m_soup.get_Xms().getCPUSize());
 
     // DEFORM REFERENCE
-    m_deformShader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(), m_soup.get_Xms().gpu(), m_soup.get_B0().gpu(), mesh.vertex_strains.gpu(), mesh.Fms.gpu(), m_model->getTexAxes().gpu(), m_model->getTexData().gpu(), m_settings.deform_reference);
+    m_deformShader.compute(
+        m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(),
+        m_soup.get_Xms().gpu(), m_soup.get_B0().gpu(),
+        mesh.vertex_strains.gpu(), mesh.Fms.gpu(), m_model->getTexAxes().gpu(),
+        m_model->getTexData().gpu(), m_settings.deform_reference,
+        m_settings.linearized_bending, m_settings.svdclamp);
 
     // memory barrier so that the next compute shader gets updated values
     // Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::ShaderStorage);
     // // the version of Magnum used in this project defines the wrong constant
     // here, defaulting to direct opengl instead
     glMemoryBarrier(GLbitfield(GL_SHADER_STORAGE_BARRIER_BIT));
-    
-    m_timer.tock("deform");
+
+    m_glq1.end();
+    // m_timer.tock("deform");
+    m_timer.tockForeign("deform", m_glq1.result<Magnum::UnsignedInt>() / 1000);
 
     // SHELL MAP
-    if(m_settings.shell_map)
-      m_shellMapShader.compute(m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(),
-                   m_soup.get_B0().gpu(), mesh.invDmU.gpu(),
-                   m_settings.flat_normals ? mesh.normals.gpu()
-                                           : mesh.vertex_normals.gpu(),
-                   mesh.X.gpu(), mesh.F.gpu(), mesh.Fms.gpu(),
-                   mesh.defF.gpu(), mesh.vertex_defF.gpu(), mesh.U.gpu(),
-                   m_settings.flat_normals, m_settings.phong_deformation);
+    m_glq2.begin();
+    if (m_settings.shell_map)
+      m_shellMapShader.compute(
+          m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(),
+          m_soup.get_B0().gpu(), mesh.invDmU.gpu(),
+          m_settings.flat_normals ? mesh.normals.gpu()
+                                  : mesh.vertex_normals.gpu(),
+          mesh.X.gpu(), mesh.F.gpu(), mesh.Fms.gpu(), mesh.defF.gpu(),
+          mesh.vertex_defF.gpu(), mesh.U.gpu(), m_settings.flat_normals,
+          m_settings.phong_deformation);
 
     // memory barrier so that vertex shader gets updated values
-    Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
+    Magnum::GL::Renderer::setMemoryBarrier(
+        Magnum::GL::Renderer::MemoryBarrier::VertexAttributeArray);
 
-    m_timer.tock("bary & shell map & buf");
+    m_glq2.end();
+    // m_timer.tock("bary & shell map & buf");
+    m_timer.tockForeign("bary & shell map & buf",
+                        m_glq2.result<Magnum::UnsignedInt>() / 1000);
 
-  } else { // CPU compute
+  } else {  // CPU compute
     // DEFORM REFERENCE
     if (m_settings.deform_reference > scalar(1e-10)) {
+      Debug::warning("cpu deform outdated, compared to gpu!");  // clamp/bend
       deform_reference(mesh, m_settings.flat_strains);
     } else {
       int n     = m_soup.num_vertices();
@@ -274,11 +315,10 @@ void YarnMapper::step() {
       Xws.cpu().resize(Xms.size());
       // Xws.resize(Xms.rows(), Xms.cols() + 2 + 1);
       threadutils::parallel_for(0, n, [&](int i) {
-        Xws.row<float, 11>(i) << Xms[i].mapXT(), Xms[i].a,
-        Xms[i].mapB(),
-        // m_soup.get_TB().cpu()[i].mapB(),
-        // 0,0,0,
-          Xms[i].mapXT().head<2>(), 1;
+        Xws.row<float, 11>(i) << Xms[i].mapXT(), Xms[i].a, Xms[i].mapB(),
+            // m_soup.get_TB().cpu()[i].mapB(),
+            // 0,0,0,
+            Xms[i].mapXT().head<2>(), 1;
       });
     }
     m_timer.tock("deform");
@@ -291,16 +331,15 @@ void YarnMapper::step() {
     else {
       int nverts = m_soup.num_vertices();
       threadutils::parallel_for(0, nverts, [&](int vix) {
-        auto& x = m_soup.get_Xws().cpu()[vix];
+        auto& x   = m_soup.get_Xws().cpu()[vix];
         float tmp = x.y;
-        x.y = x.z;
-        x.z = -tmp;
+        x.y       = x.z;
+        x.z       = -tmp;
       });
     }
 
     // finally buffer Xws for yarnshader to draw
-    m_soup.get_Xws().bufferData(
-        Magnum::GL::BufferUsage::StreamDraw);
+    m_soup.get_Xws().bufferData(Magnum::GL::BufferUsage::StreamDraw);
     glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
     m_timer.tock("bary & shell map & buf");
   }
@@ -314,14 +353,16 @@ void YarnMapper::step() {
   // Debug::log("---------------");
 
   m_initialized = true;
+  m_glq3.begin();
+  m_timer.tick();
 }
 
 void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
   int nverts = m_soup.num_vertices();
   auto& Xms  = m_soup.get_Xms().cpu();
   auto& Xws  = m_soup.get_Xws();
-  auto& S  = mesh.strains.cpu();
-  auto& Sv  = mesh.vertex_strains.cpu();
+  auto& S    = mesh.strains.cpu();
+  auto& Sv   = mesh.vertex_strains.cpu();
   // TODO i sometimes need  both cpudata for access, and buf object for row need
   // to write that nicer TODO CONTINUE GETTING RID OF OLD FUNCS AND USE B0 AND B
   // ... maybe always use .cpu()[vix].. or make rowmap available to cpudata?  I
@@ -347,8 +388,7 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
       s = S[tri].map();
     } else {
       auto ms_ixs = mesh.Fms.cpu()[tri].map();
-      s           = Sv[ms_ixs[0]].map() * abc[0] +
-          Sv[ms_ixs[1]].map() * abc[1] +
+      s = Sv[ms_ixs[0]].map() * abc[0] + Sv[ms_ixs[1]].map() * abc[1] +
           Sv[ms_ixs[2]].map() * abc[2];
     }
 
@@ -357,9 +397,8 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
     Vector4s g;
     float dbg0, dbg1;
 
-    std::tie(g, dbg0, dbg1) =
-        m_model->deformation(s, X.pix/*, m_dbg.toggle*/);
-        // m_model->deformation(s, m_soup.getParametric(vix), m_dbg.toggle);
+    std::tie(g, dbg0, dbg1) = m_model->deformation(s, X.pix /*, m_dbg.toggle*/);
+    // m_model->deformation(s, m_soup.getParametric(vix), m_dbg.toggle);
     g *= m_settings.deform_reference;
     // store deformed ms coordinates intm. in ws coords
     // NOTE: buffer.row is a colvector so it expects colvector comma init
@@ -379,13 +418,13 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
   // x = phi(xi1, xi2) + h n(xi1, xi2); where xi1 xi2 h are pre-deformed
   // reference coordinates
 
-  auto& U    = mesh.U.cpu();
-  auto& defF    = mesh.defF.cpu();
-  auto& defFv    = mesh.vertex_defF.cpu();
-  auto& N    = mesh.normals.cpu();
-  auto& Nv   = mesh.vertex_normals.cpu();
-  auto& B    = m_soup.get_B().cpu();
-  int nverts = m_soup.num_vertices();
+  auto& U     = mesh.U.cpu();
+  auto& defF  = mesh.defF.cpu();
+  auto& defFv = mesh.vertex_defF.cpu();
+  auto& N     = mesh.normals.cpu();
+  auto& Nv    = mesh.vertex_normals.cpu();
+  auto& B     = m_soup.get_B().cpu();
+  int nverts  = m_soup.num_vertices();
   threadutils::parallel_for(0, nverts, [&](int vix) {
     const auto& bary = B[vix];
     int tri          = bary.tri;
@@ -418,97 +457,117 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
                    mesh.X.row<float, 3>(ws_ixs[1]) * abc[1] +
                    mesh.X.row<float, 3>(ws_ixs[2]) * abc[2];
     ;
-    
-    
+
     // phong deformation:
     // phi = sum_i b_i x_i + alpha * sum_i b_i F_i (X-Xi)
     // gradphi = F_tri + alpha * sum_i (b_i F_i + F_i(X-Xi) gradb_i^T)
     if (m_settings.phong_deformation > 0) {
-      auto ms_ixs = mesh.Fms.cpu()[tri].map(); // TODO get from top
+      auto ms_ixs = mesh.Fms.cpu()[tri].map();  // TODO get from top
       for (size_t i = 0; i < 3; ++i) {
         // Debug::log(ms_ixs[i],defFv.size());
-        phi += m_settings.phong_deformation * (
-          abc[i] * (defFv[ms_ixs[i]].map() * (x_ws.head<2>() - U[ms_ixs[i]].map()))
-        );
+        phi += m_settings.phong_deformation *
+               (abc[i] * (defFv[ms_ixs[i]].map() *
+                          (x_ws.head<2>() - U[ms_ixs[i]].map())));
       }
     }
 
     {
-      // TODO wrong? not including transformation from uvh0 to uvhdeformed? approximate. or using new barycoords works fine maybe..
-      MatrixNMs<3,3> Q; // transformation from uvh to xyz
+      // TODO wrong? not including transformation from uvh0 to uvhdeformed?
+      // approximate. or using new barycoords works fine maybe..
+      MatrixNMs<3, 3> Q;  // transformation from uvh to xyz
       Q.setZero();
-      Q.block<3,2>(0,0) = defF[tri].map();
-      // TODO phong gradient (without it it's just using the flat triangle & interpolated normal, which is probably a decent approximation (since we orthogonalize in the shader) until cheap-transformed refd1 becomes colinear with phongtransformed tangent).
+      Q.block<3, 2>(0, 0) = defF[tri].map();
+      // TODO phong gradient (without it it's just using the flat triangle &
+      // interpolated normal, which is probably a decent approximation (since we
+      // orthogonalize in the shader) until cheap-transformed refd1 becomes
+      // colinear with phongtransformed tangent).
 
-      Q.col(2) = n; // usually not orthogonal, would need to take transpose inverse of Q! TODO discuss
+      Q.col(2) = n;  // usually not orthogonal, would need to take transpose
+                     // inverse of Q! TODO discuss
 
       // if (vix == 555) {
       //   Debug::log(Q);
       // }
-      
+
       // Q.col(0).normalize();
       // Q.col(1).normalize();
-      // Q.col(2) = Q.col(0).cross(Q.col(1)); // IF USING THIS AND SIMPLE Q THEN NEED TO ORTHOGONALIZE COL1!
+      // Q.col(2) = Q.col(0).cross(Q.col(1)); // IF USING THIS AND SIMPLE Q THEN
+      // NEED TO ORTHOGONALIZE COL1!
 
-      auto _xws = m_soup.get_Xws().row<float, 11>(vix); // TODO def above
+      auto _xws = m_soup.get_Xws().row<float, 11>(vix);  // TODO def above
       // _xws.block<3,1>(3,0) = Q * _xws.block<3,1>(3,0); // b = Q * b
-      _xws.block<3,1>(5,0) = Q.inverse().transpose() * _xws.block<3,1>(5,0); // b = Q** * b
+      _xws.block<3, 1>(5, 0) =
+          Q.inverse().transpose() * _xws.block<3, 1>(5, 0);  // b = Q** * b
     }
 
     x_ws.head<3>() = phi + h * n;
 
-    // NOTE transforming using surface (~phong grad and normal) at vertex position although location in middle of edge would be more correct. assumption that surface varies little compared to segments, and that later reorthonormalization hides issues anyway. 
+    // NOTE transforming using surface (~phong grad and normal) at vertex
+    // position although location in middle of edge would be more correct.
+    // assumption that surface varies little compared to segments, and that
+    // later reorthonormalization hides issues anyway.
   });
 }
 
-// TODO this takes forever for big garments. probably better to instead prepare appropriate buffers and copy this stuff into a compute shader, though maybe the bottleneck is the disk write..
-// also if doing this on cpu then have to get Xws back from gpu!
+// TODO this takes forever for big garments. probably better to instead prepare
+// appropriate buffers and copy this stuff into a compute shader, though maybe
+// the bottleneck is the disk write.. also if doing this on cpu then have to get
+// Xws back from gpu!
 bool YarnMapper::export2fbx(const std::string& filename) {
   if (!m_initialized)
     return false;
 
-  static std::vector<uint32_t> vcids; // id of circle of vertices, for all non-tip midline vertices
-  static std::vector<uint32_t> fcids; // id of circle of faces, for all non-tips exluding also the second to last midline vertex
+  static std::vector<uint32_t>
+      vcids;  // id of circle of vertices, for all non-tip midline vertices
+  static std::vector<uint32_t>
+      fcids;  // id of circle of faces, for all non-tips exluding also the
+              // second to last midline vertex
 
-  auto LIM = std::numeric_limits<uint32_t>::max();
-  const auto& I = m_soup.getIndexBuffer().cpu(); // midline vertex indices of LIM separated yarns
-  
+  auto LIM      = std::numeric_limits<uint32_t>::max();
+  const auto& I = m_soup.getIndexBuffer()
+                      .cpu();  // midline vertex indices of LIM separated yarns
+
   // on time setup of vcids and fcids
-  static uint32_t nvcid; // number of vertex ids
-  static uint32_t nfcid; // number of face ids
+  static uint32_t nvcid;  // number of vertex ids
+  static uint32_t nfcid;  // number of face ids
   if (vcids.size() == 0) {
     nvcid = 0;
     nfcid = 0;
     vcids.reserve(I.size());
     fcids.reserve(I.size());
     for (size_t i = 0; i < I.size(); ++i) {
-      if (i == 0 || i == I.size() - 1 || I[i] == LIM) { // ignore outside verts or tips
+      if (i == 0 || i == I.size() - 1 ||
+          I[i] == LIM) {  // ignore outside verts or tips
         vcids.push_back(LIM);
       } else {
-        if (I[i-1] == LIM || I[i+1] == LIM) // LIM-delimited tip
+        if (I[i - 1] == LIM || I[i + 1] == LIM)  // LIM-delimited tip
           vcids.push_back(LIM);
         else
-          vcids.push_back(nvcid++); // accepted location with existing neighbor left and right
+          vcids.push_back(nvcid++);  // accepted location with existing neighbor
+                                     // left and right
       }
-    
-      // for faces same as above but one additional skip for second to last vert per yarn
-      if (i == 0 || i >= I.size() - 2 || I[i] == LIM) { 
+
+      // for faces same as above but one additional skip for second to last vert
+      // per yarn
+      if (i == 0 || i >= I.size() - 2 || I[i] == LIM) {
         fcids.push_back(LIM);
       } else {
-        if (I[i-1] == LIM || I[i+1] == LIM || I[i+2] == LIM)
+        if (I[i - 1] == LIM || I[i + 1] == LIM || I[i + 2] == LIM)
           fcids.push_back(LIM);
         else
-          fcids.push_back(nfcid++); // accepted location with existing neighbor left and right
+          fcids.push_back(nfcid++);  // accepted location with existing neighbor
+                                     // left and right
       }
     }
   }
 
-  int NSEGS = 8; // number of cylinder sides
-  float invSEG = 1.0f/(NSEGS);
-  int NVERTICES = NSEGS + 1; // + 1 bc of radial seam
-  float R = m_model->getPYP().r; // yarn radius
-  float normalTwist      = 1.0f; // TODO normal map params from app. as func params here?
-  float normalNum        = 4.0f;
+  int NSEGS     = 8;  // number of cylinder sides
+  float invSEG  = 1.0f / (NSEGS);
+  int NVERTICES = NSEGS + 1;            // + 1 bc of radial seam
+  float R       = m_model->getPYP().r;  // yarn radius
+  float normalTwist =
+      1.0f;  // TODO normal map params from app. as func params here?
+  float normalNum = 4.0f;
 
   // allocate export data
   uint32_t num_total_verts = NVERTICES * nvcid;
@@ -519,39 +578,41 @@ bool YarnMapper::export2fbx(const std::string& filename) {
   data.uv1.resize(num_total_verts * 2);
   data.faces.resize(num_total_faces * 3);
   data.uvfaces.resize(num_total_faces * 3);
-  
-  auto& Xws = m_soup.get_Xws().cpu(); // xyzt | arc | d1x d1y d1z | u v | rlocal
-  threadutils::parallel_for(size_t(0),I.size(),[&](size_t i) {
+
+  auto& Xws =
+      m_soup.get_Xws().cpu();  // xyzt | arc | d1x d1y d1z | u v | rlocal
+  threadutils::parallel_for(size_t(0), I.size(), [&](size_t i) {
     uint32_t vcid = vcids[i];
     if (vcid == LIM)
       return;
 
     // [vert_0] ---edge_A--- [vert_1] ---edge_B--- [vert_2]
 
-    //indices of left, self and right yarn segment
-    uint32_t left = I[i-1];
-    uint32_t self = I[i];
-    uint32_t right = I[i+1];
-    auto& x0 = Xws[left];
-    auto& x1 = Xws[self];
-    auto& x2 = Xws[right];
+    // indices of left, self and right yarn segment
+    uint32_t left  = I[i - 1];
+    uint32_t self  = I[i];
+    uint32_t right = I[i + 1];
+    auto& x0       = Xws[left];
+    auto& x1       = Xws[self];
+    auto& x2       = Xws[right];
 
-     // edge rest length
+    // edge rest length
     float lA = x1.a - x0.a;
     float lB = x2.a - x1.a;
 
     Vector3s tA = x1.mapX() - x0.mapX();
     Vector3s tB = x2.mapX() - x1.mapX();
-    
-    Vector3s tv = (lA*tA + lB*tB); // vertex tangent
-    Vector3s nv = (lA*x0.mapD() + lB*x1.mapD()); // vertex normal
-    nv = (nv - tv * tv.dot(nv)/tv.squaredNorm()).normalized(); // orthonormalize
-    Vector3s bv = tv.cross(nv).normalized(); // vertex binormal
+
+    Vector3s tv = (lA * tA + lB * tB);                // vertex tangent
+    Vector3s nv = (lA * x0.mapD() + lB * x1.mapD());  // vertex normal
+    nv          = (nv - tv * tv.dot(nv) / tv.squaredNorm())
+             .normalized();                   // orthonormalize
+    Vector3s bv = tv.cross(nv).normalized();  // vertex binormal
 
     // TODO edge current length, and scale radius
-    float rA = 1 * R; // TODO vol.preserve
-    float rB = 1 * R; // TODO vol.preserve
-    float r1 = (lA*rA + lB*rB)/(lA+lB);
+    float rA = 1 * R;  // TODO vol.preserve
+    float rB = 1 * R;  // TODO vol.preserve
+    float r1 = (lA * rA + lB * rB) / (lA + lB);
 
     if (i == 66) {
       // Debug::log(x0.mapX());
@@ -562,18 +623,18 @@ bool YarnMapper::export2fbx(const std::string& filename) {
       // Debug::log(bv);
     }
 
+    for (int cs = 0; cs < NSEGS + 1;
+         cs++) {  // iterate circular vertices, including duplicate end
+      float alpha = cs * invSEG;  // 0 to 1, inclusive
 
-    for(int cs=0; cs<NSEGS+1; cs++) { // iterate circular vertices, including duplicate end
-      float alpha = cs * invSEG; // 0 to 1, inclusive
-
-      float a = alpha * 2.0f * float(M_PI);
+      float a  = alpha * 2.0f * float(M_PI);
       float ca = std::cos(a);
       float sa = std::sin(a);
       // TODO edge twist theta ~> get average theta and shift a ?
 
-      Vector3s n = ca*nv + sa * bv;
-      Vector3s p = x1.mapX() + r1 * n;  
-      
+      Vector3s n = ca * nv + sa * bv;
+      Vector3s p = x1.mapX() + r1 * n;
+
       // if (i == 66) {
       //   std::cout<<p[0]<<", "<<p[1]<<", "<<p[2]<<"\n";
       //   // Debug::log(x0.mapX());
@@ -584,53 +645,52 @@ bool YarnMapper::export2fbx(const std::string& filename) {
       //   // Debug::log(bv);
       // }
 
-      uint32_t vertix = vcid * NVERTICES + cs;
-      data.vertices[3*vertix + 0] = p[0];
-      data.vertices[3*vertix + 1] = p[1];
-      data.vertices[3*vertix + 2] = p[2];
-      data.uv0[2*vertix + 0] = x1.u;
-      data.uv0[2*vertix + 1] = x1.v;
-      data.uv1[2*vertix + 0] = x1.a;
-      data.uv1[2*vertix + 1] =  normalNum*(-alpha - 0.1591549f * normalTwist * x1.a / r1);
+      uint32_t vertix               = vcid * NVERTICES + cs;
+      data.vertices[3 * vertix + 0] = p[0];
+      data.vertices[3 * vertix + 1] = p[1];
+      data.vertices[3 * vertix + 2] = p[2];
+      data.uv0[2 * vertix + 0]      = x1.u;
+      data.uv0[2 * vertix + 1]      = x1.v;
+      data.uv1[2 * vertix + 0]      = x1.a;
+      data.uv1[2 * vertix + 1] =
+          normalNum * (-alpha - 0.1591549f * normalTwist * x1.a / r1);
     }
-
 
     uint32_t fcid = fcids[i];
     if (fcid == LIM)
       return;
 
-    uint32_t vcid_next = vcids[i+1]; // assert == vcid+1?
+    uint32_t vcid_next = vcids[i + 1];  // assert == vcid+1?
 
+    for (int cs = 0; cs < NSEGS; cs++) {  // iterate circular segments
+      // in 2D pseudo indices, with i radial and f the circle/crosssection
+      // index: { [f,i], [f+1,i+1], [f+1,i] } { [f,i], [f,i+1], [f+1,i+1] } note
+      // that we model a radial seam explicitly, so cs+1 makes sense even for
+      // the cs==NSEGS-1
 
-    for(int cs=0; cs<NSEGS; cs++) { // iterate circular segments
-      // in 2D pseudo indices, with i radial and f the circle/crosssection index:
-      // { [f,i], [f+1,i+1], [f+1,i] }
-      // { [f,i], [f,i+1], [f+1,i+1] }
-      // note that we model a radial seam explicitly, so cs+1 makes sense even for the cs==NSEGS-1
+      uint32_t facedofA = 3 * (fcid * 2 * NSEGS + 2 * cs + 0);
+      uint32_t facedofB = 3 * (fcid * 2 * NSEGS + 2 * cs + 1);
+      uint32_t vertix0  = vcid * NVERTICES + cs;       // "[f,cs]"
+      uint32_t vertix1  = vcid_next * NVERTICES + cs;  // "[f+1,cs]"
 
-      uint32_t facedofA = 3*(fcid * 2*NSEGS + 2*cs + 0);
-      uint32_t facedofB = 3*(fcid * 2*NSEGS + 2*cs + 1);
-      uint32_t vertix0 = vcid * NVERTICES + cs; // "[f,cs]"
-      uint32_t vertix1 = vcid_next * NVERTICES + cs; // "[f+1,cs]"
-
-      auto F0 = std::vector<uint32_t>{vertix0,vertix1+1,vertix1};
+      auto F0 = std::vector<uint32_t>{vertix0, vertix1 + 1, vertix1};
       // auto F0 = std::vector<uint32_t>{0,1,2};
-      auto F1 = std::vector<uint32_t>{vertix0,vertix0+1,vertix1+1};
+      auto F1 = std::vector<uint32_t>{vertix0, vertix0 + 1, vertix1 + 1};
 
       // last poly index negated with ~
-      data.faces[facedofA+0] = F0[0];
-      data.faces[facedofA+1] = F0[1];
-      data.faces[facedofA+2] = ~int32_t(F0[2]);
-      data.faces[facedofB+0] = F1[0];
-      data.faces[facedofB+1] = F1[1];
-      data.faces[facedofB+2] = ~int32_t(F1[2]);
+      data.faces[facedofA + 0] = F0[0];
+      data.faces[facedofA + 1] = F0[1];
+      data.faces[facedofA + 2] = ~int32_t(F0[2]);
+      data.faces[facedofB + 0] = F1[0];
+      data.faces[facedofB + 1] = F1[1];
+      data.faces[facedofB + 2] = ~int32_t(F1[2]);
 
-      data.uvfaces[facedofA+0] = F0[0];
-      data.uvfaces[facedofA+1] = F0[1];
-      data.uvfaces[facedofA+2] = F0[2];
-      data.uvfaces[facedofB+0] = F1[0];
-      data.uvfaces[facedofB+1] = F1[1];
-      data.uvfaces[facedofB+2] = F1[2];
+      data.uvfaces[facedofA + 0] = F0[0];
+      data.uvfaces[facedofA + 1] = F0[1];
+      data.uvfaces[facedofA + 2] = F0[2];
+      data.uvfaces[facedofB + 0] = F1[0];
+      data.uvfaces[facedofB + 1] = F1[1];
+      data.uvfaces[facedofB + 2] = F1[2];
     }
   });
 
@@ -639,5 +699,6 @@ bool YarnMapper::export2fbx(const std::string& filename) {
 
 // TODO attempt to export X & U & U2, F (or other split) using cnpy
 // and then load into blender python - using the fast setter funcs?
-// it would be much better to export USD (but i cant even get the library running from vcpkg)
-// and second best to export alembic (but i cant even find any code on that ...)
+// it would be much better to export USD (but i cant even get the library
+// running from vcpkg) and second best to export alembic (but i cant even find
+// any code on that ...)

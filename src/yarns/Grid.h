@@ -43,6 +43,8 @@ class Grid {
     return cellk2tris[ij2k(i, j)];
   }
 
+  void print();
+
  private:
   int nx, ny;       // number of cells
   float cx, cy;     // cell size

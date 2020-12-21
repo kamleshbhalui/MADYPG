@@ -158,7 +158,7 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
   // }
   // Debug::log("----------------------");
 
-  Debug::logf("Grid filled %d/%d\n", n_filled, ny * nx);
+  // Debug::logf("Grid filled %d/%d\n", n_filled, ny * nx);
 }
 
 void Grid::overlap_triangle(
@@ -199,4 +199,21 @@ void Grid::overlap_triangle(
         tri2cell.push_back(std::make_pair(i, j));
     }
   }
+}
+
+void Grid::print() {
+  Debug::logf("Grid filled %zu/%d\n", cellk2tris.size(), ny * nx);
+  Debug::log("----------------------");
+  for (int i = ny-1; i >= 0; i--) {
+    for (int j = 0; j < nx; j++) {
+      // std::cout << (filled(i, j) ? "F" : ".") << " ";
+      if (ij2k(i, j) >= 0)
+        printf("%02zu ", cellk2tris[ij2k(i, j)].size());
+      else
+        printf("__ ");
+      // printf("%02d ", ij2k(i, j));
+    }
+    std::cout << "\n";
+  }
+  Debug::log("----------------------");
 }

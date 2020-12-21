@@ -1,10 +1,9 @@
-
 #define randomize // randomize cylinder vertices to fake fuzz
 #define volpreserve // scale radius to preserve volume
 #define usetheta // use twist kinematics to twist the cylinders and textures
 // #define DRAW_LINES // if this is active, draws simple lines instead of cylinders, incorrect lighting due to constant normal
 #define NVERTICES 16 // NOTE: for cylinder segment, including both ends, ie circular crosssection will have nverts/2 vertices
-#define LEVEL_OF_DETAIL // reduce min. number of cylinder vertices for far away geometry
+// #define LEVEL_OF_DETAIL // reduce min. number of cylinder vertices for far away geometry
 
 
 #define Vprv gl_in[0]

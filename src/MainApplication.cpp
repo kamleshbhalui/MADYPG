@@ -48,13 +48,14 @@ void makeDefaultTexture(GL::Texture2D &tex2D) {
 #include <functional>
 namespace ImGui {
 bool TextBrowser(
-    ImGui::FileBrowser &browser, std::string &txt,
+    const std::string &label, ImGui::FileBrowser &browser, std::string &txt,
     std::function<void()> onChange = []() {});
-bool TextBrowser(ImGui::FileBrowser &browser, std::string &txt,
-                 std::function<void()> onChange) {
+bool TextBrowser(const std::string &label, ImGui::FileBrowser &browser,
+                 std::string &txt, std::function<void()> onChange) {
   ImGui::PushID(&txt);
   ImGui::PushItemWidth(150);
-  if (ImGui::InputText("##txt", &txt, ImGuiInputTextFlags_EnterReturnsTrue)) {
+  if (ImGui::InputText(label.c_str(), &txt,
+                       ImGuiInputTextFlags_EnterReturnsTrue)) {
     onChange();
     ImGui::PopItemWidth();
     ImGui::SameLine();
@@ -84,7 +85,7 @@ bool TextBrowser(ImGui::FileBrowser &browser, std::string &txt,
 bool loadTexture(const std::string &file, GL::Texture2D &tex2D,
                  GL::SamplerWrapping wrapping = GL::SamplerWrapping::Repeat);
 bool loadTexture1D(const std::string &file, GL::Texture1D &tex1D,
-                 GL::SamplerWrapping wrapping = GL::SamplerWrapping::Repeat);
+                   GL::SamplerWrapping wrapping = GL::SamplerWrapping::Repeat);
 bool loadTexture(const std::string &file, GL::Texture2D &tex2D,
                  GL::SamplerWrapping wrapping) {
   PluginManager::Manager<Trade::AbstractImporter> manager;
@@ -113,7 +114,7 @@ bool loadTexture(const std::string &file, GL::Texture2D &tex2D,
   return true;
 }
 bool loadTexture1D(const std::string &file, GL::Texture1D &tex1D,
-                 GL::SamplerWrapping wrapping) {
+                   GL::SamplerWrapping wrapping) {
   PluginManager::Manager<Trade::AbstractImporter> manager;
   Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
   if (!importer.openFile(file)) {
@@ -139,8 +140,6 @@ bool loadTexture1D(const std::string &file, GL::Texture1D &tex1D,
       .generateMipmap();
   return true;
 }
-
-
 
 void MainApplication::reset_simulation() {
   if (!_yarnMapper)
@@ -256,6 +255,7 @@ MainApplication::MainApplication(const Arguments &arguments)
 
     _yarnGeometryShader = YarnShader{};
     _meshShader         = MeshShader{};
+    _ground             = GroundShader{};
     _obsMeshShader      = ObsMeshShader{};
     _ssaoShader         = SsaoShader{SSAO_SAMPLES};
     _ssaoApplyShader    = SsaoApplyShader{};
@@ -267,9 +267,8 @@ MainApplication::MainApplication(const Arguments &arguments)
           YarnMapper::Settings::Provider::BinSeq;
       // _yarnMapperSettings.binseq_settings.filepath = "binseqs/sock.bin";
       // #ifdef NDEBUG
-      _yarnMapperSettings.binseq_settings.filepath =
-          "binseqs/sxsy_const.bin";
-          // "binseqs/HYLC_30x30/basket_drapeX.bin";
+      _yarnMapperSettings.binseq_settings.filepath = "binseqs/sxsy_const.bin";
+      // "binseqs/HYLC_30x30/basket_drapeX.bin";
       // #else
       // _yarnMapperSettings.binseq_settings.filepath =
       // "binseqs/sxsy_const.bin"; #endif
@@ -290,7 +289,10 @@ MainApplication::MainApplication(const Arguments &arguments)
     // Trade::AnyImageImporter importer = Trade::AnyImageImporter(manager);
     loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
     loadTexture(_matcapObs_file, _matcapObs, GL::SamplerWrapping::ClampToEdge);
+    loadTexture(_matcapMesh_file, _matcapMesh,
+                GL::SamplerWrapping::ClampToEdge);
     loadTexture(_clothtexture_file, _clothTexture, GL::SamplerWrapping::Repeat);
+    loadTexture(_gridtexture_file, _gridTexture, GL::SamplerWrapping::Repeat);
     // loadTexture1D(_normalMap_file, _normalMap, GL::SamplerWrapping::Repeat);
     loadTexture(_normalMap_file, _normalMap, GL::SamplerWrapping::Repeat);
   }
@@ -347,9 +349,6 @@ void MainApplication::drawEvent() {
   bool require_redraw = simChanged || camChanged;
   if (require_redraw) {
     Matrix4 tf = _arcball->viewMatrix();
-    if (_rotate_scene) {
-      tf = tf * Matrix4::rotation(Rad(-1.57079632679f), Vector3::xAxis());
-    }
 
     /* render the scene into g-buffer */
     _fbo_gbuffer
@@ -359,10 +358,21 @@ void MainApplication::drawEvent() {
              {YarnShader::NormalsOutput, GL::Framebuffer::ColorAttachment{2}}})
         // .clear(GL::FramebufferClear::Depth | GL::FramebufferClear::Color)
         .clearColor(0, _bgColor)
-        .clearColor(1, Color4(0.0, 0.0, -1000.0, 1.0)) // NOTE: using arbitrary -1000 as background depth
+        .clearColor(
+            1, Color4(0.0, 0.0, -1000.0,
+                      1.0))  // NOTE: using arbitrary -1000 as background depth
         .clearColor(2, Color4(0.0, 0.0, 1.0, 1.0))
         .clearDepth(1.0)
         .bind();
+
+    if (_render_ground) {  // NOTE: before rotating rest of scene
+      _ground.bindTexture(_gridTexture);
+      _ground.renderQuad(tf, _projection);
+    }
+
+    if (_rotate_scene) {
+      tf = tf * Matrix4::rotation(Rad(-1.57079632679f), Vector3::xAxis());
+    }
 
     if (_render_yarns && _yarnMapper->isInitialized()) {
       _yarnGeometryShader.bindMatCap(_matcap);
@@ -372,16 +382,16 @@ void MainApplication::drawEvent() {
       _yarnGeometryShader.setTextureScale(_clothTexture_scale);
       _yarnDrawable.back().m_radius =
           _yarnMapper->getRadius() * _render_radius_mult;
-      _yarnDrawable.back().m_nmtwist = _render_nmtwist;
-      _yarnDrawable.back().m_nmnum = _render_nmnum;
+      _yarnDrawable.back().m_nmtwist  = _render_nmtwist;
+      _yarnDrawable.back().m_nmnum    = _render_nmnum;
       _yarnDrawable.back().m_nmheight = _render_nmheight;
-      _yarnDrawable.back().m_nmlen = _render_nmlen;
+      _yarnDrawable.back().m_nmlen    = _render_nmlen;
       for (auto &line : _yarnDrawable) line.draw(tf);
     }
 
     if (_render_mesh) {
+      _meshShader.bindMatCap(_matcapMesh);
       _meshShader.setProjection(_projection);
-      _meshShader.setDZ(_mesh_dz);
       _meshdrawable->draw(tf);
     }
 
@@ -398,7 +408,6 @@ void MainApplication::drawEvent() {
       }
     }
 
-
     _ssaoShader.bindNormalTexture(_normals)
         .bindNoiseTexture(_noise)
         .bindPositionTexture(_positions)
@@ -406,25 +415,27 @@ void MainApplication::drawEvent() {
         .setSampleRadius(_ao_radius)
         .setBias(_ao_bias);
 
-    #ifdef MSAA
+#ifdef MSAA
     _fbo_ssao
         .mapForDraw({{SsaoShader::AmbientOcclusionOutput,
                       GL::Framebuffer::ColorAttachment{0}}})
         .clear(GL::FramebufferClear::Color)
         // .clearColor(3, Color4(0.0, 0.0, 1.0, 1.0))
-        // .clear(GL::FramebufferClear::Color) // TODO? WHAT IS COLORATTACHMENT, replace with clearColor(3, ...)
+        // .clear(GL::FramebufferClear::Color) // TODO? WHAT IS COLORATTACHMENT,
+        // replace with clearColor(3, ...)
         .bind();
-        
-  // ::Debug::error("TEST",_fbo_ssao.checkStatus(GL::FramebufferTarget::Draw) ==
-  //                     GL::Framebuffer::Status::Complete);
+
+    // ::Debug::error("TEST",_fbo_ssao.checkStatus(GL::FramebufferTarget::Draw)
+    // ==
+    //                     GL::Framebuffer::Status::Complete);
     _ssaoShader.draw(_screenAlignedTriangle);
-    #else
+#else
     _fbo_gbuffer
         .mapForDraw({{SsaoShader::AmbientOcclusionOutput,
                       GL::Framebuffer::ColorAttachment{3}}})
         .clear(GL::FramebufferClear::Color);
     _ssaoShader.draw(_screenAlignedTriangle);
-    #endif
+#endif
   }
 
   GL::defaultFramebuffer.bind();
@@ -475,9 +486,9 @@ void MainApplication::viewportEvent(ViewportEvent &event) {
 
   GL::defaultFramebuffer.setViewport({{}, fbSize});
   _fbo_gbuffer.setViewport({{}, fbSize});
-  #ifdef MSAA
-  _fbo_ssao.setViewport({{},fbSize});
-  #endif
+#ifdef MSAA
+  _fbo_ssao.setViewport({{}, fbSize});
+#endif
 
   _arcball->reshape(wSize);
   _projection = Matrix4::perspectiveProjection(
@@ -497,10 +508,10 @@ void MainApplication::setupFramebuffer(const Vector2i &size) {
   setupTexture(_occlusion, size, GL::TextureFormat::R32F);
   setupTexture(_depth, size, GL::TextureFormat::DepthComponent32F);
 
-// _depth.setStorage(128,GL::TextureFormat::DepthComponent32F,size); TODO WHY DOESNT THIS THROW AN ERROR, MAKING VARZING
+// _depth.setStorage(128,GL::TextureFormat::DepthComponent32F,size); TODO WHY
+// DOESNT THIS THROW AN ERROR, MAKING VARZING
 #ifdef MSAA
-  _fbo_gbuffer
-      .attachTexture(GL::Framebuffer::BufferAttachment::Depth, _depth)
+  _fbo_gbuffer.attachTexture(GL::Framebuffer::BufferAttachment::Depth, _depth)
       .attachTexture(GL::Framebuffer::ColorAttachment{0}, _albedo)
       .attachTexture(GL::Framebuffer::ColorAttachment{1}, _positions)
       .attachTexture(GL::Framebuffer::ColorAttachment{2}, _normals);
@@ -510,28 +521,30 @@ void MainApplication::setupFramebuffer(const Vector2i &size) {
       .attachTexture(GL::Framebuffer::ColorAttachment{0}, _albedo, 0)
       .attachTexture(GL::Framebuffer::ColorAttachment{1}, _positions, 0)
       .attachTexture(GL::Framebuffer::ColorAttachment{2}, _normals, 0)
-      .attachTexture(GL::Framebuffer::ColorAttachment{3}, _occlusion,
-                             0);
+      .attachTexture(GL::Framebuffer::ColorAttachment{3}, _occlusion, 0);
 #endif
   CORRADE_INTERNAL_ASSERT(
       _fbo_gbuffer.checkStatus(GL::FramebufferTarget::Draw) ==
       GL::Framebuffer::Status::Complete);
 
 #ifdef MSAA
-// TODO maybe only attach the textures that need to be drawn?
+  // TODO maybe only attach the textures that need to be drawn?
   _fbo_ssao
       // .attachTexture(GL::Framebuffer::ColorAttachment{1}, _positions)
       // .attachTexture(GL::Framebuffer::ColorAttachment{2}, _normals)
-      .attachTexture(GL::Framebuffer::ColorAttachment{0},  _occlusion, 0); // TEST ATTACHMENT {0}
-  CORRADE_INTERNAL_ASSERT(_fbo_gbuffer.checkStatus(GL::FramebufferTarget::Read) ==
-                          GL::Framebuffer::Status::Complete);
+      .attachTexture(GL::Framebuffer::ColorAttachment{0}, _occlusion,
+                     0);  // TEST ATTACHMENT {0}
+  CORRADE_INTERNAL_ASSERT(
+      _fbo_gbuffer.checkStatus(GL::FramebufferTarget::Read) ==
+      GL::Framebuffer::Status::Complete);
   CORRADE_INTERNAL_ASSERT(_fbo_ssao.checkStatus(GL::FramebufferTarget::Draw) ==
                           GL::Framebuffer::Status::Complete);
   CORRADE_INTERNAL_ASSERT(_fbo_ssao.checkStatus(GL::FramebufferTarget::Read) ==
                           GL::Framebuffer::Status::Complete);
   // ::Debug::error("TEST",_fbo_ssao.checkStatus(GL::FramebufferTarget::Draw) ==
   //                     GL::Framebuffer::Status::Complete);
-  // ::Debug::error("TEST",_fbo_gbuffer.checkStatus(GL::FramebufferTarget::Draw) ==
+  // ::Debug::error("TEST",_fbo_gbuffer.checkStatus(GL::FramebufferTarget::Draw)
+  // ==
   //                     GL::Framebuffer::Status::Complete);
 #endif
 }
@@ -549,9 +562,8 @@ void MainApplication::drawSettings() {
     _ssaoApplyShader    = SsaoApplyShader{_ssaoApplyFlag};
     _yarnGeometryShader = YarnShader{};
     _meshShader         = MeshShader{};
+    _ground             = GroundShader{};
     _obsMeshShader      = ObsMeshShader{};
-
-
 
     Utility::Resource::overrideGroup("compute-shaders",
                                      "src/yarns/shaders/resources.conf");
@@ -595,14 +607,15 @@ void MainApplication::drawSettings() {
   if (ImGui::CollapsingHeader("Other", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui::Indent();
 
-    ImGui::TextBrowser(*_fileDialog.get(), _matcap_file, [&]() {
+    ImGui::TextBrowser("##txt", *_fileDialog.get(), _matcap_file, [&]() {
       loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
       _yarnGeometryShader.bindMatCap(_matcap);
     });
     static bool _rep = true;
-    ImGui::TextBrowser(*_fileDialog.get(), _clothtexture_file, [&]() {
+    ImGui::TextBrowser("##txt", *_fileDialog.get(), _clothtexture_file, [&]() {
       loadTexture(_clothtexture_file, _clothTexture,
-                  _rep ? GL::SamplerWrapping::Repeat : GL::SamplerWrapping::ClampToEdge);
+                  _rep ? GL::SamplerWrapping::Repeat
+                       : GL::SamplerWrapping::ClampToEdge);
       _yarnGeometryShader.bindClothTexture(_clothTexture);
     });
     ImGui::SameLine();
@@ -613,6 +626,8 @@ void MainApplication::drawSettings() {
     ImGui::Checkbox("Mesh", &_render_mesh);
     ImGui::SameLine();
     ImGui::Checkbox("Obs", &_render_obstacles);
+    ImGui::SameLine();
+    ImGui::Checkbox("Ground", &_render_ground);
     ImGui::Checkbox("Rotate Scene", &_rotate_scene);
 
     {
@@ -623,25 +638,32 @@ void MainApplication::drawSettings() {
       // if (ImGui::DragFloat("NM twist(1/cm)", &_ts, 0.1f, 0.0f,
       //                  100.0f))
       //                  _render_nmtwist = _ts * 100;
-      ImGui::DragFloat("NM twist(*r)", &_render_nmtwist, 0.1f, 0.0f,
-                       10.0f);
-      ImGui::DragFloat("NM num", &_render_nmnum, 1.0f, 0.0f,
-                       10.0f);
-      ImGui::DragFloat("NM height (*r)", &_render_nmheight, 0.01f, 0.0f,
-                       2.0f);
+      ImGui::DragFloat("NM twist(*r)", &_render_nmtwist, 0.1f, 0.0f, 10.0f);
+      ImGui::DragFloat("NM num", &_render_nmnum, 1.0f, 0.0f, 10.0f);
+      ImGui::DragFloat("NM height (*r)", &_render_nmheight, 0.01f, 0.0f, 2.0f);
       // ImGui::DragFloat("NM length", &_render_nmlen, 0.01f, 0.0f,
       //                  2.0f);
-      ImGui::DragFloat("NM length", &_render_nmlen, 0.1f, 0.0f,
-                       20.0f);
+      ImGui::DragFloat("NM length", &_render_nmlen, 0.1f, 0.0f, 20.0f);
       // ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
       ImGui::DragFloat("tex scale", &_clothTexture_scale, 0.1f, 0.0f, 100.0f);
       ImGui::PopItemWidth();
     }
 
-    ImGui::TextBrowser(*_fileDialog.get(), _matcapObs_file, [&]() {
+    {
+      ImGui::DragFloat("height", &_ground.dY, 0.01f, -10.0f, 10.0f);
+      ImGui::DragFloat("scale", &_ground.scale, 0.01f, 0.001f, 1000.0f);
+    }
+
+    ImGui::TextBrowser("obs", *_fileDialog.get(), _matcapObs_file, [&]() {
       loadTexture(_matcapObs_file, _matcapObs,
                   GL::SamplerWrapping::ClampToEdge);
       _obsMeshShader.bindMatCap(_matcapObs);
+    });
+
+    ImGui::TextBrowser("mesh", *_fileDialog.get(), _matcapMesh_file, [&]() {
+      loadTexture(_matcapMesh_file, _matcapMesh,
+                  GL::SamplerWrapping::ClampToEdge);
+      _meshShader.bindMatCap(_matcapMesh);
     });
 
     if (ImGui::Button("Reset Camera"))
@@ -696,17 +718,22 @@ void MainApplication::drawSettings() {
   ImGui::Checkbox("Shepard Weights", &_yarnMapperSettings.shepard_weights);
   // if (_yarnMapperSettings.flat_normals)
   //   ImGui::PopStyleVar();
-  ImGui::DragFloat("Min len/r", &_yarnMapperSettings.min_yarn_length_per_r, 0.1f, 0.0f,
-                     100.0f);
+  ImGui::DragFloat("Min len/r", &_yarnMapperSettings.min_yarn_length_per_r,
+                   0.1f, 0.0f, 100.0f);
   ImGui::SliderFloat("Deform Ref.", &_yarnMapperSettings.deform_reference, 0.0f,
                      1.0f);
+  ImGui::SliderFloat("Lin. Bending", &_yarnMapperSettings.linearized_bending,
+                     0.0f, 1.0f);
   ImGui::Checkbox("Shell Map", &_yarnMapperSettings.shell_map);
-  ImGui::DragFloat("Phong", &_yarnMapperSettings.phong_deformation, 0.01f, 0.0f, 1.0f);
-  ImGui::DragFloat("SVDClamp", &_yarnMapperSettings.svdclamp, 0.01f, 0.0f, 1.0f);
+  ImGui::DragFloat("Phong", &_yarnMapperSettings.phong_deformation, 0.01f, 0.0f,
+                   1.0f);
+  ImGui::DragFloat("SVDClamp", &_yarnMapperSettings.svdclamp, 0.01f, 0.0f,
+                   1.0f);
   ImGui::Checkbox("GPU", &_yarnMapperSettings.gpu_compute);
   // ImGui::Checkbox("DBG", &_yarnMapperSettings.debug_toggle);
 
-  ImGui::TextBrowser(*_folderDialog.get(), _yarnMapperSettings.modelfolder);
+  ImGui::TextBrowser("##txt", *_folderDialog.get(),
+                     _yarnMapperSettings.modelfolder);
 
   static int elem                = _yarnMapperSettings.provider_type;
   static constexpr auto count    = YarnMapper::Settings::Provider::COUNT;
@@ -720,21 +747,33 @@ void MainApplication::drawSettings() {
   ImGui::Indent();
   if (_yarnMapperSettings.provider_type ==
       YarnMapper::Settings::Provider::ObjSeq) {
-    ImGui::TextBrowser(*_folderDialog.get(),
+    ImGui::TextBrowser("##txt", *_folderDialog.get(),
                        _yarnMapperSettings.objseq_settings.folder);
+    ImGui::Checkbox(
+        "Const UV",
+        &_yarnMapperSettings.objseq_settings.constant_material_space);
   } else if (_yarnMapperSettings.provider_type ==
              YarnMapper::Settings::Provider::BinSeq) {
-    ImGui::TextBrowser(*_fileDialog.get(),
+    ImGui::TextBrowser("##txt", *_fileDialog.get(),
                        _yarnMapperSettings.binseq_settings.filepath);
   } else {
-    ImGui::SliderInt("MethodS",&_yarnMapperSettings.pbd_settings.simulationMethod,0,4);
-    ImGui::SliderInt("MethodB",&_yarnMapperSettings.pbd_settings.bendingMethod,0,2);
-    ImGui::DragFloat3("Stiffness",_yarnMapperSettings.pbd_settings.stiffness,0.001f,0.0f,10.0f);
-    ImGui::DragFloat("Bending",&_yarnMapperSettings.pbd_settings.bending_stiffness,0.001f,0.0f,10.0f);
-    ImGui::DragInt("Iterations",&_yarnMapperSettings.pbd_settings.iterations,1,1,100);
-    ImGui::SliderInt("Substeps",&_yarnMapperSettings.pbd_settings.substeps,1,20);
-    ImGui::DragFloat("dt",&_yarnMapperSettings.pbd_settings.timestep,0.001f,0.0001f,1.0f);
-    ImGui::DragFloat("Density",&_yarnMapperSettings.pbd_settings.density,0.01f,0.0f,10.0f);
+    ImGui::SliderInt("MethodS",
+                     &_yarnMapperSettings.pbd_settings.simulationMethod, 0, 4);
+    ImGui::SliderInt("MethodB", &_yarnMapperSettings.pbd_settings.bendingMethod,
+                     0, 2);
+    ImGui::DragFloat3("Stiffness", _yarnMapperSettings.pbd_settings.stiffness,
+                      0.001f, 0.0f, 10.0f);
+    ImGui::DragFloat("Bending",
+                     &_yarnMapperSettings.pbd_settings.bending_stiffness,
+                     0.001f, 0.0f, 10.0f);
+    ImGui::DragInt("Iterations", &_yarnMapperSettings.pbd_settings.iterations,
+                   1, 1, 100);
+    ImGui::SliderInt("Substeps", &_yarnMapperSettings.pbd_settings.substeps, 1,
+                     20);
+    ImGui::DragFloat("dt", &_yarnMapperSettings.pbd_settings.timestep, 0.001f,
+                     0.0001f, 1.0f);
+    ImGui::DragFloat("Density", &_yarnMapperSettings.pbd_settings.density,
+                     0.01f, 0.0f, 10.0f);
   }
   ImGui::Unindent();
 
@@ -774,70 +813,105 @@ void MainApplication::drawSettings() {
   ImGui::PopStyleVar();
   ImGui::End();
 
-
   ImGui::Begin("DBG");
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(100.0f);
   ImGui::Checkbox("D", &_yarnMapper->m_dbg.toggle);
   {
-    ImGui::TextUnformatted("S"); ImGui::SameLine();
+    ImGui::TextUnformatted("S");
+    ImGui::SameLine();
     ImGui::PushItemWidth(20.0f);
-    ImGui::DragFloat("##S0", &_yarnMapper->m_dbg.strain_toggle[0], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
-    ImGui::DragFloat("##S1", &_yarnMapper->m_dbg.strain_toggle[1], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
-    ImGui::DragFloat("sx sa sy##S2", &_yarnMapper->m_dbg.strain_toggle[2], 0.01f, 0.0f, 1.0f);
-    // ImGui::DragFloat("##S3", &_yarnMapper->m_dbg.strain_toggle[3], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
-    // ImGui::DragFloat("##S4", &_yarnMapper->m_dbg.strain_toggle[4], 0.01f, 0.0f, 1.0f); ImGui::SameLine();
-    // ImGui::DragFloat("IIxx IIxy IIyy##S5", &_yarnMapper->m_dbg.strain_toggle[5], 0.01f, 0.0f, 1.0f);
-    ImGui::DragFloat("IIxx IIxy IIyy##S5", &_yarnMapper->m_dbg.strain_toggle[3], 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("##S0", &_yarnMapper->m_dbg.strain_toggle[0], 0.01f, 0.0f,
+                     1.0f);
+    ImGui::SameLine();
+    ImGui::DragFloat("##S1", &_yarnMapper->m_dbg.strain_toggle[1], 0.01f, 0.0f,
+                     1.0f);
+    ImGui::SameLine();
+    ImGui::DragFloat("sx sa sy##S2", &_yarnMapper->m_dbg.strain_toggle[2],
+                     0.01f, 0.0f, 1.0f);
+    // ImGui::DragFloat("##S3", &_yarnMapper->m_dbg.strain_toggle[3], 0.01f,
+    // 0.0f, 1.0f); ImGui::SameLine(); ImGui::DragFloat("##S4",
+    // &_yarnMapper->m_dbg.strain_toggle[4], 0.01f, 0.0f, 1.0f);
+    // ImGui::SameLine(); ImGui::DragFloat("IIxx IIxy IIyy##S5",
+    // &_yarnMapper->m_dbg.strain_toggle[5], 0.01f, 0.0f, 1.0f);
+    ImGui::DragFloat("IIxx IIxy IIyy##S5", &_yarnMapper->m_dbg.strain_toggle[3],
+                     0.01f, 0.0f, 1.0f);
     ImGui::PopItemWidth();
   }
-  #ifdef DO_DEBUG_STATS
+#ifdef DO_DEBUG_STATS
   {
     // Treeview with imgui histograms
     if (ImGui::TreeNode("Histograms")) {
       static float hist_scale = 0.25f;
       ImGui::DragFloat("scale", &hist_scale, 0.05f, 0.1f, 1.0f);
-      ImGui::Text("%.2f -- %.2f",double(_yarnMapper->m_dbg.hist_min), double(_yarnMapper->m_dbg.hist_max));
-      // ImGui::PlotHistogram("sx", _yarnMapper->m_dbg.hist_counts[0].data(),  _yarnMapper->m_dbg.hist_nbins, 0, NULL, 0.0f, 1.0f, ImVec2(160.0f,80.0f));
-      ImGui::PlotHistogram("##sx", _yarnMapper->m_dbg.hist_counts[0].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "SX", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f)); 
-      ImGui::PlotHistogram("##sa", _yarnMapper->m_dbg.hist_counts[1].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "SA", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
-      ImGui::PlotHistogram("##sy", _yarnMapper->m_dbg.hist_counts[2].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "SY", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
-      ImGui::PlotHistogram("##IIxx", _yarnMapper->m_dbg.hist_counts[3].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "IIxx", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
-      ImGui::PlotHistogram("##IIxy", _yarnMapper->m_dbg.hist_counts[4].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "IIxy", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
-      ImGui::PlotHistogram("##IIyy", _yarnMapper->m_dbg.hist_counts[5].data(),  _yarnMapper->m_dbg.hist_nbins, 0, "IIyy", 0.0f, float(_yarnMapper->m_dbg.hist_stepcount)*hist_scale, ImVec2(256.0f,64.0f));
+      ImGui::Text("%.2f -- %.2f", double(_yarnMapper->m_dbg.hist_min),
+                  double(_yarnMapper->m_dbg.hist_max));
+      // ImGui::PlotHistogram("sx", _yarnMapper->m_dbg.hist_counts[0].data(),
+      // _yarnMapper->m_dbg.hist_nbins, 0, NULL, 0.0f, 1.0f,
+      // ImVec2(160.0f,80.0f));
+      ImGui::PlotHistogram(
+          "##sx", _yarnMapper->m_dbg.hist_counts[0].data(),
+          _yarnMapper->m_dbg.hist_nbins, 0, "SX", 0.0f,
+          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
+          ImVec2(256.0f, 64.0f));
+      ImGui::PlotHistogram(
+          "##sa", _yarnMapper->m_dbg.hist_counts[1].data(),
+          _yarnMapper->m_dbg.hist_nbins, 0, "SA", 0.0f,
+          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
+          ImVec2(256.0f, 64.0f));
+      ImGui::PlotHistogram(
+          "##sy", _yarnMapper->m_dbg.hist_counts[2].data(),
+          _yarnMapper->m_dbg.hist_nbins, 0, "SY", 0.0f,
+          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
+          ImVec2(256.0f, 64.0f));
+      ImGui::PlotHistogram(
+          "##IIxx", _yarnMapper->m_dbg.hist_counts[3].data(),
+          _yarnMapper->m_dbg.hist_nbins, 0, "IIxx", 0.0f,
+          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
+          ImVec2(256.0f, 64.0f));
+      ImGui::PlotHistogram(
+          "##IIxy", _yarnMapper->m_dbg.hist_counts[4].data(),
+          _yarnMapper->m_dbg.hist_nbins, 0, "IIxy", 0.0f,
+          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
+          ImVec2(256.0f, 64.0f));
+      ImGui::PlotHistogram(
+          "##IIyy", _yarnMapper->m_dbg.hist_counts[5].data(),
+          _yarnMapper->m_dbg.hist_nbins, 0, "IIyy", 0.0f,
+          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
+          ImVec2(256.0f, 64.0f));
 
       if (ImGui::Button("Reset")) {
-        for (size_t i = 0; i < _yarnMapper->m_dbg.hist_counts.size(); i++)
-        {
+        for (size_t i = 0; i < _yarnMapper->m_dbg.hist_counts.size(); i++) {
           _yarnMapper->m_dbg.hist_counts[i].clear();
-          _yarnMapper->m_dbg.hist_counts[i].resize(_yarnMapper->m_dbg.hist_nbins, 0);
+          _yarnMapper->m_dbg.hist_counts[i].resize(
+              _yarnMapper->m_dbg.hist_nbins, 0);
           _yarnMapper->m_dbg.hist_stepcount = 0;
         }
       }
     }
   }
-  #endif
+#endif
 
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
-
 
   ImGui::Begin("##interact");
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(200.0f);
-  static float magn=0;
-  ImGui::SliderFloat("force",&magn, 0.0f, 3.0f, "x%.2f");
+  static float magn = 0;
+  ImGui::SliderFloat("force", &magn, 0.0f, 3.0f, "x%.2f");
   if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
-    _yarnMapper->applyForce(magn*3,magn*0.5f,magn*0);
+    _yarnMapper->applyForce(magn * 3, magn * 0.5f, magn * 0);
   ImGui::PopItemWidth();
   ImGui::PushItemWidth(150.0f);
-  ImGui::TextUnformatted("naive"); ImGui::SameLine();
-  ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f, 1.0f, "");
+  ImGui::TextUnformatted("naive");
+  ImGui::SameLine();
+  ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f, 1.0f,
+                     "");
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
-
 }
 
 void MainApplication::keyPressEvent(KeyEvent &event) {
@@ -865,7 +939,8 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         break;
       case KeyEvent::Key::E:
         ::Debug::log("Exporting FBX...");
-        success = _yarnMapper->export2fbx("test.fbx"); // TODO filename either by date or incremented number
+        success = _yarnMapper->export2fbx(
+            "test.fbx");  // TODO filename either by date or incremented number
         ::Debug::log("Result:", success);
         break;
       case KeyEvent::Key::Space:
@@ -885,15 +960,15 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         break;
       case KeyEvent::Key::P:
         if ((event.modifiers() & KeyEvent::Modifier::Alt))
-          _yarnMapper->applyForce(0,force_mult*-5,force_mult*0.2f);
+          _yarnMapper->applyForce(0, force_mult * -5, force_mult * 0.2f);
         else
-          _yarnMapper->applyForce(force_mult*3,force_mult*1,0);
+          _yarnMapper->applyForce(force_mult * 3, force_mult * 1, 0);
         break;
       case KeyEvent::Key::B:
-      if (MS)
-        GL::Renderer::disable(GL::Renderer::Feature::Multisampling);
-      else
-        GL::Renderer::enable(GL::Renderer::Feature::Multisampling);
+        if (MS)
+          GL::Renderer::disable(GL::Renderer::Feature::Multisampling);
+        else
+          GL::Renderer::enable(GL::Renderer::Feature::Multisampling);
         MS = !MS;
         break;
       case KeyEvent::Key::M:

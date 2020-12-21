@@ -65,7 +65,7 @@ namespace Magnum
           // .setNormalMatrix(MV.normalMatrix())
           // .setProjection(camera.projectionMatrix())
           // .setProjection(_projection)
-          .setDiffuseColor(m_color) // more like tint
+          // .setDiffuseColor(m_color)
           // .setDiffuseColor(Color4(1.0,0.5,0.5,1.0))
           // .setRadius(m_radius)
           .draw(m_glmesh);

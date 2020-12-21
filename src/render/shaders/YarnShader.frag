@@ -26,7 +26,7 @@ uniform float plyTwist;
 uniform float plyNum;
 uniform float plyHeight; // multiple  of radius
 uniform float plyLen; // multiple  of radius/Num
-uniform float aostrength = 0.6; // 0.85
+uniform float aostrength = 1.0;//0.6; // 0.85
 
 void main() {
 
@@ -65,7 +65,7 @@ void main() {
     // ao = sqrt(sqrt(ao)); // lighten
 
     // ao = pow(ao,0.25);
-    ao = min(1,ao*ao+0.25);
+    // ao = min(1,ao*ao+0.25);
 
   }
 

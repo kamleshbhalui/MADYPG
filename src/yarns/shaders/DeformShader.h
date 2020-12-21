@@ -29,10 +29,11 @@ class DeformShader : public Magnum::GL::AbstractShaderProgram {
   void compute(size_t N, Magnum::GL::Buffer &Xws, Magnum::GL::Buffer &Xms,
                Magnum::GL::Buffer &B0, Magnum::GL::Buffer &mS,
                Magnum::GL::Buffer &mFms, Magnum::GL::Buffer &texHeader,
-               Magnum::GL::Buffer &texData, float deform_reference);
+               Magnum::GL::Buffer &texData, float deform_reference,
+               float linearized_bending, float min_eigval);
 
  private:
-  Magnum::Int _deformUniform, _numVertsUniform;
+  Magnum::Int _deformUniform, _linearizedBending, _minEig, _numVertsUniform;
 };
 
 #endif  // __DeformShader__H__

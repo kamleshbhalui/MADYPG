@@ -42,6 +42,7 @@
 #include "render/ObsMeshDrawable.h"
 #include "render/YarnDrawable.h"
 #include "render/enableMSAA.h"
+#include "render/shaders/GroundShader.h"
 #include "render/shaders/MeshShader.h"
 #include "render/shaders/ObsMeshShader.h"
 #include "render/shaders/SsaoApplyShader.h"
@@ -88,8 +89,10 @@ class MainApplication : public Platform::Application {
   std::unique_ptr<ImGui::FileBrowser> _fileDialog;
   std::unique_ptr<ImGui::FileBrowser> _folderDialog;
   GL::Texture2D _matcapObs{NoCreate};
+  GL::Texture2D _matcapMesh{NoCreate};
   GL::Texture2D _matcap{NoCreate};
   GL::Texture2D _clothTexture{NoCreate};
+  GL::Texture2D _gridTexture{NoCreate};
   // GL::Texture1D _normalMap{NoCreate};
   GL::Texture2D _normalMap{NoCreate};
   bool _paused                   = false;
@@ -98,10 +101,13 @@ class MainApplication : public Platform::Application {
   bool _render_mesh              = false;
   bool _render_yarns             = true;
   bool _render_obstacles         = true;
+  bool _render_ground            = true;
   bool _rotate_scene             = false;
   std::string _matcap_file       = "matcaps/glossyc.jpg";
   std::string _matcapObs_file    = "matcaps/lighting1.jpg";
+  std::string _matcapMesh_file   = "matcaps/blue.jpg";
   std::string _clothtexture_file = "textures/colorgridy.jpg";
+  std::string _gridtexture_file  = "textures/gridlines.jpg";
   // std::string _normalMap_file = "textures/normalMap.jpg";
   std::string _normalMap_file = "textures/PLY.jpg";
   float _render_radius_mult   = 1.0f;
@@ -111,10 +117,11 @@ class MainApplication : public Platform::Application {
   float _render_nmlen         = 6.0f;  // relative to radius and 1/num
   float _mesh_dz              = 0.0f;
   float _clothTexture_scale   = 1.0f;
-  Color4 _bgColor             = Color4(Color3(0.2f), 1.0f);
+  Color4 _bgColor             = Color4(1.0f);  // Color4(Color3(0.2f), 1.0f);
 
   // std::unique_ptr<ArcBallCamera> _arcballCamera;
 
+  GroundShader _ground{NoCreate};
   MeshShader _meshShader{NoCreate};
   ObsMeshShader _obsMeshShader{NoCreate};
   YarnShader _yarnGeometryShader{NoCreate};

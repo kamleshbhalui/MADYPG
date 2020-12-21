@@ -43,9 +43,9 @@ MeshShader::MeshShader() {
   // _normalMatrixUniform = uniformLocation("normalMatrix");
   _projectionUniform   = uniformLocation("projection");
   _diffuseColorUniform = uniformLocation("diffuseColor");
-  _dzUniform           = uniformLocation("dz");
+  // _dzUniform           = uniformLocation("dz");
   // _radiusUniform = uniformLocation("radius");
-  // setUniform(uniformLocation("matcap"), TextureUnit);
+  setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
 }
 
 MeshShader &MeshShader::setTransformation(const Matrix4 &transformation) {
@@ -67,19 +67,12 @@ MeshShader &MeshShader::setDiffuseColor(const Color4 &color) {
   setUniform(_diffuseColorUniform, color);
   return *this;
 }
-MeshShader &MeshShader::setDZ(float dz) {
-  setUniform(_dzUniform, dz);
+// MeshShader &MeshShader::setDZ(float dz) {
+//   setUniform(_dzUniform, dz);
+//   return *this;
+// }
+
+MeshShader &MeshShader::bindMatCap(GL::Texture2D &texture) {
+  texture.bind(TextureUnit_Matcap);
   return *this;
 }
-
-// MeshShader &MeshShader::setRadius(float radius)
-// {
-//     setUniform(_radiusUniform, radius);
-//     return *this;
-// }
-
-// MeshShader &MeshShader::bindTexture(GL::Texture2D &texture)
-// {
-//     texture.bind(TextureUnit);
-//     return *this;
-// }

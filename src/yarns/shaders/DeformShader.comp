@@ -1,6 +1,8 @@
 // NOTE: DEFORMSHADER_WRKGRPSIZE defined during compilation
 layout(local_size_x = DEFORMSHADER_WRKGRPSIZE, local_size_y = 1, local_size_z = 1) in;
 
+#define LINEARIZED_BENDING
+
 struct _XwsVertex
 {
   float x,y,z,th,tarc,dx,dy,dz,u,v,r;
@@ -59,6 +61,10 @@ layout(std430, binding = 6) readonly buffer _texDataBuffer
 } buf_texData;
 
 uniform float deform_reference = 1;
+#ifdef LINEARIZED_BENDING
+  uniform float linearized_bending = 1;
+  uniform float min_eig = 0;
+#endif
 uniform uint num_vertices; 
 
 vec4 sample_at(uint i_sx, uint i_sa, uint i_sy, uint pix) {
@@ -129,6 +135,37 @@ vec4 sample3D(vec3 strain, uint pix) {
   return d;
 }
 
+void hermitian_eig_clamp(inout vec3 m, float mineigval) {
+  // following:
+  // Closed-form expressions of the eigen decomposition of 2x2 and 3x3 Hermitian matrices
+  // https://hal.archives-ouvertes.fr/hal-01501221/document
+
+  // mat C = a,c;c,b  (vec m ~ a,c,b)
+  float ab = (m.x - m.z); // a - b
+  float d = 4*m.y*m.y + ab*ab; // d^2
+  if (d < 0.0001) {
+    // d == 0 ---> a == b && c == 0 ---> l1 = l2 = a = b
+    float l12 = m.x; 
+    l12 = max(l12, mineigval);
+    m.x = l12;
+    m.z = l12;
+    // m.y = 0; 
+  } else {
+    d = sqrt(d);
+    float l1 = (m.x+m.z-d)*0.5;
+    float l2 = (m.x+m.z+d)*0.5;
+    l1 = max(l1, mineigval);
+    l2 = max(l2, mineigval);
+    float A = (l2-l1);
+    float B = d*(l1+l2);
+    float C = A*ab;
+    float inv2d = 0.5/d;
+    m.x = (B+C)*inv2d;
+    m.z = (B-C)*inv2d;
+    m.y *= 2*A*inv2d; 
+  }
+}
+
 void main()
 {
   uint vix = gl_GlobalInvocationID.x;
@@ -167,14 +204,41 @@ void main()
   // TODO also allow flat strains
   uint[3] ms_ixs = buf_meshFms.data[tri];
   vec3 strain = vec3(0);
-  for (int i = 0; i < 3; ++i) {
-    float[6] s = buf_meshS.data[ms_ixs[i]];
-    strain += vec3(s[0], s[1], s[2]) * abc[i];
-    // strain -= deform_reference *Xms.h * vec3(s[3], s[4], s[5]) * abc[i];
-  }
-
-  vec4 d =  deform_reference * sample3D(strain, Xms.pix);
-  // vec4 d =   sample3D(strain, Xms.pix);
+  #ifdef LINEARIZED_BENDING
+    for (int i = 0; i < 3; ++i) {
+      float[6] s = buf_meshS.data[ms_ixs[i]];
+      // strain += vec3(s[0], s[1], s[2]) * abc[i]; // original s interpol
+      // strain -= deform_reference *Xms.h * vec3(s[3], s[4], s[5]) * abc[i];
+      // strain += (vec3(s[0], s[1], s[2]) - deform_reference *2*Xms.h*vec3(min(s[3],0), 0*s[4], min(s[5],0))) * abc[i];
+      // if(Xms.h > 0) {
+      //   s[3]=min(s[3],0);
+      //   s[5]=min(s[5],0);
+      // } else {
+      //   s[3]=max(s[3],0);
+      //   s[5]=max(s[5],0);
+      // }
+      // strain += (vec3(s[0], s[1], s[2]) - linearized_bending *2*Xms.h*vec3(s[3],0,s[5])) * abc[i];
+      strain += (vec3(s[0], s[1], s[2]) - linearized_bending *2*Xms.h*vec3(s[3],0,s[5])) * abc[i];
+    }
+    // vec4 d =  deform_reference * sample3D(strain, Xms.pix);
+    if(min_eig > 0)
+      hermitian_eig_clamp(strain, min_eig);
+    vec3 strain_actual = vec3(
+      sqrt(strain.x) - 1,          // s_x
+      strain.y / sqrt(strain.x * strain.z),  // s_a
+      sqrt(strain.z) - 1           // s_y
+    );
+    vec4 d = deform_reference * sample3D(strain_actual, Xms.pix);
+    // TODO if not using, undo bending in yarnmapper, epsilon in mesh, conversion here, and redo skip on deform 0
+    // TODO also important to do strain clamping here then.. likely before conversion to s ? but how ?, or clamp at mesh level: clamp epsilon, but also II somehow ..darnit
+    // ideally: allow II to only stretch. not sure how to formulate this... given that data is in S strain :|
+  #else
+    for (int i = 0; i < 3; ++i) {
+      float[6] s = buf_meshS.data[ms_ixs[i]];
+      strain += vec3(s[0], s[1], s[2]) * abc[i];
+    }
+    vec4 d = sample3D(strain, Xms.pix);
+  #endif
   
   Xws.x += d.x;
   Xws.y += d.y;

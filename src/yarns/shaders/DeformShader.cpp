@@ -31,16 +31,18 @@ DeformShader::DeformShader() {
 
   CORRADE_INTERNAL_ASSERT_OUTPUT(link());
 
-  _deformUniform   = uniformLocation("deform_reference");
-  _numVertsUniform = uniformLocation("num_vertices");
+  _deformUniform     = uniformLocation("deform_reference");
+  _linearizedBending = uniformLocation("linearized_bending");
+  _minEig            = uniformLocation("min_eig");
+  _numVertsUniform   = uniformLocation("num_vertices");
 }
 
 void DeformShader::compute(size_t N, Magnum::GL::Buffer &Xws,
                            Magnum::GL::Buffer &Xms, Magnum::GL::Buffer &B0,
                            Magnum::GL::Buffer &mS, Magnum::GL::Buffer &mFms,
                            Magnum::GL::Buffer &texHeader,
-                           Magnum::GL::Buffer &texData,
-                           float deform_reference) {
+                           Magnum::GL::Buffer &texData, float deform_reference,
+                           float linearized_bending, float min_eig) {
   Xws.bind(Magnum::GL::Buffer::Target::ShaderStorage, SSBO::XwsBuffer);
   Xms.bind(Magnum::GL::Buffer::Target::ShaderStorage, SSBO::XmsBuffer);
   B0.bind(Magnum::GL::Buffer::Target::ShaderStorage, SSBO::Bary0Buffer);
@@ -50,6 +52,8 @@ void DeformShader::compute(size_t N, Magnum::GL::Buffer &Xws,
                  SSBO::TexAxesBuffer);
   texData.bind(Magnum::GL::Buffer::Target::ShaderStorage, SSBO::TexDataBuffer);
   setUniform(_deformUniform, deform_reference);
+  setUniform(_linearizedBending, linearized_bending);
+  setUniform(_minEig, min_eig);
   setUniform(_numVertsUniform, uint32_t(N));
 
   dispatchCompute(Magnum::Vector3ui{

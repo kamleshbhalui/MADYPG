@@ -14,26 +14,26 @@ scalar signed_angle(const Vector3s &u, const Vector3s &v, const Vector3s &e) {
 }
 
 void Mesh::compute_invDm() {
-  auto& invDmU_cpu = invDmU.cpu();
+  auto &invDmU_cpu = invDmU.cpu();
   invDmU_cpu.resize(Fms.getCPUSize());
   threadutils::parallel_for(size_t(0), invDmU_cpu.size(), [&](size_t i) {
     auto &ixs = Fms.cpu()[i];
     Matrix2s Dm;
-    Vector2s U0 = U.row<float, 2>(ixs.v0);
-    Dm.col(0) = U.row<float, 2>(ixs.v1) - U0;
-    Dm.col(1) = U.row<float, 2>(ixs.v2) - U0;
+    Vector2s U0             = U.row<float, 2>(ixs.v0);
+    Dm.col(0)               = U.row<float, 2>(ixs.v1) - U0;
+    Dm.col(1)               = U.row<float, 2>(ixs.v2) - U0;
     invDmU_cpu[i].mapDinv() = Dm.inverse();
-    invDmU_cpu[i].mapU0() = U0;
+    invDmU_cpu[i].mapU0()   = U0;
   });
 }
 
 Vector3s Mesh::barycentric_ms(int tri, const Vector2s &p) const {
-  const auto& invDmU_cpu = invDmU.cpu();
+  const auto &invDmU_cpu = invDmU.cpu();
   Vector3s abc;
   // auto u0       = U.row<float, 2>(Fms.cpu()[tri].v0);
-  const auto& iDmU = invDmU_cpu[tri];
-  abc.tail<2>() = iDmU.mapDinv() * (p - iDmU.mapU0());
-  abc[0]        = scalar(1) - abc[1] - abc[2];
+  const auto &iDmU = invDmU_cpu[tri];
+  abc.tail<2>()    = iDmU.mapDinv() * (p - iDmU.mapU0());
+  abc[0]           = scalar(1) - abc[1] - abc[2];
   return abc;
 }
 
@@ -44,6 +44,7 @@ void Mesh::compute_v2f_map(bool shepard_weights) {
 
   // in serial: push all face indices to their respective verts
   // NOTE maybe parallelizable with concurrent deques
+  v2f.clear();
   v2f.resize(Uc.size());
   int nfaces = int(Fmsc.size());
   for (int f = 0; f < nfaces; ++f) {
@@ -171,22 +172,22 @@ void Mesh::compute_face_adjacency() {
   });
 }
 
-void Mesh::compute_face_data(float svdclamp, bool bending) {
-  auto &Fc = F.cpu();
-  auto Xc  = X.matrixView<float, 3>();
-  auto& invDmU_cpu = invDmU.cpu();
+void Mesh::compute_face_data(float svdclamp) {
+  auto &Fc         = F.cpu();
+  auto Xc          = X.matrixView<float, 3>();
+  auto &invDmU_cpu = invDmU.cpu();
   normals.cpu().resize(Fc.size());
-  auto& defgrads = defF.cpu();
+  auto &defgrads = defF.cpu();
   defgrads.resize(Fc.size());
   // normals.resize(Fc.size());
-  auto& S = strains.cpu();
+  auto &S = strains.cpu();
   S.resize(Fc.size());
   threadutils::parallel_for(size_t(0), normals.cpu().size(), [&](size_t f) {
     auto ixs     = Fc[f].map();
     Vector3s e01 = Xc.row(ixs[1]) - Xc.row(ixs[0]);
     Vector3s e02 = Xc.row(ixs[2]) - Xc.row(ixs[0]);
 
-    Vector3s n  = (e01.cross(e02));
+    Vector3s n   = (e01.cross(e02));
     scalar inv2A = 1 / n.norm();
     n *= inv2A;
     normals.cpu()[f].map() = n;
@@ -199,22 +200,15 @@ void Mesh::compute_face_data(float svdclamp, bool bending) {
 
     defgrads[f].map() = defoF;
 
-    // testing clamping
-    if (svdclamp > 0) {
-      Eigen::JacobiSVD<MatrixNMs<3, 2>> svd(defoF, Eigen::ComputeThinU | Eigen::ComputeThinV);
-      defoF = svd.matrixU() * svd.singularValues().cwiseMax(svdclamp).asDiagonal() * svd.matrixV().transpose();
-    }
-
+#define LINEARIZED_BENDING
+#ifdef LINEARIZED_BENDING
     // in plane
     scalar C00 = defoF.col(0).squaredNorm();
     scalar C01 = defoF.col(0).dot(defoF.col(1));
     scalar C11 = defoF.col(1).squaredNorm();
-    s[0]       = std::sqrt(C00) - 1;          // s_x
-    s[2]       = std::sqrt(C11) - 1;          // s_y
-    s[1]       = C01 / std::sqrt(C00 * C11);  // s_a
-
-    if (!bending)
-      return;
+    s[0]       = C00;  // NOTE: FtF not S !
+    s[1]       = C01;
+    s[2]       = C11;
 
     // bending
     // II = F.T Lam F = sum_i thetai / (2 A li) F^T ti o F^t ti  , with ti of
@@ -239,22 +233,24 @@ void Mesh::compute_face_data(float svdclamp, bool bending) {
       s[4] += c * FTti[0] * FTti[1];
       s[5] += c * FTti[1] * FTti[1];
     }
+#else
+    // testing clamping
+    if (svdclamp > 0) {
+      Eigen::JacobiSVD<MatrixNMs<3, 2>> svd(defoF, Eigen::ComputeThinU | Eigen::ComputeThinV);
+      defoF = svd.matrixU() * svd.singularValues().cwiseMax(svdclamp).asDiagonal() * svd.matrixV().transpose();
+    }
+
+    // in plane
+    scalar C00 = defoF.col(0).squaredNorm();
+    scalar C01 = defoF.col(0).dot(defoF.col(1));
+    scalar C11 = defoF.col(1).squaredNorm();
+    C00 = std::sqrt(C00);
+    C11 = std::sqrt(C11);
+    s[0]       = C00 - 1;            // s_x
+    s[2]       = C11 - 1;            // s_y
+    s[1]       = C01 / (C00 * C11);  // s_a
+#endif
   });
-
-  // Vector6s min = strains[0];
-  // Vector6s max = strains[0];
-  // for (size_t i = 0; i < strains.size(); i++) {
-  //   for (size_t j = 0; j < 6; j++)
-  //   {
-  //     if (strains[i](j) < min(j))
-  //       min(j) = strains[i](j);
-  //     if (strains[i](j) > max(j))
-  //       max(j) = strains[i](j);
-  //   }
-
-  // }
-  // Debug::log("STRAIN MIN", min.transpose());
-  // Debug::log("STRAIN MAX", max.transpose());
 }
 
 void Mesh::compute_vertex_normals() {
@@ -270,7 +266,7 @@ void Mesh::compute_vertex_normals() {
       v += fdata[fw.first].map() * fw.second;
     }
     v.normalize();  // NOTE: could consider not normalizing until
-                           // barycentric interpolation?
+                    // barycentric interpolation?
   });
 }
 

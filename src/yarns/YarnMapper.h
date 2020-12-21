@@ -4,6 +4,7 @@
 #include "../utils/debug_timer.h"
 // #include "../mesh/AbstractMeshProvider.h"
 #include <Magnum/GL/Buffer.h>
+#include <Magnum/GL/TimeQuery.h>
 #include "shaders/ShellMapShader.h"
 #include "shaders/DeformShader.h"
 
@@ -26,6 +27,8 @@ class YarnMapper {
     bool flat_strains       = false;
     bool shepard_weights    = true;
     float deform_reference  = 1.0f;
+    float linearized_bending = 1.0f;
+    // bool use_linearized_bending = false;
     bool shell_map          = true;
     bool default_same_tri   = true;
     bool repeat_frame       = false;
@@ -82,7 +85,7 @@ class YarnMapper {
   // export the current yarn geometry to an FBX file
   bool export2fbx(const std::string& filename);
 
-  #define DO_DEBUG_STATS
+  // #define DO_DEBUG_STATS
   struct DebugSettings {
     std::vector<float> strain_toggle = std::vector<float>{1,1,1,1,1,1};
     int hist_nbins = 40;
@@ -112,6 +115,9 @@ class YarnMapper {
   // GPU compute
   DeformShader m_deformShader;
   ShellMapShader m_shellMapShader;
+  Magnum::GL::TimeQuery m_glq1{Magnum::GL::TimeQuery::Target::TimeElapsed},
+              m_glq2{Magnum::GL::TimeQuery::Target::TimeElapsed},
+              m_glq3{Magnum::GL::TimeQuery::Target::TimeElapsed};
 };
 
 #endif  // __YARNMAPPER__H__
