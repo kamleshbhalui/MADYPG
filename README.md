@@ -13,3 +13,8 @@ NOTE: had to comment out bottom of sdl2 portfile ... line 88 onwards
 
 dummy.fbx needed for exporting fbx geometry
 zlib might be required for fbx, works on my pc, but if missing somewhere else problably can download from vcpkg and link in cmake
+
+compile and run using:
+  python exec.py 
+debug build: -d, non-parallel: -p 0, don't run: -r 0 -- run instead using gdb or similar
+  python exec.py -d -p 0 -r 0

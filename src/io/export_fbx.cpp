@@ -17,7 +17,7 @@ bool export_fbx(const std::string& filename, const FBXExportData& data)
     //           .UVIndex (i)
 
     // load dummy fbx, having the correct structure for blender
-    std::string dummyfile = "dummy.fbx";
+    std::string dummyfile = "data/dummy.fbx";
     doc.read(dummyfile);
 
 

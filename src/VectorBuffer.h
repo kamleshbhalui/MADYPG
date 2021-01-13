@@ -2,6 +2,7 @@
 #define __VECTORBUFFER__H__
 
 #include <Magnum/GL/Buffer.h>
+#include <Corrade/Containers/Array.h>
 #include <assert.h>
 
 // #include <Eigen/Dense>
@@ -124,6 +125,7 @@ class VectorBuffer {
 
   VectorBuffer() {}
   VectorBuffer(VectorBuffer<T> && rhs) = default;
+  // VectorBuffer(const VectorBuffer<T> & rhs) = default;
 
  private:
   Magnum::GL::Buffer m_buffer;

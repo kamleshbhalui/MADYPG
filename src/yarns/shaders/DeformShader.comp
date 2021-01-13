@@ -218,7 +218,7 @@ void main()
       //   s[5]=max(s[5],0);
       // }
       // strain += (vec3(s[0], s[1], s[2]) - linearized_bending *2*Xms.h*vec3(s[3],0,s[5])) * abc[i];
-      strain += (vec3(s[0], s[1], s[2]) - linearized_bending *2*Xms.h*vec3(s[3],0,s[5])) * abc[i];
+      strain += (vec3(s[0], s[1], s[2]) - linearized_bending *2*Xms.h*vec3(s[3],s[4],s[5])) * abc[i];
     }
     // vec4 d =  deform_reference * sample3D(strain, Xms.pix);
     if(min_eig > 0)

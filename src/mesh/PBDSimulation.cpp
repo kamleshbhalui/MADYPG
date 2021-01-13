@@ -25,8 +25,8 @@ PBDSimulation::PBDSimulation(const Settings& settings) : m_settings(settings) {
   PBD::Simulation::getCurrent()->setModel(m_model.get());
   PBD::TimeManager::getCurrent()->setTimeStepSize(m_settings.timestep);
 
-  std::string filepath = "pbdscene/sock/cloth.obj";
-  std::string obsfilepath = "pbdscene/sock/obstacle.obj";
+  std::string filepath = "data/pbdscene/sock/cloth.obj";
+  std::string obsfilepath = "data/pbdscene/sock/obstacle.obj";
 
   // std::string filepath = "pbdscene/cloth.obj";
   // std::string obsfilepath = "pbdscene/obstacle.obj";

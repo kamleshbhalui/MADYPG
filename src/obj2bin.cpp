@@ -155,7 +155,6 @@ int main(int argc, char* argv[]) {
   // constant number of obstacles, with data existing for each frame
   // cloth data for each frame, ...
   bool const_uv = true;
-    std::cout << "HELLO.\n";
 
   if (argc >= 4) {
     const_uv = bool(atof(argv[3]));

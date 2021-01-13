@@ -6,6 +6,9 @@
 #include "../utils/debug_includes.h"
 #include "../utils/threadutils.h"
 
+// #define MODEL4D "data/yarnmodels/model_stock_bend4D"
+#define MODEL4D "data/yarnmodels/model_rib_bend4D"
+
 void YarnMapper::step() {
   m_glq3.end();
   // m_timer.tick();
@@ -38,6 +41,11 @@ void YarnMapper::step() {
     // m_model = std::make_unique<ModelV0>(m_settings.modelfolder);
     // m_model = std::make_unique<ModelV1>(m_settings.modelfolder);
     m_model = std::make_unique<Model>(m_settings.modelfolder);
+
+    #ifdef MODEL4D
+    Debug::log("LOADING 4D MODEL.");
+    m_model4D = std::make_unique<Model4D>(MODEL4D);
+    #endif
 
     // buffer model texture to gpu
     m_model->getTexAxes().bufferData();
@@ -306,7 +314,6 @@ void YarnMapper::step() {
   } else {  // CPU compute
     // DEFORM REFERENCE
     if (m_settings.deform_reference > scalar(1e-10)) {
-      Debug::warning("cpu deform outdated, compared to gpu!");  // clamp/bend
       deform_reference(mesh, m_settings.flat_strains);
     } else {
       int n     = m_soup.num_vertices();
@@ -357,16 +364,48 @@ void YarnMapper::step() {
   m_timer.tick();
 }
 
+void hermitian_eig_clamp(Vector6s& m, float mineigval);
+void hermitian_eig_clamp(Vector6s& m, float mineigval) {
+  // following:
+  // Closed-form expressions of the eigen decomposition of 2x2 and 3x3 Hermitian matrices
+  // https://hal.archives-ouvertes.fr/hal-01501221/document
+
+  // mat C = a,c;c,b  (vec m ~ a,c,b,_,_,_)
+  float ab = (m[0] - m[2]); // a - b
+  float d = 4*m[1]*m[1] + ab*ab; // d^2
+  if (d < 0.0001f) {
+    // d == 0 ---> a == b && c == 0 ---> l1 = l2 = a = b
+    float l12 = m[0]; 
+    l12 = std::max(l12, mineigval);
+    m[0] = l12;
+    m[2] = l12;
+    // m[1] = 0; 
+  } else {
+    d = sqrt(d);
+    float l1 = (m[0]+m[2]-d)*0.5f;
+    float l2 = (m[0]+m[2]+d)*0.5f;
+    l1 = std::max(l1, mineigval);
+    l2 = std::max(l2, mineigval);
+    float A = (l2-l1);
+    float B = d*(l1+l2);
+    float C = A*ab;
+    float inv2d = 0.5f/d;
+    m[0] = (B+C)*inv2d;
+    m[2] = (B-C)*inv2d;
+    m[1] *= 2*A*inv2d; 
+  }
+}
+
 void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
   int nverts = m_soup.num_vertices();
   auto& Xms  = m_soup.get_Xms().cpu();
   auto& Xws  = m_soup.get_Xws();
   auto& S    = mesh.strains.cpu();
   auto& Sv   = mesh.vertex_strains.cpu();
-  // TODO i sometimes need  both cpudata for access, and buf object for row need
-  // to write that nicer TODO CONTINUE GETTING RID OF OLD FUNCS AND USE B0 AND B
-  // ... maybe always use .cpu()[vix].. or make rowmap available to cpudata?  I
-  // guess .cpu is a more verbose and nicer method
+
+  // DEBUG
+  m_model->do_cpu_bend = (m_settings.linearized_bending <= 0.001f);
+  
   auto& B0 = m_soup.get_B0().cpu();
   // auto& TB = m_soup.get_TB().cpu();
   Xws.cpu().resize(Xms.size());
@@ -394,10 +433,38 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
 
     /*const*/ auto& X = Xms[vix];
 
+
+  #define LINEARIZED_BENDING
+  #ifdef LINEARIZED_BENDING
+    if (!m_dbg.toggle) // for 4dbend comparisong
+      if (m_settings.linearized_bending > 0.001f) {
+        s.head<3>() = s.head<3>() - m_settings.linearized_bending * 2 * X.h * s.tail<3>();
+        s.tail<3>().setZero();
+      }
+    if(m_settings.svdclamp > 0)
+      hermitian_eig_clamp(s, m_settings.svdclamp);
+    float sx = std::sqrt(s[0]) - 1;
+    float sy = std::sqrt(s[2]) - 1;
+    float sa = s[1]/((sx+1)*(sy+1));
+    s.head<3>() << sx,sa,sy;
+  #else
+    //...
+  #endif
+
     Vector4s g;
     float dbg0, dbg1;
 
-    std::tie(g, dbg0, dbg1) = m_model->deformation(s, X.pix /*, m_dbg.toggle*/);
+
+    #ifdef MODEL4D
+    if (m_dbg.toggle) {
+      std::tie(g, dbg0, dbg1) = m_model4D->deformation(s, X.pix);
+    } else {
+      std::tie(g, dbg0, dbg1) = m_model->deformation(s, X.pix);
+    }
+    #else
+    std::tie(g, dbg0, dbg1) = m_model->deformation(s, X.pix);
+    #endif
+
     // m_model->deformation(s, m_soup.getParametric(vix), m_dbg.toggle);
     g *= m_settings.deform_reference;
     // store deformed ms coordinates intm. in ws coords
@@ -411,6 +478,8 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
         // dbg0,dbg1, 1;
         // (s[0] + 0.5f),(s[2] + 0.5f), 1;
         X.mapXT().head<2>(), 1;
+
+        
   });
 }
 
@@ -568,6 +637,7 @@ bool YarnMapper::export2fbx(const std::string& filename) {
   float normalTwist =
       1.0f;  // TODO normal map params from app. as func params here?
   float normalNum = 4.0f;
+  float normalLen = 6.0f;
 
   // allocate export data
   uint32_t num_total_verts = NVERTICES * nvcid;
@@ -579,8 +649,17 @@ bool YarnMapper::export2fbx(const std::string& filename) {
   data.faces.resize(num_total_faces * 3);
   data.uvfaces.resize(num_total_faces * 3);
 
-  auto& Xws =
-      m_soup.get_Xws().cpu();  // xyzt | arc | d1x d1y d1z | u v | rlocal
+  // mediocre solution of copying back from gpu
+  // TODO doesnt seem to work (always)? but in cpu mode export works?
+  auto& Xws = m_soup.get_Xws().cpu();
+  if (m_settings.gpu_compute) {
+    auto data = m_soup.get_Xws().getGPUData();
+    Xws.resize(data.size());
+    threadutils::parallel_for(size_t(0), data.size(), [&](size_t i) {
+      Xws[i] = data[i];
+    });
+  }
+  // Xws = xyzt | arc | d1x d1y d1z | u v | rlocal
   threadutils::parallel_for(size_t(0), I.size(), [&](size_t i) {
     uint32_t vcid = vcids[i];
     if (vcid == LIM)
@@ -595,6 +674,7 @@ bool YarnMapper::export2fbx(const std::string& filename) {
     auto& x0       = Xws[left];
     auto& x1       = Xws[self];
     auto& x2       = Xws[right];
+    // DEBUG NOTE sometimes sort of randomly it failed here because it tries to access Xws[right] with right being LIM... this shouldnt happen?
 
     // edge rest length
     float lA = x1.a - x0.a;
@@ -614,14 +694,14 @@ bool YarnMapper::export2fbx(const std::string& filename) {
     float rB = 1 * R;  // TODO vol.preserve
     float r1 = (lA * rA + lB * rB) / (lA + lB);
 
-    if (i == 66) {
-      // Debug::log(x0.mapX());
-      // Debug::log(x1.mapX());
-      // Debug::log(x2.mapX());
-      // Debug::log(tv);
-      // Debug::log(nv);
-      // Debug::log(bv);
-    }
+    // if (i == 66) {
+    //   // Debug::log(x0.mapX());
+    //   // Debug::log(x1.mapX());
+    //   // Debug::log(x2.mapX());
+    //   // Debug::log(tv);
+    //   // Debug::log(nv);
+    //   // Debug::log(bv);
+    // }
 
     for (int cs = 0; cs < NSEGS + 1;
          cs++) {  // iterate circular vertices, including duplicate end
@@ -651,9 +731,9 @@ bool YarnMapper::export2fbx(const std::string& filename) {
       data.vertices[3 * vertix + 2] = p[2];
       data.uv0[2 * vertix + 0]      = x1.u;
       data.uv0[2 * vertix + 1]      = x1.v;
-      data.uv1[2 * vertix + 0]      = x1.a;
-      data.uv1[2 * vertix + 1] =
-          normalNum * (-alpha - 0.1591549f * normalTwist * x1.a / r1);
+      data.uv1[2 * vertix + 0]      = normalNum * (-alpha - normalTwist * x1.a / (r1 * normalLen)); // x1.a
+      data.uv1[2 * vertix + 1]      = x1.a / (r1 * normalLen);
+          // normalNum * (-alpha - 0.1591549f * normalTwist * x1.a / r1);
     }
 
     uint32_t fcid = fcids[i];
@@ -702,3 +782,45 @@ bool YarnMapper::export2fbx(const std::string& filename) {
 // it would be much better to export USD (but i cant even get the library
 // running from vcpkg) and second best to export alembic (but i cant even find
 // any code on that ...)
+
+
+bool YarnMapper::export2fbx_cloth(const std::string& filename) {
+  if (!m_initialized)
+    return false;
+
+  Mesh& mesh = m_meshProvider->getMesh();
+  auto& X = mesh.X.cpu();
+  auto& U = mesh.U.cpu();
+  auto& F = mesh.F.cpu();
+  auto& Fms = mesh.Fms.cpu();
+  
+  FBXExportData data;
+  data.vertices.resize(X.size() * 3);
+  data.uv0.resize(U.size() * 2);
+  data.uv1.resize(U.size() * 2);
+  data.faces.resize(F.size() * 3);
+  data.uvfaces.resize(Fms.size() * 3);
+
+  // Xws = xyzt | arc | d1x d1y d1z | u v | rlocal
+  threadutils::parallel_for(size_t(0), X.size(), [&](size_t i) {
+    data.vertices[3 * i + 0] = X[i].x;
+    data.vertices[3 * i + 1] = X[i].y;
+    data.vertices[3 * i + 2] = X[i].z;
+  });
+  threadutils::parallel_for(size_t(0), U.size(), [&](size_t i) {
+    data.uv0[2 * i + 0]      = U[i].u;
+    data.uv0[2 * i + 1]      = U[i].v;
+    data.uv1[2 * i + 0]      = U[i].u;
+    data.uv1[2 * i + 1]      = U[i].v;
+  });
+  threadutils::parallel_for(size_t(0), F.size(), [&](size_t i) {
+    data.faces[3 * i + 0] = F[i].v0;
+    data.faces[3 * i + 1] = F[i].v1;
+    data.faces[3 * i + 2] = ~int32_t(F[i].v2);
+    data.uvfaces[3 * i + 0] = Fms[i].v0;
+    data.uvfaces[3 * i + 1] = Fms[i].v1;
+    data.uvfaces[3 * i + 2] = Fms[i].v2;
+  });
+
+  return export_fbx(filename, data);
+}

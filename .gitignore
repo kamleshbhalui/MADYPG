@@ -9,6 +9,3 @@ __pycache__
 imgui.ini
 build*
 
-objseqs/*
-binseqs/*
-models/*

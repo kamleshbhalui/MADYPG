@@ -14,19 +14,24 @@ out highp vec3 normal;
   uniform vec4 diffuseColor;
 #else
   uniform sampler2D matcap;
-  uniform float wiresize;
+  uniform float wiresize = 0.015;
 #endif
 
 void main() {
+  position = viewPosition;
+  normal = viewNormal;
 #ifdef LINES
   uniform vec4 diffuseColor;
   color = diffuseColor;
 #else
-  vec2 mat_uv = viewNormal.xy * 0.5 + 0.5;
+  bool backfacing = !gl_FrontFacing;//normal.z < 0;
+  if (backfacing)
+    normal *= -1;
+  vec2 mat_uv = normal.xy * 0.5 + 0.5;
   color = vec4(texture(matcap, mat_uv).rgb, 1.0);
+  if (backfacing)
+    color.rgb = vec3(length(color.rgb)*0.5);
   if (B.x < wiresize || B.y < wiresize || B.z < wiresize)
     color.rgb *= 0;
-  position = viewPosition;
-  normal = viewNormal;
 #endif
 }

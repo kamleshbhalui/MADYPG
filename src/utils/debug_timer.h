@@ -76,6 +76,22 @@ class MovingAverageTimer {
     tick();  // don't count tock execution in next timer usage
   }
 
+  void tockForeign(const std::string& label, int duration) { // for ticking a duration that was counted outside
+    auto& entry   = m_map[label];
+    auto& A       = entry.value;
+    auto& samples = entry.samples;
+
+    int n = int(samples.size());
+    if (n < N) {
+      A = (A * n + duration) / (n + 1);  // incrementing average
+    } else {
+      A = A + (duration - samples.front()) * invN;  // moving average
+      samples.pop_front();
+    }
+    samples.push_back(duration);
+    tick();  // don't count tock execution in next timer usage
+  }
+
   double getAverage(const std::string& label) {
     double a = 0.0;
     for (auto& v : m_map[label].samples) {

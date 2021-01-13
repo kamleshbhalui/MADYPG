@@ -16,6 +16,7 @@
 #include "Grid.h"
 // #include "ModelV1.h"
 #include "Model.h"
+#include "Model4D.h"
 #include "YarnSoup.h"
 
 class YarnMapper {
@@ -34,7 +35,7 @@ class YarnMapper {
     bool repeat_frame       = false;
     bool gpu_compute        = true;
     float phong_deformation = 0.5f;
-    float svdclamp = 0;
+    float svdclamp = 0.8;
     enum Provider {
       ObjSeq = 0,
       BinSeq = 1,
@@ -84,6 +85,7 @@ class YarnMapper {
 
   // export the current yarn geometry to an FBX file
   bool export2fbx(const std::string& filename);
+  bool export2fbx_cloth(const std::string& filename);
 
   // #define DO_DEBUG_STATS
   struct DebugSettings {
@@ -102,6 +104,7 @@ class YarnMapper {
   bool m_initialized;
   // std::unique_ptr<ModelV0> m_model;
   std::unique_ptr<Model> m_model;
+  std::unique_ptr<Model4D> m_model4D;
   Grid m_grid;
   YarnSoup m_soup;
 

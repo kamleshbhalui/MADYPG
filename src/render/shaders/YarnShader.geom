@@ -1,4 +1,4 @@
-#define randomize // randomize cylinder vertices to fake fuzz
+// #define randomize // randomize cylinder vertices to fake fuzz
 #define volpreserve // scale radius to preserve volume
 #define usetheta // use twist kinematics to twist the cylinders and textures
 // #define DRAW_LINES // if this is active, draws simple lines instead of cylinders, incorrect lighting due to constant normal

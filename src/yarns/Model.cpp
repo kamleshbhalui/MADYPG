@@ -64,6 +64,49 @@ Model::Model(const std::string& folder) {
     });
   }
 
+// check if bending data exists, and load it if it does
+// for cpu deform only
+#ifdef CPU_BENDING
+  m_cpubending = true;
+  if (m_cpubending) {
+    m_cpubending &= load_ax(fs::path(folder) / "bendx" / "axes.txt",
+                            m_tex_bendx_ax, m_tex_bendx_invax);
+    m_cpubending &= load_ax(fs::path(folder) / "bendy" / "axes.txt",
+                            m_tex_bendy_ax, m_tex_bendy_invax);
+
+    if (m_cpubending) {
+      cnpy::NpyArray npyarr =
+          cnpy::npy_load(fs::path(folder) / "bendx" / "data.npy");
+      auto& data = m_tex_bendx_data;
+      data.resize(npyarr.shape[0]);
+      float* npydata = npyarr.data<float>();
+      threadutils::parallel_for(size_t(0), npyarr.shape[0], [&](size_t i) {
+        auto g_i = data[i].map();
+        for (size_t j = 0; j < 4; j++) {
+          g_i[j] = npydata[4 * i + j];
+        }
+      });
+    }
+
+    if (m_cpubending) {
+      cnpy::NpyArray npyarr =
+          cnpy::npy_load(fs::path(folder) / "bendy" / "data.npy");
+      auto& data = m_tex_bendy_data;
+      data.resize(npyarr.shape[0]);
+      float* npydata = npyarr.data<float>();
+      threadutils::parallel_for(size_t(0), npyarr.shape[0], [&](size_t i) {
+        auto g_i = data[i].map();
+        for (size_t j = 0; j < 4; j++) {
+          g_i[j] = npydata[4 * i + j];
+        }
+      });
+    }
+  }
+  if (m_cpubending)
+    Debug::log("Found cpu bending data.");
+
+#endif
+
   m_initialized = true;
 }
 
@@ -71,6 +114,18 @@ const std::tuple<Vector4s, scalar, scalar> Model::deformation(
     const Vector6s& strain, uint32_t pix) {
   scalar dbg0 = 0, dbg1 = 0;
   Vector4s g = sample3D(strain.head<3>(), pix);
+
+#ifdef CPU_BENDING
+  if (m_cpubending && do_cpu_bend) {
+    float l1, l2, c2;
+    std::tie(l1, l2, c2) = robust_eigenstuff(strain[3], strain[4], strain[5]);
+    // g += c2 g_x(l1) + (1-c2) g_x(l2)
+    // g += c2 g_y(l2) + (1-c2) g_y(l1)
+    g += c2 * (sampleIIx(l1,pix) + sampleIIy(l2, pix));
+    g += (1 - c2) * (sampleIIx(l2,pix) + sampleIIy(l1, pix));
+  }
+#endif
+
   return std::make_tuple(g, dbg0, dbg1);
 }
 
@@ -103,6 +158,68 @@ bool Model::load_axes(const std::string& filepath,
 
   return true;
 }
+
+#ifdef CPU_BENDING
+bool Model::load_ax(const std::string& filepath, std::vector<float>& ax,
+                    std::vector<float>& invax) {
+  std::fstream ifs(filepath.c_str(), std::ios::in);
+  if (!ifs) {
+    // std::cerr << "Error: failed to open file " << filepath << "\n";
+    return false;
+  }
+  ax.clear();
+
+  std::string line;
+  std::getline(ifs, line);
+  std::stringstream ss(line);
+  float val;
+  while ((ss >> val)) {
+    ax.push_back(val);
+  }
+  invax.resize(ax.size() - 1);
+  for (size_t j = 0; j < ax.size() - 1; ++j) {
+    invax[j] = 1.0f / (ax[j + 1] - ax[j]);
+  }
+  return true;
+}
+
+std::tuple<float, float, float> Model::robust_eigenstuff(float IIxx, float IIxy,
+                                                         float IIyy) {
+  float A     = 0.5f * (IIxx + IIyy);
+  float B     = 0.5f * (IIxx - IIyy);
+  float eps   = 1e-8;
+  float IIxy2 = IIxy * IIxy;
+  float S     = std::sqrt(B * B + IIxy2 + eps);
+  int k       = (IIxx - IIyy) < 0 ? -1 : 1;
+  float BkS   = B + k * S;
+  float lam1  = A + S;
+  float lam2  = A - S;
+  float c2    = 0.5f + k * (0.5f - IIxy2 / (BkS * BkS + IIxy2));
+  return std::make_tuple(lam1, lam2, c2);
+}
+
+Vector4s Model::sample1D(float val, uint32_t pix, const std::vector<float>& ax, const std::vector<float>& invax, const std::vector<DeformationEntry>& data) {
+  auto sample_at = [&](int i, int pix) {
+    int loc =
+        i + ax.size() * pix;
+    return Vector4s(data[loc].map());
+  };
+
+  // first cell (c,c+1) s.t. val < ax[i+1] else last = size-2
+
+  int c = std::distance(ax.begin(),
+                        std::upper_bound(ax.begin() + 1, ax.end() - 1,
+                                          val)) -
+          1; 
+  float a = (val - ax[c]) * invax[c];
+  a = std::min(std::max(scalar(0), a), scalar(1));  // clamp extrapolation
+
+  Vector4s g = Vector4s::Zero();
+  g += (1 - a) * sample_at(c, pix);
+  g += a * sample_at(c+1, pix);
+  return g;
+}
+#endif
 
 // // DEBUG
 //   uint upper_bound(uint istart,uint iend, uint which_array, float value) {

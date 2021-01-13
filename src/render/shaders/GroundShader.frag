@@ -10,8 +10,9 @@ layout(location = 2)
 out highp vec3 normal;
 
 uniform float axw = 0.005;
-uniform float gcw = 0.1; // grid cell width
-uniform float glw = 0.01; // grid line width
+uniform float axw2 = 0.0025;
+uniform float gcw = 0.2; // grid cell width
+// uniform float glw = 0.01; // grid line width
 uniform sampler2D tex;
 
 void main() {
@@ -28,8 +29,15 @@ void main() {
   // if (abs(fract(abs(U.y / gcw - 0.5))-0.5) < glw)
   //   color = vec4(0.3,0.3,0.3,1.0);
 
+  {
+    float fabsu = fract(abs(uv.x));
+    float fabsv = fract(abs(uv.y));
+    if (fabsu > 1 - axw2 || fabsu < axw2 || fabsv > 1 - axw2 || fabsv < axw2)
+      color.rgb = vec3(0.35);
+  }
+
   if (abs(uv.x) < axw)
     color = vec4(0.4,1.0,0.6,1.0);
   if (abs(uv.y) < axw)
-    color = vec4(1.0,0.5,0.5,1.0);
+    color = vec4(0.9,0.5,0.6,1.0);
 }

@@ -177,6 +177,8 @@ void MainApplication::reset_simulation() {
     _obsmeshdrawables.back().setIndices(obs.mesh.F);
     _obsmeshdrawables.back().setVertices(obs.mesh.X);
   }
+
+  _frame = 0;
 }
 
 MainApplication::MainApplication(const Arguments &arguments)
@@ -261,18 +263,11 @@ MainApplication::MainApplication(const Arguments &arguments)
     _ssaoApplyShader    = SsaoApplyShader{};
 
     {  // default settings
-      _yarnMapperSettings.modelfolder = "models/model_stock";
-      // _yarnMapperSettings.modelfolder = "models/V0/model_rib";
+      _yarnMapperSettings.modelfolder = "data/yarnmodels/model_stock";
       _yarnMapperSettings.provider_type =
           YarnMapper::Settings::Provider::BinSeq;
-      // _yarnMapperSettings.binseq_settings.filepath = "binseqs/sock.bin";
-      // #ifdef NDEBUG
-      _yarnMapperSettings.binseq_settings.filepath = "binseqs/sxsy_const.bin";
-      // "binseqs/HYLC_30x30/basket_drapeX.bin";
-      // #else
-      // _yarnMapperSettings.binseq_settings.filepath =
-      // "binseqs/sxsy_const.bin"; #endif
-      _yarnMapperSettings.objseq_settings.folder = "objseqs/sxsy_const";
+      _yarnMapperSettings.binseq_settings.filepath = "data/binseqs/sxsy_const.bin";
+      _yarnMapperSettings.objseq_settings.folder = "data/objseqs/sxsy_const";
       _yarnMapperSettings.objseq_settings.constant_material_space = true;
     }
     _folderDialog = std::make_unique<ImGui::FileBrowser>(
@@ -339,6 +334,9 @@ void MainApplication::drawEvent() {
     }
     _single_step = false;
     simChanged   = true;
+
+    if (_pauseAt == _frame++)
+      _paused = true;
   }
 
   const bool camChanged = _arcball->updateTransformation();
@@ -392,7 +390,9 @@ void MainApplication::drawEvent() {
     if (_render_mesh) {
       _meshShader.bindMatCap(_matcapMesh);
       _meshShader.setProjection(_projection);
+      GL::Renderer::disable(GL::Renderer::Feature::FaceCulling);
       _meshdrawable->draw(tf);
+      GL::Renderer::enable(GL::Renderer::Feature::FaceCulling);
     }
 
     if (_render_obstacles) {
@@ -570,6 +570,14 @@ void MainApplication::drawSettings() {
     _yarnMapper->reloadShaders();
   }
 
+  bool projchanged=false;
+  projchanged |= ImGui::DragFloat("near",&_proj_near,0.001f,0.001f,0.1f);
+  projchanged |= ImGui::DragFloat("far",&_proj_far,0.01f,1.0f,20.0f);
+  if (projchanged)
+    _projection = Matrix4::perspectiveProjection(
+      _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
+      _proj_far);
+
   if (ImGui::CollapsingHeader("SSAO" /*, ImGuiTreeNodeFlags_DefaultOpen*/)) {
     ImGui::Indent();
     {
@@ -700,6 +708,10 @@ void MainApplication::drawSettings() {
     _single_step = true;
     _paused      = true;
   }
+  ImGui::SameLine();
+  ImGui::PushItemWidth(30.0f);
+  ImGui::DragInt("pause@",&_pauseAt,1,-1,1000);
+  ImGui::PopItemWidth();
   if (ImGui::DragInt("Min. Loop", &_min_loop_ms, 1, 4, 100, "%d (ms)"))
     setMinimalLoopPeriod(_min_loop_ms);
   ImGui::SameLine();
@@ -907,8 +919,14 @@ void MainApplication::drawSettings() {
   ImGui::PushItemWidth(150.0f);
   ImGui::TextUnformatted("naive");
   ImGui::SameLine();
-  ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f, 1.0f,
-                     "");
+  static bool _use_ours = true;
+  if(ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f, 1.0f,
+                     "")) {
+    _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
+  }
+  ImGui::SameLine();
+  if (ImGui::Checkbox("##useours", &_use_ours))
+    _yarnMapperSettings.deform_reference = int(_use_ours);
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
@@ -939,8 +957,12 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         break;
       case KeyEvent::Key::E:
         ::Debug::log("Exporting FBX...");
-        success = _yarnMapper->export2fbx(
-            "test.fbx");  // TODO filename either by date or incremented number
+        if ((event.modifiers() & KeyEvent::Modifier::Shift))
+          success = _yarnMapper->export2fbx_cloth(
+              "cloth.fbx");  // TODO filename either by date or incremented number
+        else
+          success = _yarnMapper->export2fbx(
+              "yarns.fbx");  // TODO filename either by date or incremented number
         ::Debug::log("Result:", success);
         break;
       case KeyEvent::Key::Space:
@@ -1005,6 +1027,10 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       case KeyEvent::Key::Three:
         _arcball->setViewParameters(cam_d * Vector3(0, 0, 1), Vector3(0),
                                     Vector3(0, 1, 0));
+        break;
+      case KeyEvent::Key::V:
+        glHint(GL_POLYGON_SMOOTH_HINT, (event.modifiers() & KeyEvent::Modifier::Shift) ? GL_FASTEST : GL_NICEST);
+        // GL::Renderer::setHint(GL::Renderer::Hint::FragmentShaderDerivative, GL::Renderer::HintMode::Nicest);
         break;
       default:
         break;
