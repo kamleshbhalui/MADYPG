@@ -44,4 +44,4 @@ for name, pypfile in [
   ]:
       print("Test %s will have %d total samples"%(tstname,len(rgesxsy)*len(rgesxsy)*len(rgesa)))
       generate.generate_data("model_%s_%s" % (name,tstname), pypfile, rgesxsy,
-                            rgesa)
+                            rgesa, rgesxsy)

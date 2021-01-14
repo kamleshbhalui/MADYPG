@@ -88,12 +88,9 @@ def do_thing(args):
     return i0, i1, i2, D
 
 
-def generate_data(name, pypfile, rgesxsy, rgesa):
+def generate_data(name, pypfile, SX, SA, SY):
     Nv = getNverts(pypfile)
 
-    SX = rgesxsy
-    SA = rgesa
-    SY = rgesxsy
     Nsims = len(SX)*len(SA)*len(SY)
     # allocate data = [Ntotal x 4], for each vertex and deformation
     YD = np.empty((Nv*Nsims, 4), dtype=np.float32)
