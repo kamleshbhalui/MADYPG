@@ -79,7 +79,7 @@ YarnShader::YarnShader() {
   _plyNumUniform     = uniformLocation("plyNum");
   _plyHeightUniform     = uniformLocation("plyHeight");
   _plyLengthUniform     = uniformLocation("plyLen");
-  _texscaleUniform     = uniformLocation("tex_scale");
+  _uvscaleUniform     = uniformLocation("uv_scale");
 
   // get uniform location and immediately use to set to textureunit
   setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
@@ -149,6 +149,6 @@ YarnShader &YarnShader::bindNormalMap(GL::Texture2D &texture) {
 }
 
 YarnShader &YarnShader::setTextureScale(float radius) {
-  setUniform(_texscaleUniform, radius);
+  setUniform(_uvscaleUniform, radius);
   return *this;
 }

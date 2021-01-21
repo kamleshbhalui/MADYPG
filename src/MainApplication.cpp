@@ -263,10 +263,12 @@ MainApplication::MainApplication(const Arguments &arguments)
     _ssaoApplyShader    = SsaoApplyShader{};
 
     {  // default settings
-      _yarnMapperSettings.modelfolder = "data/yarnmodels/model_stock";
+      // _yarnMapperSettings.modelfolder = "data/yarnmodels/model_stock_15";
+      _yarnMapperSettings.modelfolder = "data/yarnmodels/model_stock_9";
       _yarnMapperSettings.provider_type =
           YarnMapper::Settings::Provider::BinSeq;
-      _yarnMapperSettings.binseq_settings.filepath = "data/binseqs/sxsy_const.bin";
+      _yarnMapperSettings.binseq_settings.filepath =
+          "data/binseqs/sxsy_const.bin";
       _yarnMapperSettings.objseq_settings.folder = "data/objseqs/sxsy_const";
       _yarnMapperSettings.objseq_settings.constant_material_space = true;
     }
@@ -329,14 +331,18 @@ void MainApplication::drawEvent() {
       _yarnMapper->step();
 
       const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
+
       // if (_yarnMapper->getMeshSimulation()->meshIndicesDirty())
       _meshdrawable->updateIndexCount(mesh.F.getGPUSize() * 3);
     }
     _single_step = false;
     simChanged   = true;
 
-    if (_pauseAt == _frame++)
+    if (_pauseAt == _frame)
       _paused = true;
+
+    if (!_yarnMapperSettings.repeat_frame)
+      ++_frame;
   }
 
   const bool camChanged = _arcball->updateTransformation();
@@ -377,7 +383,7 @@ void MainApplication::drawEvent() {
       _yarnGeometryShader.bindClothTexture(_clothTexture);
       _yarnGeometryShader.bindNormalMap(_normalMap);
       _yarnGeometryShader.setProjection(_projection);
-      _yarnGeometryShader.setTextureScale(_clothTexture_scale);
+      _yarnGeometryShader.setTextureScale(_clothUV_scale);
       _yarnDrawable.back().m_radius =
           _yarnMapper->getRadius() * _render_radius_mult;
       _yarnDrawable.back().m_nmtwist  = _render_nmtwist;
@@ -388,11 +394,35 @@ void MainApplication::drawEvent() {
     }
 
     if (_render_mesh) {
+      // for debug rendering only: overwrite mesh shader data with material space
+      auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
+      if (!_yarnMapperSettings.shell_map && _render_mesh) {
+        // m_mesh.F.
+        // draw instead: Fms & U+0
+        std::vector<Mesh::WSVertex> tmpX;
+        tmpX.reserve(mesh.U.getCPUSize());
+        for (const auto& u : mesh.U.cpu())
+          tmpX.push_back({u.u, u.v, 0});
+        std::vector<Mesh::Face> tmpF;
+        tmpF.reserve(mesh.Fms.getCPUSize());
+        for (const auto& f : mesh.Fms.cpu())
+          tmpF.push_back(f);
+        mesh.X.gpu().setData({tmpX.data(), uint32_t(tmpX.size())});
+        mesh.F.gpu().setData({tmpF.data(), uint32_t(tmpF.size())});
+  
+        _meshdrawable->updateIndexCount(mesh.Fms.getGPUSize() * 3);
+      }
+
       _meshShader.bindMatCap(_matcapMesh);
       _meshShader.setProjection(_projection);
       GL::Renderer::disable(GL::Renderer::Feature::FaceCulling);
       _meshdrawable->draw(tf);
       GL::Renderer::enable(GL::Renderer::Feature::FaceCulling);
+
+      //undo debug render
+      if (!_yarnMapperSettings.shell_map && _render_mesh) {
+        mesh.F.bufferData();
+      }
     }
 
     if (_render_obstacles) {
@@ -438,6 +468,13 @@ void MainApplication::drawEvent() {
 #endif
   }
 
+  // TODO if supersampling:
+  // bind _fbo_supersample and render ssaoapply
+  // afterwards bind / blit to defaultframebuffer, then imgui
+  #ifdef SUPERSAMPLING
+  #else
+  #endif
+
   GL::defaultFramebuffer.bind();
   _ssaoApplyShader.bindAlbedoTexture(_albedo)
       .bindOcclusionTexture(_occlusion)
@@ -458,7 +495,33 @@ void MainApplication::drawEvent() {
   else if (!ImGui::GetIO().WantTextInput && isTextInputActive())
     stopTextInput();
 
-  drawSettings();
+  if (_gui)  // hideable gui
+    drawSettings();
+  {  // non-hideabale gui
+    ImGui::Begin("##interact");
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 10));
+    ImGui::PushItemWidth(200.0f);
+    static float magn = 0;
+    ImGui::SliderFloat("force", &magn, 0.0f, 3.0f, "x%.2f");
+    if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
+      _yarnMapper->applyForce(magn * 3, magn * 0.5f, magn * 0);
+    ImGui::PopItemWidth();
+    ImGui::PushItemWidth(150.0f);
+    ImGui::TextUnformatted("naive");
+    ImGui::SameLine();
+    static bool _use_ours = true;
+    if (ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f,
+                           1.0f, "")) {
+      _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
+    }
+    ImGui::SameLine();
+    if (ImGui::Checkbox("##useours", &_use_ours))
+      _yarnMapperSettings.deform_reference = int(_use_ours);
+    ImGui::PopItemWidth();
+    ImGui::PopStyleVar();
+    ImGui::End();
+  }
+
   _imgui.updateApplicationCursor(*this);
 
   GL::Renderer::enable(GL::Renderer::Feature::Blending);
@@ -485,17 +548,30 @@ void MainApplication::viewportEvent(ViewportEvent &event) {
   const Vector2i wSize  = event.windowSize();
 
   GL::defaultFramebuffer.setViewport({{}, fbSize});
-  _fbo_gbuffer.setViewport({{}, fbSize});
-#ifdef MSAA
-  _fbo_ssao.setViewport({{}, fbSize});
-#endif
+
+  #ifdef SUPERSAMPLING
+    _fbo_gbuffer.setViewport({{}, fbSize * SUPERSAMPLING});
+    #ifdef MSAA
+      _fbo_ssao.setViewport({{}, fbSize * SUPERSAMPLING});
+    #endif
+  #else
+    _fbo_gbuffer.setViewport({{}, fbSize});
+    #ifdef MSAA
+      _fbo_ssao.setViewport({{}, fbSize});
+    #endif
+  #endif
 
   _arcball->reshape(wSize);
   _projection = Matrix4::perspectiveProjection(
       _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
       _proj_far);
 
+  #ifdef SUPERSAMPLING
+  setupFramebuffer(fbSize * SUPERSAMPLING);
+  #else
   setupFramebuffer(fbSize);
+  #endif
+
 
   _imgui.relayout(Vector2{wSize} / event.dpiScaling(), event.windowSize(),
                   fbSize);
@@ -570,13 +646,13 @@ void MainApplication::drawSettings() {
     _yarnMapper->reloadShaders();
   }
 
-  bool projchanged=false;
-  projchanged |= ImGui::DragFloat("near",&_proj_near,0.001f,0.001f,0.1f);
-  projchanged |= ImGui::DragFloat("far",&_proj_far,0.01f,1.0f,20.0f);
+  bool projchanged = false;
+  projchanged |= ImGui::DragFloat("near", &_proj_near, 0.001f, 0.001f, 0.1f);
+  projchanged |= ImGui::DragFloat("far", &_proj_far, 0.01f, 1.0f, 20.0f);
   if (projchanged)
     _projection = Matrix4::perspectiveProjection(
-      _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
-      _proj_far);
+        _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
+        _proj_far);
 
   if (ImGui::CollapsingHeader("SSAO" /*, ImGuiTreeNodeFlags_DefaultOpen*/)) {
     ImGui::Indent();
@@ -653,7 +729,7 @@ void MainApplication::drawSettings() {
       //                  2.0f);
       ImGui::DragFloat("NM length", &_render_nmlen, 0.1f, 0.0f, 20.0f);
       // ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
-      ImGui::DragFloat("tex scale", &_clothTexture_scale, 0.1f, 0.0f, 100.0f);
+      ImGui::DragFloat("uv scale", &_clothUV_scale, 0.1f, 0.0f, 100.0f);
       ImGui::PopItemWidth();
     }
 
@@ -710,7 +786,7 @@ void MainApplication::drawSettings() {
   }
   ImGui::SameLine();
   ImGui::PushItemWidth(30.0f);
-  ImGui::DragInt("pause@",&_pauseAt,1,-1,1000);
+  ImGui::DragInt("pause@", &_pauseAt, 1, -1, 1000);
   ImGui::PopItemWidth();
   if (ImGui::DragInt("Min. Loop", &_min_loop_ms, 1, 4, 100, "%d (ms)"))
     setMinimalLoopPeriod(_min_loop_ms);
@@ -764,10 +840,14 @@ void MainApplication::drawSettings() {
     ImGui::Checkbox(
         "Const UV",
         &_yarnMapperSettings.objseq_settings.constant_material_space);
+    ImGui::DragFloat("scale", &_yarnMapperSettings.objseq_settings.scale, 0.01f,
+                     0.01f, 10.0f);
   } else if (_yarnMapperSettings.provider_type ==
              YarnMapper::Settings::Provider::BinSeq) {
     ImGui::TextBrowser("##txt", *_fileDialog.get(),
                        _yarnMapperSettings.binseq_settings.filepath);
+    ImGui::DragFloat("scale", &_yarnMapperSettings.binseq_settings.scale, 0.01f,
+                     0.01f, 10.0f);
   } else {
     ImGui::SliderInt("MethodS",
                      &_yarnMapperSettings.pbd_settings.simulationMethod, 0, 4);
@@ -807,6 +887,7 @@ void MainApplication::drawSettings() {
     ImGui::TextUnformatted(stats.c_str());
     ImGui::Separator();
   }
+  ImGui::Text("Frame: %d", _frame);
   {
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
     ImGui::Columns(2, NULL, true);
@@ -829,6 +910,12 @@ void MainApplication::drawSettings() {
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(100.0f);
   ImGui::Checkbox("D", &_yarnMapper->m_dbg.toggle);
+  if (ImGui::Button("BendTest")) {
+    _yarnMapper->dbg_compare_bending();
+  }
+  if (ImGui::Button("NSamplesTest")) {
+    _yarnMapper->dbg_compare_nsamples();
+  }
   {
     ImGui::TextUnformatted("S");
     ImGui::SameLine();
@@ -907,29 +994,6 @@ void MainApplication::drawSettings() {
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
-
-  ImGui::Begin("##interact");
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
-  ImGui::PushItemWidth(200.0f);
-  static float magn = 0;
-  ImGui::SliderFloat("force", &magn, 0.0f, 3.0f, "x%.2f");
-  if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
-    _yarnMapper->applyForce(magn * 3, magn * 0.5f, magn * 0);
-  ImGui::PopItemWidth();
-  ImGui::PushItemWidth(150.0f);
-  ImGui::TextUnformatted("naive");
-  ImGui::SameLine();
-  static bool _use_ours = true;
-  if(ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f, 1.0f,
-                     "")) {
-    _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
-  }
-  ImGui::SameLine();
-  if (ImGui::Checkbox("##useours", &_use_ours))
-    _yarnMapperSettings.deform_reference = int(_use_ours);
-  ImGui::PopItemWidth();
-  ImGui::PopStyleVar();
-  ImGui::End();
 }
 
 void MainApplication::keyPressEvent(KeyEvent &event) {
@@ -959,10 +1023,12 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         ::Debug::log("Exporting FBX...");
         if ((event.modifiers() & KeyEvent::Modifier::Shift))
           success = _yarnMapper->export2fbx_cloth(
-              "cloth.fbx");  // TODO filename either by date or incremented number
+              "cloth.fbx");  // TODO filename either by date or incremented
+                             // number
         else
           success = _yarnMapper->export2fbx(
-              "yarns.fbx");  // TODO filename either by date or incremented number
+              "yarns.fbx");  // TODO filename either by date or incremented
+                             // number
         ::Debug::log("Result:", success);
         break;
       case KeyEvent::Key::Space:
@@ -1011,6 +1077,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       case KeyEvent::Key::G:
         _yarnMapperSettings.gpu_compute = !_yarnMapperSettings.gpu_compute;
         break;
+      case KeyEvent::Key::H:
+        _gui = !_gui;
+        break;
       case KeyEvent::Key::NumOne:
       case KeyEvent::Key::One:
         _arcball->setViewParameters(cam_d * Vector3(+0.4f, 0.3f, 0.5f),
@@ -1029,8 +1098,11 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
                                     Vector3(0, 1, 0));
         break;
       case KeyEvent::Key::V:
-        glHint(GL_POLYGON_SMOOTH_HINT, (event.modifiers() & KeyEvent::Modifier::Shift) ? GL_FASTEST : GL_NICEST);
-        // GL::Renderer::setHint(GL::Renderer::Hint::FragmentShaderDerivative, GL::Renderer::HintMode::Nicest);
+        glHint(GL_POLYGON_SMOOTH_HINT,
+               (event.modifiers() & KeyEvent::Modifier::Shift) ? GL_FASTEST
+                                                               : GL_NICEST);
+        // GL::Renderer::setHint(GL::Renderer::Hint::FragmentShaderDerivative,
+        // GL::Renderer::HintMode::Nicest);
         break;
       default:
         break;

@@ -19,7 +19,7 @@ uniform sampler2D matcap;
 uniform sampler2D tex_cloth;
 // uniform sampler1D normalMap;
 uniform sampler2D normalMap;
-uniform float tex_scale = 1;
+uniform float uv_scale = 1;
 
 uniform float radius;
 uniform float plyTwist;
@@ -74,7 +74,7 @@ void main() {
   position = gs_out.p;
   // color = vec4(0.9,0.9,0.9,1);
 
-  color.rgb *= texture(tex_cloth, gs_out.uv * tex_scale).rgb;
+  color.rgb *= texture(tex_cloth, gs_out.uv * uv_scale).rgb;
 
   color.rgb *= ao;
   // color.rgb = normal;

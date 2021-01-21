@@ -26,6 +26,7 @@ class ObjSeqAnimation : public AbstractMeshProvider {
     std::string folder;
     bool repeat                  = true;
     bool constant_material_space = false;
+    float scale                  = 1.0;
   } m_settings;
 
   // TODO PUT SOMEWHERE
@@ -105,6 +106,14 @@ class ObjSeqAnimation : public AbstractMeshProvider {
           // load_obj_mesh(p.path(), m_obstacles[id].mesh, true);
         }
       }
+
+      bool rescale = std::abs(m_settings.scale - 1.0f) > 0.001f;
+      if (rescale)
+        for (auto& obs : m_obstacles) {
+          auto& X = obs.mesh.X.cpu();
+          for (auto& x : X)
+            x.map() *= m_settings.scale;
+        }
     }
 
     update();  // load first frame
@@ -137,6 +146,20 @@ class ObjSeqAnimation : public AbstractMeshProvider {
         load_obj(m_files[m_iter], m_mesh.X.cpu(), m_mesh.F.cpu(), m_mesh.U.cpu(), m_mesh.Fms.cpu());
       else
         load_obj(m_files[m_iter], m_mesh.X.cpu());
+
+
+      bool rescale = std::abs(m_settings.scale - 1.0f) > 0.001f;
+      if (rescale) {
+        auto& X = m_mesh.X.cpu();
+        for (auto& x : X)
+          x.map() *= m_settings.scale;
+
+        if (load_uv) {
+          auto& U = m_mesh.U.cpu();
+          for (auto& u : U)
+            u.map() *= m_settings.scale;
+        }
+      }
 
       if (arcsim_mode) {
         // update obstacle transformations

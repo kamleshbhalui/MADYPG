@@ -51,6 +51,8 @@
 #include "utils/debug_includes.h"
 #include "yarns/YarnMapper.h"
 
+#define SUPERSAMPLING 2 // EXTREMELY SLOW AND UNOPTIMIZED EVEN WITH MSAA x1
+
 namespace Magnum {
 
 using namespace Math::Literals;
@@ -95,6 +97,7 @@ class MainApplication : public Platform::Application {
   GL::Texture2D _gridTexture{NoCreate};
   // GL::Texture1D _normalMap{NoCreate};
   GL::Texture2D _normalMap{NoCreate};
+  bool _gui                      = true;
   bool _paused                   = false;
   int _pauseAt                   = -1;
   int _frame                     = 0;
@@ -118,7 +121,7 @@ class MainApplication : public Platform::Application {
   float _render_nmheight      = 0.4f;  // relative to radius
   float _render_nmlen         = 6.0f;  // relative to radius and 1/num
   float _mesh_dz              = 0.0f;
-  float _clothTexture_scale   = 1.0f;
+  float _clothUV_scale   = 1.0f;
   Color4 _bgColor             = Color4(1.0f);  // Color4(Color3(0.2f), 1.0f);
 
   // std::unique_ptr<ArcBallCamera> _arcballCamera;
@@ -140,6 +143,7 @@ class MainApplication : public Platform::Application {
 
   GL::Framebuffer _fbo_gbuffer{NoCreate};
   GL::Framebuffer _fbo_ssao{NoCreate};
+  GL::Framebuffer _fbo_supersample{NoCreate};
 
 #ifdef MSAA
   GL::MultisampleTexture2D _albedo{NoCreate};

@@ -81,11 +81,16 @@ class YarnMapper {
   }
 
   // timing
-  Debug::MovingAverageTimer<10, std::chrono::microseconds> m_timer;
+  Debug::MovingAverageTimer<1000, std::chrono::microseconds> m_timer;
+  // Debug::MovingAverageTimer<10, std::chrono::microseconds> m_timer;
 
   // export the current yarn geometry to an FBX file
   bool export2fbx(const std::string& filename);
   bool export2fbx_cloth(const std::string& filename);
+
+  void dbg_compare_bending();
+  void dbg_compare_nsamples();
+  bool dbg_compare_keep_uv=false;
 
   // #define DO_DEBUG_STATS
   struct DebugSettings {

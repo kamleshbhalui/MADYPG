@@ -80,6 +80,18 @@ class YarnSoup {
   // int getParametric(int vix) { return m_pypix[vix]; }
   // int getParametric(int vix) { return X_ms[vix].pix; } // maybe reenable this for V1 model if using that to show bending
 
+  // YarnSoup() {}
+  // YarnSoup(YarnSoup && rhs) = default;
+  // YarnSoup(const YarnSoup&) = default;
+  // void reset() {
+  //   X_ms.cpu().clear();
+  //   X_ws.cpu().clear();
+  //   m_indices.cpu().clear();
+  //   B.cpu().clear();
+  //   B0.cpu().clear();
+  //   E.resize(0,0);
+  // }
+  
  private:
   VectorBuffer<VertexMSData> X_ms;                   // [u v h t a ... ] undeformed material space
   VectorBuffer<VertexWSData> X_ws;  // [x y z t ...] deformed world space
@@ -93,6 +105,8 @@ class YarnSoup {
       m_indices;  // [ y0v0 y0v1 y0v2 ... delim y1v0 y1v1 ... ]
   // std::vector<int>
   //     m_pypix;  // index in pyp // TODO replace with something parametric: y,t
+
+
 
 };
 

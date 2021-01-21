@@ -190,6 +190,11 @@ void YarnMapper::step() {
       mesh.vertex_defF.bufferData();
   }
 
+  // {
+  //   auto& strns = mesh.strains.cpu();
+  //   Debug::log("strain",strns[0].map().transpose());
+  // }
+
 // DEBUG
 #ifdef DO_DEBUG_STATS
   {
@@ -471,13 +476,17 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
     // NOTE: buffer.row is a colvector so it expects colvector comma init
     // Xws.row<float, 7>(vix) << Xms.row(vix).transpose() + g,
     //     Xms.block<1, 2>(vix, 0).transpose(), 1;
-    Xws.row<float, 11>(vix) << X.mapXT() + g, X.a,
-        // 0,0,0,
-        X.mapB(),
-        // TB[vix].mapB(),
-        // dbg0,dbg1, 1;
-        // (s[0] + 0.5f),(s[2] + 0.5f), 1;
-        X.mapXT().head<2>(), 1;
+
+    if(!dbg_compare_keep_uv)
+      Xws.row<float, 11>(vix) << X.mapXT() + g, X.a,
+          // 0,0,0,
+          X.mapB(),
+          // TB[vix].mapB(),
+          // dbg0,dbg1, 1;
+          // (s[0] + 0.5f),(s[2] + 0.5f), 1;
+          X.mapXT().head<2>(), 1;
+    else
+      Xws.row<float, 11>(vix) << X.mapXT() + g, X.a, X.mapB(), Xws.cpu()[vix].u, Xws.cpu()[vix].v, 1;
 
         
   });
@@ -823,4 +832,150 @@ bool YarnMapper::export2fbx_cloth(const std::string& filename) {
   });
 
   return export_fbx(filename, data);
+}
+
+void YarnMapper::dbg_compare_bending() { // copy of deform_reference using both bending models to store new UVs
+  Mesh& mesh = m_meshProvider->getMesh();
+  int nverts = m_soup.num_vertices();
+  auto& Xms  = m_soup.get_Xms().cpu();
+  auto& Xws  = m_soup.get_Xws();
+  auto& S    = mesh.strains.cpu();
+  auto& Sv   = mesh.vertex_strains.cpu();
+
+  // DEBUG
+  m_model->do_cpu_bend = (m_settings.linearized_bending <= 0.001f);
+  
+  auto& B0 = m_soup.get_B0().cpu();
+  Xws.cpu().resize(Xms.size());
+  threadutils::parallel_for(0, nverts, [&](int vix) {
+    const auto& bary = B0[vix];
+    int tri          = bary.tri;
+    if (tri < 0)  // skip unassigned vertex
+      return;
+
+    Vector3s abc;
+    abc << bary.a, bary.b, bary.c;
+
+    Vector6s s;
+    {
+      auto ms_ixs = mesh.Fms.cpu()[tri].map();
+      s = Sv[ms_ixs[0]].map() * abc[0] + Sv[ms_ixs[1]].map() * abc[1] +
+          Sv[ms_ixs[2]].map() * abc[2];
+    }
+
+    /*const*/ auto& X = Xms[vix];
+
+    float dbg0,dbg1;
+
+    Vector4s g4D;
+    {
+      Vector6s s4D = s;
+      if(m_settings.svdclamp > 0)
+        hermitian_eig_clamp(s4D, m_settings.svdclamp);
+      float sx = std::sqrt(s4D[0]) - 1;
+      float sy = std::sqrt(s4D[2]) - 1;
+      float sa = s4D[1]/((sx+1)*(sy+1));
+      s4D.head<3>() << sx,sa,sy;
+      std::tie(g4D, dbg0, dbg1) = m_model4D->deformation(s4D, X.pix);
+    }
+
+    Vector4s gLin;
+    {
+      Vector6s sLin = s;
+      if (m_settings.linearized_bending > 0.001f) {
+        sLin.head<3>() = sLin.head<3>() - m_settings.linearized_bending * 2 * X.h * sLin.tail<3>();
+        sLin.tail<3>().setZero();
+      }
+      if(m_settings.svdclamp > 0)
+        hermitian_eig_clamp(sLin, m_settings.svdclamp);
+      float sx = std::sqrt(sLin[0]) - 1;
+      float sy = std::sqrt(sLin[2]) - 1;
+      float sa = sLin[1]/((sx+1)*(sy+1));
+      sLin.head<3>() << sx,sa,sy;
+      std::tie(gLin, dbg0, dbg1) = m_model->deformation(sLin, X.pix);
+    }
+
+    // pos error relative to radius
+    // twist error relative to one full twist of 2pi
+    float errx = (g4D.head<3>()-gLin.head<3>()).norm() / m_model->getPYP().r;
+    float errt = std::abs(g4D(3)-gLin(3)) / (2*3.1415926f);
+
+
+    Xws.cpu()[vix].u = errx;
+    Xws.cpu()[vix].v = errt;
+  });
+
+  dbg_compare_keep_uv = true;
+}
+
+void YarnMapper::dbg_compare_nsamples() { // copy of deform_reference current model and other fixed model
+
+  // tmp load of comparison model
+  std::string comparemodelfolder;
+  if (m_settings.modelfolder.find("rib") != std::string::npos) {
+    comparemodelfolder = "data/yarnmodels/num_samples/model_rib_31";
+  } else {
+    comparemodelfolder = "data/yarnmodels/num_samples/model_stock_31";
+  }
+  auto model2 = std::make_unique<Model>(comparemodelfolder);
+  Debug::logf("Comparing\n  %s\n  %s\n",m_settings.modelfolder.c_str(), comparemodelfolder.c_str());
+
+  Mesh& mesh = m_meshProvider->getMesh();
+  int nverts = m_soup.num_vertices();
+  auto& Xms  = m_soup.get_Xms().cpu();
+  auto& Xws  = m_soup.get_Xws();
+  auto& S    = mesh.strains.cpu();
+  auto& Sv   = mesh.vertex_strains.cpu();
+
+  // DEBUG
+  m_model->do_cpu_bend = (m_settings.linearized_bending <= 0.001f);
+  
+  auto& B0 = m_soup.get_B0().cpu();
+  Xws.cpu().resize(Xms.size());
+  threadutils::parallel_for(0, nverts, [&](int vix) {
+    const auto& bary = B0[vix];
+    int tri          = bary.tri;
+    if (tri < 0)  // skip unassigned vertex
+      return;
+
+    Vector3s abc;
+    abc << bary.a, bary.b, bary.c;
+
+    Vector6s s;
+    {
+      auto ms_ixs = mesh.Fms.cpu()[tri].map();
+      s = Sv[ms_ixs[0]].map() * abc[0] + Sv[ms_ixs[1]].map() * abc[1] +
+          Sv[ms_ixs[2]].map() * abc[2];
+    }
+
+    /*const*/ auto& X = Xms[vix];
+
+
+    if (m_settings.linearized_bending > 0.001f) {
+      s.head<3>() = s.head<3>() - m_settings.linearized_bending * 2 * X.h * s.tail<3>();
+      s.tail<3>().setZero();
+    }
+    if(m_settings.svdclamp > 0)
+      hermitian_eig_clamp(s, m_settings.svdclamp);
+    float sx = std::sqrt(s[0]) - 1;
+    float sy = std::sqrt(s[2]) - 1;
+    float sa = s[1]/((sx+1)*(sy+1));
+    s.head<3>() << sx,sa,sy;
+
+    float dbg0,dbg1;
+    Vector4s g1, g2;
+    std::tie(g1, dbg0, dbg1) = m_model->deformation(s, X.pix);
+    std::tie(g2, dbg0, dbg1) = model2->deformation(s, X.pix);
+
+    // pos error relative to radius
+    // twist error relative to one full twist of 2pi
+    float errx = (g1.head<3>()-g2.head<3>()).norm() / m_model->getPYP().r;
+    float errt = std::abs(g1(3)-g2(3)) / (2*3.1415926f);
+
+
+    Xws.cpu()[vix].u = errx;
+    Xws.cpu()[vix].v = errt;
+  });
+
+  dbg_compare_keep_uv = true;
 }

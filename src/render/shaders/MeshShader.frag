@@ -9,19 +9,20 @@ out highp vec3 position;
 layout(location = 2)
 out highp vec3 normal;
 
-
+// #define LINES
 #ifdef LINES
   uniform vec4 diffuseColor;
 #else
   uniform sampler2D matcap;
-  uniform float wiresize = 0.015;
+  // uniform float wiresize = 0.015;
+  uniform float wiresize = 0.03;
+  // uniform float wiresize = 0.05;
 #endif
 
 void main() {
   position = viewPosition;
   normal = viewNormal;
 #ifdef LINES
-  uniform vec4 diffuseColor;
   color = diffuseColor;
 #else
   bool backfacing = !gl_FrontFacing;//normal.z < 0;

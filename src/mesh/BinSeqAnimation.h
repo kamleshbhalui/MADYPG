@@ -14,6 +14,7 @@ class BinSeqAnimation : public AbstractMeshProvider {
   struct Settings {
     std::string filepath;
     bool repeat = true;
+    float scale = 1.0;
   } m_settings;
 
   BinSeqAnimation(const Settings& settings) : m_settings(settings) {
@@ -22,6 +23,17 @@ class BinSeqAnimation : public AbstractMeshProvider {
 
     if (!deserialize_frames(m_settings.filepath, m_frames)) {
       return;
+    }
+
+    bool rescale = std::abs(m_settings.scale - 1.0f) > 0.001f;
+    if (rescale) {
+      for (auto& frame : m_frames) {
+        frame.cloth_U *= m_settings.scale;
+        frame.cloth_V *= m_settings.scale;
+        for (size_t i = 0; i < frame.obs_V.size(); ++i)
+          frame.obs_V[i] *= m_settings.scale;
+      }
+      
     }
 
     update();  // load first frame
@@ -81,9 +93,8 @@ class BinSeqAnimation : public AbstractMeshProvider {
   std::vector<Frame> m_frames;
   size_t m_iter;
 
-
-  template<typename MatrixT, typename T>
-  void copy_to(const MatrixT& A, std::vector<T> &B) {
+  template <typename MatrixT, typename T>
+  void copy_to(const MatrixT& A, std::vector<T>& B) {
     B.clear();
     B.reserve(A.rows());
     for (size_t i = 0; i < size_t(A.rows()); i++) {
@@ -91,7 +102,9 @@ class BinSeqAnimation : public AbstractMeshProvider {
       B.back().map() = A.row(i);
     }
 
-    // parallel: it appears that this is (kind of negligibly but observably) slower than serial copy! let this be a lesson to default to non-parallel stuff for trivial operations and when parallelizing always measure! 
+    // parallel: it appears that this is (kind of negligibly but observably)
+    // slower than serial copy! let this be a lesson to default to non-parallel
+    // stuff for trivial operations and when parallelizing always measure!
     // B.resize(A.rows());
     // tbb::parallel_for(size_t(0),size_t(A.rows()),[&](size_t i){
     //   B[i].map() = A.row(i);

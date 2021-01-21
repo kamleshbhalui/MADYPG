@@ -62,7 +62,7 @@ namespace Magnum
         _plyNumUniform,
         _plyHeightUniform,
         _plyLengthUniform,
-        _texscaleUniform;
+        _uvscaleUniform;
   };
 
 } // namespace Magnum

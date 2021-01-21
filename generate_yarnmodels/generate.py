@@ -40,9 +40,10 @@ def getNverts(f):
     return N
 
 
-def compute_dQrd(strains, f):
+def compute_dQrd(strains, f, noslide=False):
     s = make_settings(f)
     s.strains = strains
+    s.solvableSettings.disable_slide_constraint = noslide
     sim = ps.Simulation(s)
     Q0 = sim.getQ()
 
@@ -78,17 +79,17 @@ def compute_dQrd(strains, f):
 
 # note this needs to be declared outside, for multiprocessing...
 def do_thing(args):
-    sx, sa, sy, pypfile, i0, i1, i2 = args
+    sx, sa, sy, pypfile, i0, i1, i2, noslide = args
     strains = np.zeros(6,)
     strains[0] = sx
     strains[1] = sa
     strains[2] = sy
     # print(strains)
-    D = compute_dQrd(strains, pypfile)
+    D = compute_dQrd(strains, pypfile, noslide)
     return i0, i1, i2, D
 
 
-def generate_data(name, pypfile, SX, SA, SY):
+def generate_data(name, pypfile, SX, SA, SY, disable_slide_constr=False):
     Nv = getNverts(pypfile)
 
     Nsims = len(SX)*len(SA)*len(SY)
@@ -111,7 +112,7 @@ def generate_data(name, pypfile, SX, SA, SY):
         for i2 in range(len(SY)):
             for i1 in range(len(SA)):
                 for i0 in range(len(SX)):
-                    yield SX[i0], SA[i1], SY[i2], pypfile, i0, i1, i2
+                    yield SX[i0], SA[i1], SY[i2], pypfile, i0, i1, i2, disable_slide_constr
 
     def data_ix(vix, isx, isa, isy):
         return isx + (len(SX)) * isa + (len(SX) * len(SA)) * isy + (len(SX) * len(SA) * len(SY)) * vix
