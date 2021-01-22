@@ -187,6 +187,9 @@ MainApplication::MainApplication(const Arguments &arguments)
   ::Debug::logf("Using %dx MSAA\n", MSAA);
   GL::Renderer::enable(GL::Renderer::Feature::Multisampling);
 #endif
+  #ifdef SUPERSAMPLING
+  ::Debug::logf("Using %dx SSAA\n", SUPERSAMPLING);
+  #endif
 
   /* Setup window */
   {
@@ -384,6 +387,7 @@ void MainApplication::drawEvent() {
       _yarnGeometryShader.bindNormalMap(_normalMap);
       _yarnGeometryShader.setProjection(_projection);
       _yarnGeometryShader.setTextureScale(_clothUV_scale);
+      _yarnGeometryShader.setTextureOffset(_clothUV_offset);
       _yarnDrawable.back().m_radius =
           _yarnMapper->getRadius() * _render_radius_mult;
       _yarnDrawable.back().m_nmtwist  = _render_nmtwist;
@@ -730,6 +734,7 @@ void MainApplication::drawSettings() {
       ImGui::DragFloat("NM length", &_render_nmlen, 0.1f, 0.0f, 20.0f);
       // ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
       ImGui::DragFloat("uv scale", &_clothUV_scale, 0.1f, 0.0f, 100.0f);
+      ImGui::DragFloat2("uv offset", _clothUV_offset.data(), 0.1f, -10.0f, 10.0f);
       ImGui::PopItemWidth();
     }
 
@@ -889,17 +894,35 @@ void MainApplication::drawSettings() {
   }
   ImGui::Text("Frame: %d", _frame);
   {
+    static const std::vector<std::string> labels{"mesh: update", "mesh: strains", "yarns: deform", "yarns: map"};
+    const auto& timer = _yarnMapper->m_timer;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
+    ImGui::Columns(2, NULL, true);
+    ImGui::SetColumnWidth(1, 100);
+    for (const auto & label : labels) {
+      ImGui::TextUnformatted(label.c_str());
+    }
+    ImGui::NextColumn();
+    for (const auto & label : labels) {
+      ImGui::Text("%8.2f ms", 0.001 * timer.getAverage(label));
+    }
+    ImGui::PopStyleVar();
+    ImGui::Columns(1);
+  }
+  if (ImGui::TreeNode("All Timers")) {
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
     ImGui::Columns(2, NULL, true);
     ImGui::SetColumnWidth(1, 100);
     auto averages          = _yarnMapper->m_timer.getAverageList();
     constexpr double scale = 0.001;
-    for (const auto &avg : averages) ImGui::Text("%s:", avg.first.c_str());
+    for (const auto &avg : averages) ImGui::Text("%s", avg.first.c_str());
     ImGui::NextColumn();
     for (const auto &avg : averages)
       ImGui::Text("%8.2f ms", scale * avg.second);
     ImGui::PopStyleVar();
     ImGui::Columns(1);
+    ImGui::TreePop();
   }
 
   // ImGui::PopItemWidth();
@@ -916,7 +939,7 @@ void MainApplication::drawSettings() {
   if (ImGui::Button("NSamplesTest")) {
     _yarnMapper->dbg_compare_nsamples();
   }
-  {
+  if (ImGui::TreeNode("Histograms")) {
     ImGui::TextUnformatted("S");
     ImGui::SameLine();
     ImGui::PushItemWidth(20.0f);
@@ -936,6 +959,7 @@ void MainApplication::drawSettings() {
     ImGui::DragFloat("IIxx IIxy IIyy##S5", &_yarnMapper->m_dbg.strain_toggle[3],
                      0.01f, 0.0f, 1.0f);
     ImGui::PopItemWidth();
+    ImGui::TreePop();
   }
 #ifdef DO_DEBUG_STATS
   {
@@ -987,6 +1011,7 @@ void MainApplication::drawSettings() {
           _yarnMapper->m_dbg.hist_stepcount = 0;
         }
       }
+      ImGui::TreePop();
     }
   }
 #endif

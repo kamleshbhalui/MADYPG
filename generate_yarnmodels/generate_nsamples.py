@@ -1,5 +1,6 @@
 import generate
 import numpy as np
+import time
 
 # maxish = 1.0
 # minish = -0.25
@@ -10,7 +11,6 @@ import numpy as np
 # print(rgexy)
 # print(rgea)
 # print(len(rgexy)*len(rgexy)*len(rgea))
-
 
 rge5xy = [-0.2,0.0,0.33,0.67,1.0]
 rge5a = [-0.5,-0.25,0.0,0.25,0.5]
@@ -28,6 +28,8 @@ rge31a = np.linspace(-0.7,0.7,31)
 # print(rge31xy)
 # print(rge31a)
 
+timingsfile = 'timings_%s.txt' % time.strftime("%Y%m%d-%H%M%S")
+
 for name, pypfile in [
     # ['stocktiniest', "pyp/stocktiniest.pyp"],
     ['stock', "pyp/hylc2020/stockinette.pyp"],
@@ -43,5 +45,9 @@ for name, pypfile in [
     ['31',rge31xy,rge31a],
   ]:
       print("Test %s will have %d total samples"%(tstname,len(rgesxsy)*len(rgesxsy)*len(rgesa)))
+      t0 = time.perf_counter()
       generate.generate_data("model_%s_%s" % (name,tstname), pypfile, rgesxsy,
                             rgesa, rgesxsy)
+      dt = time.perf_counter() - t0
+      with open(timingsfile, 'a') as f1:
+        f1.write("%s %s\n" % ("model_%s_%s" % (name,tstname), dt))

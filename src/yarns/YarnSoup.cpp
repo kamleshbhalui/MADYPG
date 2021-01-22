@@ -356,6 +356,8 @@ void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL, scalar min
 
   Debug::log("# yarn vertices:",
              Debug::format_locale(n_vertices_total, "en_US.UTF-8"));
+  Debug::log("# yarns:",
+             Debug::format_locale(nyarns, "en_US.UTF-8"));
 
   // use accum. counts to set indices per yarn in parallel
   auto& indices = m_indices.cpu();

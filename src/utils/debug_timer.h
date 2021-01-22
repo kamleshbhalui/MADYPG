@@ -55,28 +55,20 @@ class MovingAverageTimer {
   }
   ~MovingAverageTimer() {}
 
+  // // explicitly add labeled timer, to enforce order
+  // void declare(const std::string & label) {
+  //   // m_map.try_emplace(label, {});
+  //   auto& entry   = m_map[label];
+  // }
+
   void tick() { t_prev = std::chrono::high_resolution_clock::now(); }
 
   void tock(const std::string& label) {
     int duration = _tock();
-
-    auto& entry   = m_map[label];
-    auto& A       = entry.value;
-    auto& samples = entry.samples;
-
-    int n = int(samples.size());
-    if (n < N) {
-      A = (A * n + duration) / (n + 1);  // incrementing average
-    } else {
-      A = A + (duration - samples.front()) * invN;  // moving average
-      samples.pop_front();
-    }
-    samples.push_back(duration);
-
-    tick();  // don't count tock execution in next timer usage
+    tockDuration(label, duration);
   }
 
-  void tockForeign(const std::string& label, int duration) { // for ticking a duration that was counted outside
+  void tockDuration(const std::string& label, int duration) { 
     auto& entry   = m_map[label];
     auto& A       = entry.value;
     auto& samples = entry.samples;
@@ -92,12 +84,19 @@ class MovingAverageTimer {
     tick();  // don't count tock execution in next timer usage
   }
 
-  double getAverage(const std::string& label) {
-    double a = 0.0;
-    for (auto& v : m_map[label].samples) {
-      a += v;
+  double getAverage(const std::string& label) const {
+    // double a = 0.0;
+    // for (auto& v : m_map[label].samples) {
+    //   a += v;
+    // }
+
+    auto search = m_map.find(label);
+    if (search != m_map.end()) {
+        return search->second.value;
+    } else {
+        return -1;
     }
-    return m_map[label].value;
+    // return m_map[label].value; // non-const lookup
   }
 
   std::vector<std::pair<std::string, double>> getAverageList() {

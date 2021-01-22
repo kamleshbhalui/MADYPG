@@ -9,11 +9,26 @@
 // #define MODEL4D "data/yarnmodels/model_stock_bend4D"
 #define MODEL4D "data/yarnmodels/model_rib_bend4D"
 
+YarnMapper::YarnMapper() : m_initialized(false) {
+  // // 'declare' moving average timers, just to enforce order
+  // // main stuff
+  // m_timer.declare("mesh: update");
+  // m_timer.declare("mesh: strains");
+  // m_timer.declare("yarns: deform");
+  // m_timer.declare("yarns: map");
+  // // other stuff
+  // // ...
+  // // external stuff not in yarnmapper class, e.g. rendering
+  // m_timer.declare("outside CPU");
+  // m_timer.declare("outside GPU");
+}
+
+
 void YarnMapper::step() {
   m_glq3.end();
   // m_timer.tick();
   m_timer.tock("outside CPU");
-  m_timer.tockForeign("outside GPU",
+  m_timer.tockDuration("outside GPU",
                       m_glq3.result<Magnum::UnsignedInt>() / 1000);
 
   if (!m_initialized) {
@@ -65,7 +80,7 @@ void YarnMapper::step() {
     if (!m_settings.repeat_frame) {
       // step the mesh provider
       m_meshProvider->update();
-      m_timer.tock("mesh provider update");
+      m_timer.tock("mesh: update");
     }
   }
 
@@ -258,7 +273,7 @@ void YarnMapper::step() {
   // b/=mesh.strains.size();
   // Debug::log("STRAINS",s,b,o);
 
-  m_timer.tock("mesh normals & strains");
+  m_timer.tock("mesh: strains");
 
   if (m_settings.gpu_compute) {
     // TODO option to switch between vertex or flat strains, here fore buffering
@@ -293,7 +308,7 @@ void YarnMapper::step() {
 
     m_glq1.end();
     // m_timer.tock("deform");
-    m_timer.tockForeign("deform", m_glq1.result<Magnum::UnsignedInt>() / 1000);
+    m_timer.tockDuration("yarns: deform", m_glq1.result<Magnum::UnsignedInt>() / 1000);
 
     // SHELL MAP
     m_glq2.begin();
@@ -313,7 +328,7 @@ void YarnMapper::step() {
 
     m_glq2.end();
     // m_timer.tock("bary & shell map & buf");
-    m_timer.tockForeign("bary & shell map & buf",
+    m_timer.tockDuration("yarns: map",
                         m_glq2.result<Magnum::UnsignedInt>() / 1000);
 
   } else {  // CPU compute
@@ -333,7 +348,7 @@ void YarnMapper::step() {
             Xms[i].mapXT().head<2>(), 1;
       });
     }
-    m_timer.tock("deform");
+    m_timer.tock("yarns: deform");
 
     // SHELL MAP
     m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
@@ -353,7 +368,7 @@ void YarnMapper::step() {
     // finally buffer Xws for yarnshader to draw
     m_soup.get_Xws().bufferData(Magnum::GL::BufferUsage::StreamDraw);
     glMemoryBarrier(GLbitfield(GL_ALL_BARRIER_BITS));
-    m_timer.tock("bary & shell map & buf");
+    m_timer.tock("yarns: map");
   }
 
   // { // DEBUG check for opengl errors.

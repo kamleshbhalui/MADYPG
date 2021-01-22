@@ -47,7 +47,7 @@ class YarnMapper {
     PBDSimulation::Settings pbd_settings;
   } m_settings;
 
-  YarnMapper() : m_initialized(false) {}
+  YarnMapper();
 
   void initialize() { step(); }
 

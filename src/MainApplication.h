@@ -51,7 +51,7 @@
 #include "utils/debug_includes.h"
 #include "yarns/YarnMapper.h"
 
-#define SUPERSAMPLING 2 // EXTREMELY SLOW AND UNOPTIMIZED EVEN WITH MSAA x1
+#define SUPERSAMPLING 2  // EXTREMELY SLOW AND UNOPTIMIZED EVEN WITH MSAA x1
 
 namespace Magnum {
 
@@ -106,7 +106,7 @@ class MainApplication : public Platform::Application {
   bool _render_mesh              = false;
   bool _render_yarns             = true;
   bool _render_obstacles         = true;
-  bool _render_ground            = true;
+  bool _render_ground            = false;
   bool _rotate_scene             = false;
   std::string _matcap_file       = "data/textures/matcaps/glossyc.jpg";
   std::string _matcapObs_file    = "data/textures/matcaps/lighting1.jpg";
@@ -121,7 +121,8 @@ class MainApplication : public Platform::Application {
   float _render_nmheight      = 0.4f;  // relative to radius
   float _render_nmlen         = 6.0f;  // relative to radius and 1/num
   float _mesh_dz              = 0.0f;
-  float _clothUV_scale   = 1.0f;
+  float _clothUV_scale        = 1.0f;
+  Vector2 _clothUV_offset     = Vector2(0.0f);
   Color4 _bgColor             = Color4(1.0f);  // Color4(Color3(0.2f), 1.0f);
 
   // std::unique_ptr<ArcBallCamera> _arcballCamera;

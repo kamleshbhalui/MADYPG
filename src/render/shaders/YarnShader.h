@@ -44,6 +44,7 @@ namespace Magnum
     YarnShader &bindNormalMap(GL::Texture2D &texture);
     // YarnShader &bindNormalMap(GL::Texture1D &texture);
     YarnShader &setTextureScale(float scale);
+    YarnShader &setTextureOffset(const Vector2& offset);
 
   private:
     enum : Int
@@ -62,7 +63,8 @@ namespace Magnum
         _plyNumUniform,
         _plyHeightUniform,
         _plyLengthUniform,
-        _uvscaleUniform;
+        _uvscaleUniform,
+        _uvoffsetUniform;
   };
 
 } // namespace Magnum
