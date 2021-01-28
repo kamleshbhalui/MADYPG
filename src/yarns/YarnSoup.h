@@ -91,6 +91,9 @@ class YarnSoup {
   //   B0.cpu().clear();
   //   E.resize(0,0);
   // }
+
+  int numVertices() { return m_nvertices; }
+  int numYarns() { return m_nyarns; }
   
  private:
   VectorBuffer<VertexMSData> X_ms;                   // [u v h t a ... ] undeformed material space
@@ -106,7 +109,8 @@ class YarnSoup {
   // std::vector<int>
   //     m_pypix;  // index in pyp // TODO replace with something parametric: y,t
 
-
+  int m_nvertices;
+  int m_nyarns;
 
 };
 

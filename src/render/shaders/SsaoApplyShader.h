@@ -37,7 +37,7 @@
 #include <Magnum/Math/Color.h>
 #include <Magnum/GL/MultisampleTexture.h>
 
-#include "../enableMSAA.h"
+#include "../render_definitions.h"
 
 namespace Magnum {
 

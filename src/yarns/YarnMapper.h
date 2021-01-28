@@ -81,8 +81,8 @@ class YarnMapper {
   }
 
   // timing
-  Debug::MovingAverageTimer<1000, std::chrono::microseconds> m_timer;
-  // Debug::MovingAverageTimer<10, std::chrono::microseconds> m_timer;
+  // Debug::MovingAverageTimer<1000, std::chrono::microseconds> m_timer;
+  Debug::MovingAverageTimer<30, std::chrono::microseconds> m_timer;
 
   // export the current yarn geometry to an FBX file
   bool export2fbx(const std::string& filename);
@@ -104,6 +104,8 @@ class YarnMapper {
 
     bool toggle = false;
   } m_dbg;
+
+  int getNumVertices() { return m_soup.numVertices(); }
 
  private:
   bool m_initialized;

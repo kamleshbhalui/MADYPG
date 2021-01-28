@@ -9,7 +9,7 @@
 #include <Magnum/Math/Vector2.h>
 #include <Magnum/GL/MultisampleTexture.h>
 
-#include "../enableMSAA.h"
+#include "../render_definitions.h"
 
 namespace Magnum {
 

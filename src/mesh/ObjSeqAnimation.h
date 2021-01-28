@@ -20,6 +20,9 @@ namespace fs = std::filesystem;
 // IN: folder, repeat, constant_material_space(=topology&positions)
 // OUT: update (sets mesh and flags)
 
+// TODO implement caching (store each frame in a mesh array like BinSeq...)
+//    either on the fly, maybe with a button toggle once up-front
+
 class ObjSeqAnimation : public AbstractMeshProvider {
  public:
   struct Settings {

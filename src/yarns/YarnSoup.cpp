@@ -354,6 +354,8 @@ void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL, scalar min
 
   int n_vertices_total = total - nyarns; // - #delims
 
+  this->m_nvertices = n_vertices_total;
+  this->m_nyarns = nyarns;
   Debug::log("# yarn vertices:",
              Debug::format_locale(n_vertices_total, "en_US.UTF-8"));
   Debug::log("# yarns:",

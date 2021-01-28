@@ -14,8 +14,8 @@ out highp vec3 normal;
   uniform vec4 diffuseColor;
 #else
   uniform sampler2D matcap;
-  // uniform float wiresize = 0.015;
-  uniform float wiresize = 0.03;
+  uniform float wiresize = 0.015;
+  // uniform float wiresize = 0.03;
   // uniform float wiresize = 0.05;
 #endif
 

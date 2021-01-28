@@ -195,9 +195,12 @@ MainApplication::MainApplication(const Arguments &arguments)
   {
     const Vector2 dpiScaling = this->dpiScaling({});
     Configuration conf;
-    conf.setSize({1200, 800}, dpiScaling);
+    // conf.setSize({1200, 800}, dpiScaling);
+    conf.setSize({1920, 1080}, dpiScaling);
     conf.setTitle("Mesh 2 Yarns")
         .setSize(conf.size(), dpiScaling)
+        // .setWindowFlags(Configuration::WindowFlag::Borderless);
+        // .setWindowFlags(Configuration::WindowFlag::Maximized)
         .setWindowFlags(Configuration::WindowFlag::Resizable);
     GLConfiguration glConf;
     glConf.setSampleCount(0);
@@ -219,6 +222,8 @@ MainApplication::MainApplication(const Arguments &arguments)
         GL::Renderer::BlendFunction::SourceAlpha,
         GL::Renderer::BlendFunction::OneMinusSourceAlpha);
   }
+
+  m_timerGL = Magnum::GL::TimeQuery{Magnum::GL::TimeQuery::Target::TimeElapsed};
 
   /* Load Mesh, setup textures and framebuffer*/
   {
@@ -253,7 +258,20 @@ MainApplication::MainApplication(const Arguments &arguments)
 #ifdef MSAA
     _fbo_ssao = GL::Framebuffer{viewport};
 #endif
+
+
+// #ifdef SUPERSAMPLING
+// GL::defaultFramebuffer.setViewport({{}, vpSize});
+//     _fbo_gbuffer.setViewport({{}, vpSize * SUPERSAMPLING});
+//     _fbo_ssao.setViewport({{}, vpSize * SUPERSAMPLING});
+// #ifdef MSAA
+//     _fbo_ssao = GL::Framebuffer{viewport};
+// #endif
+    // setupFramebuffer(vpSize * SUPERSAMPLING);
+// #else
     setupFramebuffer(vpSize);
+// #endif
+
     // GL::Renderer::setClearColor({});
     // GL::Renderer::setClearColor(_bgColor);
     // GL::defaultFramebuffer.clearColor(_bgColor);
@@ -324,6 +342,8 @@ MainApplication::MainApplication(const Arguments &arguments)
 }
 
 void MainApplication::drawEvent() {
+  m_timerRenderMethod.tick();
+  m_timerGL.begin();
   _profiler.beginFrame();
 
   bool simChanged = false;
@@ -501,29 +521,166 @@ void MainApplication::drawEvent() {
 
   if (_gui)  // hideable gui
     drawSettings();
-  {  // non-hideabale gui
-    ImGui::Begin("##interact");
+  if (_gui_nice_sliders || _gui_nice_stats || true) {  // non-hideabale gui
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 10));
-    ImGui::PushItemWidth(200.0f);
-    static float magn = 0;
-    ImGui::SliderFloat("force", &magn, 0.0f, 3.0f, "x%.2f");
-    if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
-      _yarnMapper->applyForce(magn * 3, magn * 0.5f, magn * 0);
-    ImGui::PopItemWidth();
-    ImGui::PushItemWidth(150.0f);
-    ImGui::TextUnformatted("naive");
-    ImGui::SameLine();
-    static bool _use_ours = true;
-    if (ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f,
-                           1.0f, "")) {
-      _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
+    ImGui::PushStyleColor(ImGuiCol_ResizeGrip, ImVec4(1,1,1,0));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0,0,0,1));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9,0.9,0.9,1));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9,0.9,0.9,1));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1,1,1,0.6));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1,1,1,0));
+    
+    static const ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
+    static bool open_ptr = true;
+
+    if (_gui_nice_stats) {
+      ImGui::Begin("##interact", &open_ptr, window_flags);
+      ImGui::SetWindowFontScale(1.5);
+
+      // ImGui::PushItemWidth(150.0f);
+      // ImGui::TextUnformatted("naive");
+      // ImGui::SameLine();
+      // static bool _use_ours = true;
+      // if (ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f,
+      //                        1.0f, "")) {
+      //   _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
+      // }
+      // // ImGui::SameLine();
+      // // if (ImGui::Checkbox("##useours", &_use_ours))
+      // //   _yarnMapperSettings.deform_reference = int(_use_ours);
+      // ImGui::PopItemWidth();
+
+      // if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
+      //   static float magn = 0;
+      //   ImGui::PushItemWidth(200.0f);
+      //   ImGui::TextUnformatted("force");
+      //   ImGui::SameLine();
+      //   ImGui::SliderFloat("##force", &magn, 0.0f, 3.0f, "x%.2f");
+      //   if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
+      //     _yarnMapper->applyForce(magn * 3, magn * 0.5f, magn * 0);
+      //   ImGui::PopItemWidth();
+      // }
+
+      // ImGui::Separator();
+
+      // if (_profiler.isMeasurementAvailable(0)) {
+      //   double fps = 1e9 / _profiler.frameTimeMean();
+      //   ImGui::Text("FPS:    %5.0f", fps);
+      // }
+
+
+      ImGui::Text("# vertices: %s", ::Debug::format_locale(_yarnMapper->getNumVertices(), "en_US.UTF-8").c_str());
+
+
+      static const std::vector<std::string> labels{"mesh: strains", "yarns: deform", "yarns: map"};
+      const auto& timer = _yarnMapper->m_timer;
+      double total_ms_meshupdate = 0.001 * timer.getAverage("mesh: update");
+      double total_ms_ours = 0;
+      for (const auto & label : labels) {
+        total_ms_ours += 0.001 * timer.getAverage(label);
+      }
+
+      ImGui::Text("Yarn Animation: %5.2f ms / frame", total_ms_ours);
+
+
+      // // double timer_method_ms = m_timerMethod.getTotal()*0.001;
+      // // double timer_render_ms = m_timerRenderMethod.getTotal()*0.001 - total_ms_ours - total_ms_meshupdate;
+      // double timer_render_ms = 0;
+      // if (_profiler.isMeasurementAvailable(0))
+      //   timer_render_ms = _profiler.frameTimeMean() / 1e6;
+      // // timer_render_ms = m_timerGL.result<Magnum::UnsignedInt>() / 1000;
+      // timer_render_ms = std::max(0.0, timer_render_ms - total_ms_meshupdate - total_ms_ours);
+
+
+      if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
+        ImGui::Text("PBD:            %5.2f ms", total_ms_meshupdate);
+      }
+
+      // ImGui::Text("Render: %5.2f ms", timer_render_ms);
+
+
+      ImGui::End();
     }
-    ImGui::SameLine();
-    if (ImGui::Checkbox("##useours", &_use_ours))
-      _yarnMapperSettings.deform_reference = int(_use_ours);
-    ImGui::PopItemWidth();
+    if (_gui_nice_sliders) {
+      static const bool slider_deform = true; 
+      static const bool slider_phong = false; 
+      static const bool slider_clamp = false; 
+
+      ImGui::Begin("##interact_force", &open_ptr, window_flags);
+      ImGui::SetWindowFontScale(1.5);
+      ImGui::PushItemWidth(500.0f);
+      if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
+        static float magn = 0;
+        ImGui::TextUnformatted("     ");
+        ImGui::SameLine();
+        ImGui::SliderFloat("##force", &magn, 0.0f, 3.0f, "force: x%.2f");
+        if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
+          _yarnMapper->applyForce(magn * 3, magn * 0.5f, magn * 0);
+      }
+      if (slider_deform) {
+        ImGui::TextUnformatted("naive");
+        ImGui::SameLine();
+        // static bool _use_ours = true;
+        if (ImGui::SliderFloat("ours##sep", &_yarnMapperSettings.deform_reference, 0.0f,
+                              1.0f, "")) {
+          // _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
+        }
+      }
+      if (slider_phong) {
+        ImGui::TextUnformatted("     ");
+        ImGui::SameLine();
+        ImGui::SliderFloat("##phong", &_yarnMapperSettings.phong_deformation, 0.0f,
+                              1.0f, "alpha = %.2f");
+      }
+      if (slider_clamp) {
+        ImGui::TextUnformatted("     ");
+        ImGui::SameLine();
+        ImGui::SliderFloat("##clamp", &_yarnMapperSettings.svdclamp, 0.0f,
+                              1.0f, "lambda_min = %.2f");
+      }
+      ImGui::PopItemWidth();
+      ImGui::End();
+    }
+    // ImGui::Begin("##nsamples", &open_ptr, window_flags);
+    // ImGui::SetWindowFontScale(1.5);
+    // static int nsamples = 5;
+    // bool changed = false;
+    // changed |= ImGui::RadioButton("    5 x 5 x 5", &nsamples, 5);
+    // changed |= ImGui::RadioButton("    9 x 9 x 9", &nsamples, 9);
+    // changed |= ImGui::RadioButton(" 15 x 15 x 15", &nsamples, 15);
+    // changed |= ImGui::RadioButton(" 31 x 31 x 31", &nsamples, 31);
+    // if (changed)
+    //   _yarnMapperSettings.modelfolder = "data/yarnmodels/num_samples/model_stock_" + std::to_string(nsamples);
+    // ImGui::End();
+
+    // ImGui::Begin("##bend", &open_ptr, window_flags);
+    // ImGui::SetWindowFontScale(1.5);
+    // int toggle = int(_yarnMapper->m_dbg.toggle);
+    // bool changed = false;
+    // changed |= ImGui::RadioButton("linearized bending", &toggle, 0);
+    // changed |= ImGui::RadioButton("        4D bending", &toggle, 1);
+    // if (changed)
+    //   _yarnMapper->m_dbg.toggle = (toggle > 0);
+    // ImGui::End();
+
+    // ImGui::Begin("##slide", &open_ptr, window_flags);
+    // ImGui::SetWindowFontScale(1.5);
+    // bool toggle = _yarnMapper->m_dbg.toggle;
+    // ImGui::Checkbox("Sliding Constraint", &toggle);
+    // ImGui::End();
+
+
+
+    ImGui::PopStyleColor();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(); // grab triangle
     ImGui::PopStyleVar();
-    ImGui::End();
   }
 
   _imgui.updateApplicationCursor(*this);
@@ -545,6 +702,9 @@ void MainApplication::drawEvent() {
   _profiler.endFrame();
 
   redraw();
+  m_timerGL.end();
+  // m_timerRenderMethod.tock("");
+  m_timerRenderMethod.tockDuration("", m_timerGL.result<Magnum::UnsignedInt>() / 1000);
 }
 
 void MainApplication::viewportEvent(ViewportEvent &event) {
@@ -634,6 +794,9 @@ void MainApplication::drawSettings() {
   const float spacing = 10;
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(100.0f);
+
+  ImGui::Checkbox("n1-stats",&_gui_nice_stats);
+  ImGui::Checkbox("n1-sliders",&_gui_nice_sliders);
 
   if (ImGui::Button("Hot Reload Shaders")) {
     Utility::Resource::overrideGroup("ssao-data",
@@ -871,6 +1034,8 @@ void MainApplication::drawSettings() {
                      0.0001f, 1.0f);
     ImGui::DragFloat("Density", &_yarnMapperSettings.pbd_settings.density,
                      0.01f, 0.0f, 10.0f);
+    ImGui::DragFloat3("Gravity", _yarnMapperSettings.pbd_settings.gravity,
+                      0.01f, -10.0f, 10.0f);
   }
   ImGui::Unindent();
 
@@ -886,8 +1051,7 @@ void MainApplication::drawSettings() {
 
   if (_profiler.isMeasurementAvailable(0)) {
     double fps = 1e9 / _profiler.frameTimeMean();
-    ImGui::Text("FPS: %.1f", fps);
-    ImGui::Separator();
+    ImGui::Text("FPS:    %5.0f", fps);
     std::string stats = _profiler.statistics();
     ImGui::TextUnformatted(stats.c_str());
     ImGui::Separator();
@@ -1044,6 +1208,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       case KeyEvent::Key::Esc:
         this->exit();
         break;
+      case KeyEvent::Key::D:
+        _yarnMapper->m_dbg.toggle = !_yarnMapper->m_dbg.toggle;
+        break;
       case KeyEvent::Key::E:
         ::Debug::log("Exporting FBX...");
         if ((event.modifiers() & KeyEvent::Modifier::Shift))
@@ -1103,7 +1270,7 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
         _yarnMapperSettings.gpu_compute = !_yarnMapperSettings.gpu_compute;
         break;
       case KeyEvent::Key::H:
-        _gui = !_gui;
+        _gui = !_gui; // 2 (full) and 1 (minimal)
         break;
       case KeyEvent::Key::NumOne:
       case KeyEvent::Key::One:

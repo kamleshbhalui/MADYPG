@@ -108,6 +108,15 @@ class MovingAverageTimer {
     return pairs;
   }
 
+
+  double getTotal() {
+    double t = 0;
+    for (auto kv : m_map) {
+      t += kv.second.value;
+    }
+    return t;
+  }
+
  private:
   struct Average {
     double value = 0.0;  // ensure 0 init

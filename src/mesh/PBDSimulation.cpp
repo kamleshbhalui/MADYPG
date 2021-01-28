@@ -89,6 +89,8 @@ PBDSimulation::PBDSimulation(const Settings& settings) : m_settings(settings) {
   // STRAIN: CLOTH_NORMALIZE_STRETCH, CLOTH_NORMALIZE_SHEAR
   // SOLID: ...
 
+  PBD::Simulation::getCurrent()->setVecValue<Real>(PBD::Simulation::GRAVITATION, m_settings.gravity);
+
   // initial flags
   m_indicesDirty = true;
 }

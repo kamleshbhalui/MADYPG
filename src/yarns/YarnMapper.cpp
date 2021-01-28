@@ -6,8 +6,8 @@
 #include "../utils/debug_includes.h"
 #include "../utils/threadutils.h"
 
-// #define MODEL4D "data/yarnmodels/model_stock_bend4D"
-#define MODEL4D "data/yarnmodels/model_rib_bend4D"
+#define MODEL4D "data/yarnmodels/model_stock_bend4D"
+// #define MODEL4D "data/yarnmodels/model_rib_bend4D"
 
 YarnMapper::YarnMapper() : m_initialized(false) {
   // // 'declare' moving average timers, just to enforce order

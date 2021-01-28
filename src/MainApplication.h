@@ -41,7 +41,7 @@
 #include "render/MeshDrawable.h"
 #include "render/ObsMeshDrawable.h"
 #include "render/YarnDrawable.h"
-#include "render/enableMSAA.h"
+#include "render/render_definitions.h"
 #include "render/shaders/GroundShader.h"
 #include "render/shaders/MeshShader.h"
 #include "render/shaders/ObsMeshShader.h"
@@ -50,8 +50,6 @@
 #include "render/shaders/YarnShader.h"
 #include "utils/debug_includes.h"
 #include "yarns/YarnMapper.h"
-
-#define SUPERSAMPLING 2  // EXTREMELY SLOW AND UNOPTIMIZED EVEN WITH MSAA x1
 
 namespace Magnum {
 
@@ -97,7 +95,9 @@ class MainApplication : public Platform::Application {
   GL::Texture2D _gridTexture{NoCreate};
   // GL::Texture1D _normalMap{NoCreate};
   GL::Texture2D _normalMap{NoCreate};
-  bool _gui                      = true;
+  bool _gui_nice_stats           = true;
+  bool _gui_nice_sliders         = true;
+  bool _gui                  = true;
   bool _paused                   = false;
   int _pauseAt                   = -1;
   int _frame                     = 0;
@@ -181,6 +181,12 @@ class MainApplication : public Platform::Application {
   SsaoApplyShader::Flag _ssaoApplyFlag = {};
 
   ImGuiIntegration::Context _imgui{NoCreate};
+
+
+  // ::Debug::MovingAverageTimer<30, std::chrono::microseconds> m_timerMethod;
+  ::Debug::MovingAverageTimer<30, std::chrono::microseconds> m_timerRenderMethod;
+  Magnum::GL::TimeQuery m_timerGL{NoCreate};
+
 };
 }  // namespace Magnum
 
