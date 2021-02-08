@@ -88,8 +88,8 @@ class Model4D {
   }
 
 
-  const std::tuple<Vector4s, float, float> deformation(const Vector6s& strain,
-                                                         int pix) {
+  Vector4s deformation(const Vector6s& strain,
+                                                         int pix) const {
     Vector4s g = Vector4s::Zero();
 
     float l1, l2, c2;
@@ -97,16 +97,13 @@ class Model4D {
 
     // g += c2 g_x(S, l1) + (1-c2) g_x(S, l2)
     // g += c2 g_y(S, l2) + (1-c2) g_y(S, l1)
-    // g += g_x(S,0)
-
+    // g -= g_x(S,0)
 
     g += c2 * (m_tex_SIIx.sample({strain[0],strain[1],strain[2],l1}, pix) + m_tex_SIIy.sample({strain[0],strain[1],strain[2],l2}, pix));
     g += (1 - c2) * (m_tex_SIIx.sample({strain[0],strain[1],strain[2],l2}, pix) + m_tex_SIIy.sample({strain[0],strain[1],strain[2],l1}, pix));
-
-    // TODO INCORRECT GROUND TRUTH MODEL: counts any sxsasy defo twice..
     g -= m_tex_SIIx.sample({strain[0],strain[1],strain[2],0}, pix); // hijacking one of the texs for subtracting the doubly counted pure inplane defo...
 
-    return std::make_tuple(g, 0, 0);
+    return g;
   }
 
   const PeriodicYarnPattern& getPYP() const { return m_pyp; }
@@ -157,7 +154,7 @@ class Model4D {
     }
   };
 
-  std::tuple<float, float, float> robust_eigenstuff(float IIxx, float IIxy, float IIyy) {
+  std::tuple<float, float, float> robust_eigenstuff(float IIxx, float IIxy, float IIyy) const {
     float A = 0.5f * (IIxx + IIyy);
     float B = 0.5f * (IIxx - IIyy);
     float eps = 1e-8;
@@ -195,7 +192,7 @@ class Model4D {
     }
 
     // std::tuple<Vector4s, float, float> sample (const std::vector<float>& in) {
-    Vector4s sample (const std::vector<float>& in, int pix) {
+    Vector4s sample (const std::vector<float>& in, int pix) const {
       std::vector<float> A;
       std::vector<int> C;
       A.reserve(N);
@@ -231,7 +228,19 @@ class Model4D {
         samples.push_back(m_data[dix].map());
       }
 
-      ND_lerp_half(samples, A);
+      // lerp-combine one half with the other until only one sample left
+      size_t sz = samples.size();
+      for (int i = 0; i < N; i++) {
+        // samples[ < len(samples)/2] = (1-a[i]) samples[ < len(samples)/2] + (a[i]) samples[ >= len(samples)/2]
+        // samples.resize(len(samples)/2)
+        size_t sz2 = sz/2;
+        float a = A[N-1-i]; // inverse order bc sample layout such that last axis changes slowest
+        for (size_t j = 0; j < sz2; j++)
+          samples[j] = (1-a) * samples[j] + a * samples[j + sz2]; // lerp into first half
+        sz = sz2;
+      }
+      assert(sz == 1);
+
       return samples[0];
     }
 
@@ -240,7 +249,7 @@ class Model4D {
     
     private:
 
-    int data_index (const std::vector<int>& axixs, int binary_offset, int pix) {
+    int data_index (const std::vector<int>& axixs, int binary_offset, int pix) const {
       // python:
       // dix = isx + (len(SX)) * isa + (len(SX) * len(SA)) * isy + (len(SX) * len(SA) * len(SY)) * ibend + (len(SX) * len(SA) * len(SY) * len(bendarr)) * vix
       // axes order: SX SA SY bend
@@ -252,20 +261,6 @@ class Model4D {
         dix += m_accsize[i] * (axixs[i] + ((binary_offset >> i) & 0b1));
       }
       return dix + m_accsize.back() * pix;
-    }
-
-    void ND_lerp_half(AlignedVector<Vector4s> & samples, const std::vector<float>& alpha) {
-      size_t sz = samples.size();
-      for (int i = 0; i < N; i++) {
-        // samples[ < len(samples)/2] = (1-a[i]) samples[ < len(samples)/2] + (a[i]) samples[ >= len(samples)/2]
-        // samples.resize(len(samples)/2)
-        size_t sz2 = sz/2;
-        float a = alpha[N-1-i]; // inverse order bc sample layout such that last axis changes slowest
-        for (size_t j = 0; j < sz2; j++)
-          samples[j] = (1-a) * samples[j] + a * samples[j + sz2]; // lerp into first half
-        sz = sz2;
-      }
-      assert(sz == 1);
     }
 
     std::vector<DeformationEntry> m_data;

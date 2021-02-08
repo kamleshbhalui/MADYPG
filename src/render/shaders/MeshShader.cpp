@@ -42,7 +42,7 @@ MeshShader::MeshShader() {
   _transformationUniform = uniformLocation("transformation");
   // _normalMatrixUniform = uniformLocation("normalMatrix");
   _projectionUniform   = uniformLocation("projection");
-  _diffuseColorUniform = uniformLocation("diffuseColor");
+  // _diffuseColorUniform = uniformLocation("diffuseColor");
   // _dzUniform           = uniformLocation("dz");
   // _radiusUniform = uniformLocation("radius");
   setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
@@ -53,22 +53,13 @@ MeshShader &MeshShader::setTransformation(const Matrix4 &transformation) {
   return *this;
 }
 
-// MeshShader& MeshShader::setNormalMatrix(const Matrix3x3& normalMatrix){
-//    setUniform(_normalMatrixUniform, normalMatrix);
-//    return *this;
-// }
-
 MeshShader &MeshShader::setProjection(const Matrix4 &projection) {
   setUniform(_projectionUniform, projection);
   return *this;
 }
 
-MeshShader &MeshShader::setDiffuseColor(const Color4 &color) {
-  setUniform(_diffuseColorUniform, color);
-  return *this;
-}
-// MeshShader &MeshShader::setDZ(float dz) {
-//   setUniform(_dzUniform, dz);
+// MeshShader &MeshShader::setDiffuseColor(const Color4 &color) {
+//   setUniform(_diffuseColorUniform, color);
 //   return *this;
 // }
 

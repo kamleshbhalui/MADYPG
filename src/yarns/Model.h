@@ -4,28 +4,11 @@
 #include "PeriodicYarnPattern.h"
 #include "YarnSoup.h"  // vertexmsdata
 
-#define CPU_BENDING
-
-// // compile time integer pow https://stackoverflow.com/a/1506856
-// template <int X, int P>
-// struct Pow {
-//   enum { result = X * Pow<X, P - 1>::result };
-// };
-// template <int X>
-// struct Pow<X, 0> {
-//   enum { result = 1 };
-// };
-// template <int X>
-// struct Pow<X, 1> {
-//   enum { result = X };
-// };
-
 class Model {
  public:
   Model(const std::string& folder);
 
-  const std::tuple<Vector4s, scalar, scalar> deformation(const Vector6s& strain,
-                                                         uint32_t pix);
+  Vector4s deformation(const Vector6s& strain, uint32_t pix) const;
 
   const PeriodicYarnPattern& getPYP() const { return m_pyp; }
   bool isInitialized() const { return m_initialized; }
@@ -75,31 +58,12 @@ class Model {
 
   bool load_axes(const std::string& filepath, std::vector<axwrapper>& axes);
 
-  Vector4s sample3D(Vector3s strain, uint32_t pix);
+  Vector4s sample3D(Vector3s strain, uint32_t pix) const;
 
   VectorBuffer<AxesInfo>
       m_tex_sxsasy_axes;  // note: axinfo exploiting "vector"buffer for just
                           // single entry
   VectorBuffer<DeformationEntry> m_tex_sxsasy_data;
-
-  // cpu implementation of 1D hylc bending
-  #ifdef CPU_BENDING
-  bool m_cpubending;
-  std::vector<DeformationEntry> m_tex_bendx_data;
-  std::vector<DeformationEntry> m_tex_bendy_data;
-  std::vector<float> m_tex_bendx_ax, m_tex_bendx_invax, m_tex_bendy_ax,m_tex_bendy_invax;
-  bool load_ax(const std::string& filepath, std::vector<float>& ax, std::vector<float>& invax);
-  std::tuple<float, float, float> robust_eigenstuff(float IIxx, float IIxy, float IIyy);
-  Vector4s sample1D(float val, uint32_t pix, const std::vector<float>& ax, const std::vector<float>& invax, const std::vector<DeformationEntry>& data);
-  Vector4s sampleIIx(float strain, uint32_t pix) {
-    return sample1D(strain, pix, m_tex_bendx_ax, m_tex_bendx_invax, m_tex_bendx_data);
-  }
-  Vector4s sampleIIy(float strain, uint32_t pix) {
-    return sample1D(strain, pix, m_tex_bendy_ax, m_tex_bendy_invax, m_tex_bendy_data);
-  }
-  public:
-  bool do_cpu_bend=true;
-  #endif
 };
 
 #endif  // __MODEL__H__

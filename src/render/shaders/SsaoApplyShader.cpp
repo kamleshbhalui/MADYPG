@@ -71,20 +71,15 @@ SsaoApplyShader::SsaoApplyShader(Flag flag) {
 
   CORRADE_INTERNAL_ASSERT_OUTPUT(link());
 
-  _aoBlurRadiusUniform  = uniformLocation("ao_blur_radius");
-  _aoBlurFeatureUniform = uniformLocation("ao_blur_feature");
+  // _aoBlurRadiusUniform  = uniformLocation("ao_blur_radius");
+  // _aoBlurFeatureUniform = uniformLocation("ao_blur_feature");
+  // setUniform(uniformLocation("positionTexture"), PositionUnit);
 
   _aoPowUniform = uniformLocation("ao_pow");
 
   if (flag != Flag::DrawAmbientOcclusion) {
-    setUniform(uniformLocation("positionTexture"), PositionUnit);
     // setUniform(uniformLocation("normalTexture"), NormalUnit);
     setUniform(uniformLocation("albedoTexture"), AlbedoUnit);
-
-    // _shininessUniform     = uniformLocation("shininess");
-    // _lightPositionUniform = uniformLocation("lightPosition");
-    // _lightColorUniform    = uniformLocation("lightColor");
-    // _specularColorUniform = uniformLocation("specularColor");
   }
 
   setUniform(uniformLocation("ambientOcclusionTexture"), AmbientOcclusionUnit);

@@ -9,19 +9,7 @@
 #define MODEL4D "data/yarnmodels/model_stock_bend4D"
 // #define MODEL4D "data/yarnmodels/model_rib_bend4D"
 
-YarnMapper::YarnMapper() : m_initialized(false) {
-  // // 'declare' moving average timers, just to enforce order
-  // // main stuff
-  // m_timer.declare("mesh: update");
-  // m_timer.declare("mesh: strains");
-  // m_timer.declare("yarns: deform");
-  // m_timer.declare("yarns: map");
-  // // other stuff
-  // // ...
-  // // external stuff not in yarnmapper class, e.g. rendering
-  // m_timer.declare("outside CPU");
-  // m_timer.declare("outside GPU");
-}
+YarnMapper::YarnMapper() : m_initialized(false) {}
 
 
 void YarnMapper::step() {
@@ -194,97 +182,23 @@ void YarnMapper::step() {
 
   // bool compute_bending_strains = m_settings.linearized_bending > 0.0001f;
   mesh.compute_face_data(m_settings.svdclamp /*, compute_bending_strains*/);
-  if (!m_settings.flat_normals)
-    mesh.compute_vertex_normals();
+  mesh.compute_vertex_normals();
 
-  {  // face/vertex-deformation gradients to cpu&gpu, for phong deformation and
-     // edge binormal transformation
-    mesh.compute_vertex_defF();
-    mesh.defF.bufferData();
-    if (m_settings.phong_deformation > 0)
-      mesh.vertex_defF.bufferData();
-  }
+  // face/vertex-deformation gradients to cpu&gpu, for phong deformation and
+  // edge binormal transformation
+  mesh.compute_vertex_defF();
+  mesh.defF.bufferData();
+  if (m_settings.phong_deformation > 0)
+    mesh.vertex_defF.bufferData();
 
-  // {
-  //   auto& strns = mesh.strains.cpu();
-  //   Debug::log("strain",strns[0].map().transpose());
-  // }
-
-// DEBUG
-#ifdef DO_DEBUG_STATS
-  {
-    auto& strns = mesh.strains.cpu();
-    threadutils::parallel_for(size_t(0), strns.size(), [&](size_t i) {
-      auto s = strns[i].map();
-      for (size_t k = 0; k < 6; k++) {
-        s[k] *= m_dbg.strain_toggle[std::min(
-            k, size_t(3))];  // NOTE min 3 to mult all bend with same factor
-      }
-    });
-  }
-#endif
-
-  if (!m_settings.flat_strains)
-    mesh.compute_vertex_strains();
-
-#ifdef DO_DEBUG_STATS
-  m_dbg.hist_stepcount++;
-  auto& strns    = mesh.strains.cpu();
-  float invscale = 1.0f / strns.size();
-  float invrge   = 1.0f / (m_dbg.hist_max - m_dbg.hist_min);
-  float invrgeB  = 1.0f / (m_dbg.hist_bend + m_dbg.hist_bend);
-  m_dbg.hist_counts.resize(6);
-  for (auto& counts : m_dbg.hist_counts) counts.resize(m_dbg.hist_nbins, 0);
-  for (size_t i = 0; i < strns.size(); i++) {
-    const auto s = strns[i].map();
-    for (size_t j = 0; j < 6; j++) {
-      auto& counts = m_dbg.hist_counts[j];
-      int bin;
-      if (j < 3)
-        bin = std::max(0, std::min(int((s[j] - m_dbg.hist_min) * invrge *
-                                       (m_dbg.hist_nbins - 1)),
-                                   m_dbg.hist_nbins - 1));
-      else
-        bin = std::max(0, std::min(int((s[j] + m_dbg.hist_bend) * invrgeB *
-                                       (m_dbg.hist_nbins - 1)),
-                                   m_dbg.hist_nbins - 1));
-
-      // ++counts[bin];
-      // c = (c*prevn+ 1 )/newn;
-      // counts[bin] = (counts[bin]*(m_dbg.hist_stepcount-1) + invscale) /
-      // m_dbg.hist_stepcount;
-      counts[bin] += invscale;
-    }
-  }
-#endif
-
-  // float s=0,b=0,o=0;
-  // for (size_t i = 0; i < mesh.strains.size(); i++)
-  // {
-  //   const auto& st = mesh.strains[i];
-  //   s += st(0);
-  //   b += st(3);
-  //   o = std::max(abs(st[1]),o);
-  //   o = std::max(abs(st[2]),o);
-  //   o = std::max(abs(st[4]),o);
-  //   o = std::max(abs(st[5]),o);
-  // }
-  // s/=mesh.strains.size();
-  // b/=mesh.strains.size();
-  // Debug::log("STRAINS",s,b,o);
+  mesh.compute_vertex_strains();
 
   m_timer.tock("mesh: strains");
 
   if (m_settings.gpu_compute) {
-    // TODO option to switch between vertex or flat strains, here fore buffering
     // and in deformshader for usage.
     mesh.vertex_strains.bufferData();
-
-    if (m_settings.flat_normals)
-      mesh.normals.bufferData();
-    else {
-      mesh.vertex_normals.bufferData();
-    }
+    mesh.vertex_normals.bufferData();
 
     m_glq1.begin();
 
@@ -316,10 +230,9 @@ void YarnMapper::step() {
       m_shellMapShader.compute(
           m_soup.get_Xws().getGPUSize(), m_soup.get_Xws().gpu(),
           m_soup.get_B0().gpu(), mesh.invDmU.gpu(),
-          m_settings.flat_normals ? mesh.normals.gpu()
-                                  : mesh.vertex_normals.gpu(),
+          mesh.vertex_normals.gpu(),
           mesh.X.gpu(), mesh.F.gpu(), mesh.Fms.gpu(), mesh.defF.gpu(),
-          mesh.vertex_defF.gpu(), mesh.U.gpu(), m_settings.flat_normals,
+          mesh.vertex_defF.gpu(), mesh.U.gpu(),
           m_settings.phong_deformation);
 
     // memory barrier so that vertex shader gets updated values
@@ -334,7 +247,7 @@ void YarnMapper::step() {
   } else {  // CPU compute
     // DEFORM REFERENCE
     if (m_settings.deform_reference > scalar(1e-10)) {
-      deform_reference(mesh, m_settings.flat_strains);
+      deform_reference(mesh);
     } else {
       int n     = m_soup.num_vertices();
       auto& Xms = m_soup.get_Xms().cpu();
@@ -351,10 +264,12 @@ void YarnMapper::step() {
     m_timer.tock("yarns: deform");
 
     // SHELL MAP
-    m_soup.reassign_triangles(m_grid, mesh, m_settings.default_same_tri);
+    constexpr bool same_triangle = true;
+    // note: actually just recomputing barycentric coords in assumed same triangle
+    m_soup.reassign_triangles(m_grid, mesh, same_triangle);
 
     if (m_settings.shell_map)
-      shell_map(mesh, m_settings.flat_normals);
+      shell_map(mesh);
     else {
       int nverts = m_soup.num_vertices();
       threadutils::parallel_for(0, nverts, [&](int vix) {
@@ -416,15 +331,12 @@ void hermitian_eig_clamp(Vector6s& m, float mineigval) {
   }
 }
 
-void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
+void YarnMapper::deform_reference(const Mesh& mesh) {
   int nverts = m_soup.num_vertices();
   auto& Xms  = m_soup.get_Xms().cpu();
   auto& Xws  = m_soup.get_Xws();
   auto& S    = mesh.strains.cpu();
   auto& Sv   = mesh.vertex_strains.cpu();
-
-  // DEBUG
-  m_model->do_cpu_bend = (m_settings.linearized_bending <= 0.001f);
   
   auto& B0 = m_soup.get_B0().cpu();
   // auto& TB = m_soup.get_TB().cpu();
@@ -443,13 +355,9 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
     // extrapolate strain. or now assuming negligible issue
 
     Vector6s s;
-    if (flat_strains) {
-      s = S[tri].map();
-    } else {
-      auto ms_ixs = mesh.Fms.cpu()[tri].map();
-      s = Sv[ms_ixs[0]].map() * abc[0] + Sv[ms_ixs[1]].map() * abc[1] +
-          Sv[ms_ixs[2]].map() * abc[2];
-    }
+    auto ms_ixs = mesh.Fms.cpu()[tri].map();
+    s = Sv[ms_ixs[0]].map() * abc[0] + Sv[ms_ixs[1]].map() * abc[1] +
+        Sv[ms_ixs[2]].map() * abc[2];
 
     /*const*/ auto& X = Xms[vix];
 
@@ -472,20 +380,17 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
   #endif
 
     Vector4s g;
-    float dbg0, dbg1;
-
 
     #ifdef MODEL4D
     if (m_dbg.toggle) {
-      std::tie(g, dbg0, dbg1) = m_model4D->deformation(s, X.pix);
+      g = m_model4D->deformation(s, X.pix);
     } else {
-      std::tie(g, dbg0, dbg1) = m_model->deformation(s, X.pix);
+      g = m_model->deformation(s, X.pix);
     }
     #else
-    std::tie(g, dbg0, dbg1) = m_model->deformation(s, X.pix);
+    g = m_model->deformation(s, X.pix);
     #endif
 
-    // m_model->deformation(s, m_soup.getParametric(vix), m_dbg.toggle);
     g *= m_settings.deform_reference;
     // store deformed ms coordinates intm. in ws coords
     // NOTE: buffer.row is a colvector so it expects colvector comma init
@@ -507,11 +412,13 @@ void YarnMapper::deform_reference(const Mesh& mesh, bool flat_strains) {
   });
 }
 
-void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
+void YarnMapper::shell_map(const Mesh& mesh) {
   // x = phi(xi1, xi2) + h n(xi1, xi2); where xi1 xi2 h are pre-deformed
   // reference coordinates
 
   auto& U     = mesh.U.cpu();
+  auto& F     = mesh.F.cpu();
+  auto& Fms     = mesh.Fms.cpu();
   auto& defF  = mesh.defF.cpu();
   auto& defFv = mesh.vertex_defF.cpu();
   auto& N     = mesh.normals.cpu();
@@ -531,21 +438,12 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
     abc << bary.a, bary.b, bary.c;
 
     Vector3s n;
-    if (flat_normals) {
-      n = N[tri].map();
-    } else {
-      auto ms_ixs = mesh.Fms.cpu()[tri].map();
-      // auto ms_ixs = mesh.Fms.row(tri);
-      n = Nv[ms_ixs[0]].map() * abc[0] + Nv[ms_ixs[1]].map() * abc[1] +
-          Nv[ms_ixs[2]].map() * abc[2];
-      // n           = mesh.vertex_normals[ms_ixs[0]] * abc[0] +
-      //     mesh.vertex_normals[ms_ixs[1]] * abc[1] +
-      //     mesh.vertex_normals[ms_ixs[2]] * abc[2];
-      n.normalize();
-    }
+    auto ms_ixs = mesh.Fms.cpu()[tri].map();
+    n = Nv[ms_ixs[0]].map() * abc[0] + Nv[ms_ixs[1]].map() * abc[1] +
+        Nv[ms_ixs[2]].map() * abc[2];
+    n.normalize();
 
-    auto ws_ixs = mesh.F.cpu()[tri].map();
-    // auto ws_ixs  = mesh.F.row(tri);
+    auto ws_ixs = F[tri].map();
     Vector3s phi = mesh.X.row<float, 3>(ws_ixs[0]) * abc[0] +
                    mesh.X.row<float, 3>(ws_ixs[1]) * abc[1] +
                    mesh.X.row<float, 3>(ws_ixs[2]) * abc[2];
@@ -555,7 +453,6 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
     // phi = sum_i b_i x_i + alpha * sum_i b_i F_i (X-Xi)
     // gradphi = F_tri + alpha * sum_i (b_i F_i + F_i(X-Xi) gradb_i^T)
     if (m_settings.phong_deformation > 0) {
-      auto ms_ixs = mesh.Fms.cpu()[tri].map();  // TODO get from top
       for (size_t i = 0; i < 3; ++i) {
         // Debug::log(ms_ixs[i],defFv.size());
         phi += m_settings.phong_deformation *
@@ -578,17 +475,7 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
       Q.col(2) = n;  // usually not orthogonal, would need to take transpose
                      // inverse of Q! TODO discuss
 
-      // if (vix == 555) {
-      //   Debug::log(Q);
-      // }
-
-      // Q.col(0).normalize();
-      // Q.col(1).normalize();
-      // Q.col(2) = Q.col(0).cross(Q.col(1)); // IF USING THIS AND SIMPLE Q THEN
-      // NEED TO ORTHOGONALIZE COL1!
-
       auto _xws = m_soup.get_Xws().row<float, 11>(vix);  // TODO def above
-      // _xws.block<3,1>(3,0) = Q * _xws.block<3,1>(3,0); // b = Q * b
       _xws.block<3, 1>(5, 0) =
           Q.inverse().transpose() * _xws.block<3, 1>(5, 0);  // b = Q** * b
     }
@@ -609,6 +496,12 @@ void YarnMapper::shell_map(const Mesh& mesh, bool flat_normals) {
 bool YarnMapper::export2fbx(const std::string& filename) {
   if (!m_initialized)
     return false;
+
+  if (m_settings.gpu_compute) {
+    Debug::warning("yarn fbx export only works in cpu-mode.");
+    return false;
+  }
+
 
   static std::vector<uint32_t>
       vcids;  // id of circle of vertices, for all non-tip midline vertices
@@ -850,15 +743,13 @@ bool YarnMapper::export2fbx_cloth(const std::string& filename) {
 }
 
 void YarnMapper::dbg_compare_bending() { // copy of deform_reference using both bending models to store new UVs
+#ifdef MODEL4D
   Mesh& mesh = m_meshProvider->getMesh();
   int nverts = m_soup.num_vertices();
   auto& Xms  = m_soup.get_Xms().cpu();
   auto& Xws  = m_soup.get_Xws();
   auto& S    = mesh.strains.cpu();
   auto& Sv   = mesh.vertex_strains.cpu();
-
-  // DEBUG
-  m_model->do_cpu_bend = (m_settings.linearized_bending <= 0.001f);
   
   auto& B0 = m_soup.get_B0().cpu();
   Xws.cpu().resize(Xms.size());
@@ -891,7 +782,7 @@ void YarnMapper::dbg_compare_bending() { // copy of deform_reference using both 
       float sy = std::sqrt(s4D[2]) - 1;
       float sa = s4D[1]/((sx+1)*(sy+1));
       s4D.head<3>() << sx,sa,sy;
-      std::tie(g4D, dbg0, dbg1) = m_model4D->deformation(s4D, X.pix);
+      g4D = m_model4D->deformation(s4D, X.pix);
     }
 
     Vector4s gLin;
@@ -907,7 +798,7 @@ void YarnMapper::dbg_compare_bending() { // copy of deform_reference using both 
       float sy = std::sqrt(sLin[2]) - 1;
       float sa = sLin[1]/((sx+1)*(sy+1));
       sLin.head<3>() << sx,sa,sy;
-      std::tie(gLin, dbg0, dbg1) = m_model->deformation(sLin, X.pix);
+      gLin = m_model->deformation(sLin, X.pix);
     }
 
     // pos error relative to radius
@@ -921,6 +812,7 @@ void YarnMapper::dbg_compare_bending() { // copy of deform_reference using both 
   });
 
   dbg_compare_keep_uv = true;
+  #endif
 }
 
 void YarnMapper::dbg_compare_nsamples() { // copy of deform_reference current model and other fixed model
@@ -941,9 +833,6 @@ void YarnMapper::dbg_compare_nsamples() { // copy of deform_reference current mo
   auto& Xws  = m_soup.get_Xws();
   auto& S    = mesh.strains.cpu();
   auto& Sv   = mesh.vertex_strains.cpu();
-
-  // DEBUG
-  m_model->do_cpu_bend = (m_settings.linearized_bending <= 0.001f);
   
   auto& B0 = m_soup.get_B0().cpu();
   Xws.cpu().resize(Xms.size());
@@ -965,7 +854,6 @@ void YarnMapper::dbg_compare_nsamples() { // copy of deform_reference current mo
 
     /*const*/ auto& X = Xms[vix];
 
-
     if (m_settings.linearized_bending > 0.001f) {
       s.head<3>() = s.head<3>() - m_settings.linearized_bending * 2 * X.h * s.tail<3>();
       s.tail<3>().setZero();
@@ -977,10 +865,8 @@ void YarnMapper::dbg_compare_nsamples() { // copy of deform_reference current mo
     float sa = s[1]/((sx+1)*(sy+1));
     s.head<3>() << sx,sa,sy;
 
-    float dbg0,dbg1;
-    Vector4s g1, g2;
-    std::tie(g1, dbg0, dbg1) = m_model->deformation(s, X.pix);
-    std::tie(g2, dbg0, dbg1) = model2->deformation(s, X.pix);
+    Vector4s g1 = m_model->deformation(s, X.pix);
+    Vector4s g2 = model2->deformation(s, X.pix);
 
     // pos error relative to radius
     // twist error relative to one full twist of 2pi

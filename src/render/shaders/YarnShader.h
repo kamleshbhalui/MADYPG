@@ -33,7 +33,7 @@ namespace Magnum
     YarnShader &setTransformation(const Matrix4 &transformation);
     YarnShader& setNormalMatrix(const Matrix3x3& normalMatrix);
     YarnShader &setProjection(const Matrix4 &projection);
-    YarnShader &setDiffuseColor(const Color4 &color);
+    // YarnShader &setDiffuseColor(const Color4 &color);
     YarnShader &setRadius(float radius);
     YarnShader &setPlyTwist(float speed);
     YarnShader &setPlyNum(float num);
@@ -57,7 +57,7 @@ namespace Magnum
     Int _transformationUniform,
         _normalMatrixUniform,
         _projectionUniform,
-        _diffuseColorUniform,
+        // _diffuseColorUniform,
         _radiusUniform,
         _plyTwistUniform,
         _plyNumUniform,

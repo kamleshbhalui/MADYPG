@@ -50,7 +50,6 @@ class YarnDrawable {
     m_shader
         .setTransformation(MV)
         .setNormalMatrix(MV.normalMatrix())
-        .setDiffuseColor(Color4(1.0))  // more like tint
         .setRadius(m_radius)
         .setPlyTwist(m_nmtwist)
         .setPlyNum(m_nmnum)

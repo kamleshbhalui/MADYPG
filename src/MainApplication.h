@@ -77,7 +77,11 @@ class MainApplication : public Platform::Application {
   void textInputEvent(TextInputEvent &event) override;
 
   void setupFramebuffer(const Vector2i &size);
-  void drawSettings();
+  void drawGUIStats();
+  void drawGUISettings();
+  void drawGUIRender();
+  void drawGUISliders();
+  void drawGUISimple();
 
   void reset_simulation();
 
@@ -95,9 +99,7 @@ class MainApplication : public Platform::Application {
   GL::Texture2D _gridTexture{NoCreate};
   // GL::Texture1D _normalMap{NoCreate};
   GL::Texture2D _normalMap{NoCreate};
-  bool _gui_nice_stats           = true;
-  bool _gui_nice_sliders         = true;
-  bool _gui                  = true;
+  bool _simple_gui               = true;
   bool _paused                   = false;
   int _pauseAt                   = -1;
   int _frame                     = 0;

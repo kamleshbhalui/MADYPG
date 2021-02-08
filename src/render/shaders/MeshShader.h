@@ -28,7 +28,7 @@ class MeshShader : public Magnum::GL::AbstractShaderProgram {
   MeshShader& setTransformation(const Matrix4& transformation);
   // MeshShader& setNormalMatrix(const Matrix3x3& normalMatrix);
   MeshShader& setProjection(const Matrix4& projection);
-  MeshShader& setDiffuseColor(const Color4& color);
+  // MeshShader& setDiffuseColor(const Color4& color);
   MeshShader& bindMatCap(GL::Texture2D& texture);
   // MeshShader& setRadius(float radius);
   // MeshShader& bindTexture(GL::Texture2D& texture);
@@ -36,9 +36,7 @@ class MeshShader : public Magnum::GL::AbstractShaderProgram {
  private:
   enum : Int { TextureUnit_Matcap = 0 };
 
-  Int _transformationUniform, _normalMatrixUniform, _projectionUniform,
-      _diffuseColorUniform, _dzUniform;
-  // _radiusUniform;
+  Int _transformationUniform, _normalMatrixUniform, _projectionUniform;
 };
 
 }  // namespace Magnum

@@ -14,7 +14,6 @@ out highp vec3 position;
 layout(location = 2)
 out highp vec3 normal;
 
-uniform vec4 diffuseColor;
 uniform sampler2D matcap;
 uniform sampler2D tex_cloth;
 // uniform sampler1D normalMap;
@@ -71,7 +70,7 @@ void main() {
   }
 
   vec2 mat_uv = normal.xy * 0.5 + 0.5;
-  color = vec4(texture(matcap, mat_uv).rgb, 1.0) * diffuseColor;
+  color = vec4(texture(matcap, mat_uv).rgb, 1.0);
   position = gs_out.p;
   // color = vec4(0.9,0.9,0.9,1);
 

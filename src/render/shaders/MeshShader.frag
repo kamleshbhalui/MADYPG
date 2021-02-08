@@ -11,7 +11,7 @@ out highp vec3 normal;
 
 // #define LINES
 #ifdef LINES
-  uniform vec4 diffuseColor;
+  uniform vec4 diffuseColor = vec4(0.3,0.3,1.0,1.0);
 #else
   uniform sampler2D matcap;
   uniform float wiresize = 0.015;

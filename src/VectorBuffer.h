@@ -72,6 +72,8 @@ class VectorBuffer {
   // void allocateCPU(size_t n) { m_data.resize(n); }
   // void freeCPU() { m_data.clear(); }
 
+  // TODO DEPRECATE row & matrixView BELOW, REPLACE WITH EXPLICIT GETTER AND STRUCT MAPS
+
   // access (type-casted part of) a data row in the cpu array
   template <typename _scalar, int _nelems, int _offset = 0>
   auto row(size_t row) {
@@ -91,7 +93,8 @@ class VectorBuffer {
 
   template <typename _scalar, int _ncols, int _offset = 0>
   auto matrixView() {
-    // assert vec not empty
+    // assert vec not empty?
+    // ...
 
     // estimate stride based on struct memory size compared to scalar size
     constexpr int _stride = sizeof(T) / sizeof(_scalar);

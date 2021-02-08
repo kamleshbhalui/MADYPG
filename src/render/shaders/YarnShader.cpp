@@ -73,7 +73,7 @@ YarnShader::YarnShader() {
   _transformationUniform = uniformLocation("transformation");
   _normalMatrixUniform = uniformLocation("normalMatrix");
   _projectionUniform   = uniformLocation("projection");
-  _diffuseColorUniform = uniformLocation("diffuseColor");
+  // _diffuseColorUniform = uniformLocation("diffuseColor");
   _radiusUniform       = uniformLocation("radius");
   _plyTwistUniform   = uniformLocation("plyTwist");
   _plyNumUniform     = uniformLocation("plyNum");
@@ -104,10 +104,10 @@ YarnShader &YarnShader::setProjection(const Matrix4 &projection) {
   return *this;
 }
 
-YarnShader &YarnShader::setDiffuseColor(const Color4 &color) {
-  setUniform(_diffuseColorUniform, color);
-  return *this;
-}
+// YarnShader &YarnShader::setDiffuseColor(const Color4 &color) {
+//   setUniform(_diffuseColorUniform, color);
+//   return *this;
+// }
 
 YarnShader &YarnShader::setRadius(float radius) {
   setUniform(_radiusUniform, radius);

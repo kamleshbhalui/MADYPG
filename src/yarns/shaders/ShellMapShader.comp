@@ -92,7 +92,7 @@ layout(std430, binding = 9) readonly buffer _meshUBuffer
 } buf_meshU;
 
 // uniform bool apply = true;
-uniform bool flat_normals = false;
+// uniform bool flat_normals = false;
 uniform uint num_vertices;
 uniform float phong_deformation = 0.5;
 
@@ -134,20 +134,19 @@ void main()
 
   float h = V.z;
 
+  uint[3] ms_ixs = buf_meshFms.data[tri];
   vec3 n;
-  if (flat_normals) {
-    _alignedvec3 n0 = buf_NNv.data[tri];
-    n = vec3(n0.x, n0.y, n0.z);
-  } else {
-    // _aligneduvec3 ms_ixs = buf_meshFms.data[tri];
-    uint[3] ms_ixs = buf_meshFms.data[tri];
+  // if (flat_normals) {
+  //   _alignedvec3 n0 = buf_NNv.data[tri];
+  //   n = vec3(n0.x, n0.y, n0.z);
+  // } else {
     n = vec3(0);
     for (int i = 0; i < 3; ++i) {
       _alignedvec3 ni = buf_NNv.data[ms_ixs[i]];
       n += vec3(ni.x, ni.y, ni.z) * abc[i];
     }
     n = normalize(n);
-  }
+  // }
   // _aligneduvec3 ws_ixs = buf_meshF.data[tri];
   uint[3] ws_ixs = buf_meshF.data[tri];
   vec3 phi = vec3(0);
@@ -157,7 +156,6 @@ void main()
   }
 
   if (phong_deformation > 0) {
-    uint[3] ms_ixs = buf_meshFms.data[tri]; // TODO get from top
     vec2 p = vec2(V.x, V.y);
 
     for (int i = 0; i < 3; ++i) {

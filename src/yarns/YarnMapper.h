@@ -24,14 +24,10 @@ class YarnMapper {
   struct Settings {
     std::string modelfolder = "";
     float min_yarn_length_per_r = 16.0f;
-    bool flat_normals       = false;
-    bool flat_strains       = false;
     bool shepard_weights    = true;
     float deform_reference  = 1.0f;
     float linearized_bending = 1.0f;
-    // bool use_linearized_bending = false;
     bool shell_map          = true;
-    bool default_same_tri   = true;
     bool repeat_frame       = false;
     bool gpu_compute        = true;
     float phong_deformation = 0.5f;
@@ -54,12 +50,8 @@ class YarnMapper {
   ~YarnMapper() {}
 
   void step();
-  void deform_reference(const Mesh& mesh, bool flat_strains = false);
-  void shell_map(const Mesh& mesh, bool flat_normals = false);
-
-  // const std::vector<uint32_t>& getIndices() const {
-  //   return m_soup.getIndices();
-  // }
+  void deform_reference(const Mesh& mesh);
+  void shell_map(const Mesh& mesh);
 
   const std::shared_ptr<AbstractMeshProvider> getMeshSimulation() {
     return m_meshProvider;
@@ -94,6 +86,7 @@ class YarnMapper {
 
   // #define DO_DEBUG_STATS
   struct DebugSettings {
+    // TODO maybe get model4d and nsamples compare model, flags and folders here?
     std::vector<float> strain_toggle = std::vector<float>{1,1,1,1,1,1};
     int hist_nbins = 40;
     float hist_min = -0.8f;

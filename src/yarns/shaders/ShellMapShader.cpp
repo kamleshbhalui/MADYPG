@@ -32,12 +32,9 @@ ShellMapShader::ShellMapShader() {
   CORRADE_INTERNAL_ASSERT_OUTPUT(link());
 
   // _applyUniform   = uniformLocation("apply");
-  _flatNormalsUniform = uniformLocation("flat_normals");
-  _numVertsUniform    = uniformLocation("num_vertices");
-  _phongUniform       = uniformLocation("phong_deformation");
-
-  // bindFragmentDataLocation(VertexIOBuffer, "ambientOcclusion");
-  // setUniform(_samplesUniform, randomSamples);
+  // _flatNormalsUniform = uniformLocation("flat_normals");
+  _numVertsUniform = uniformLocation("num_vertices");
+  _phongUniform    = uniformLocation("phong_deformation");
 }
 
 void ShellMapShader::compute(size_t N, Magnum::GL::Buffer &Xws,
@@ -46,7 +43,7 @@ void ShellMapShader::compute(size_t N, Magnum::GL::Buffer &Xws,
                              Magnum::GL::Buffer &mF, Magnum::GL::Buffer &mFms,
                              Magnum::GL::Buffer &mdefF,
                              Magnum::GL::Buffer &mdefFv, Magnum::GL::Buffer &U,
-                             bool flat_normals, float phong) {
+                             float phong) {
   Xws.bind(Magnum::GL::Buffer::Target::ShaderStorage, VertexBuffer);
   B0.bind(Magnum::GL::Buffer::Target::ShaderStorage, BaryBuffer);
   DinvU.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshDiUBuffer);
@@ -60,7 +57,7 @@ void ShellMapShader::compute(size_t N, Magnum::GL::Buffer &Xws,
     mdefFv.bind(Magnum::GL::Buffer::Target::ShaderStorage, MeshdefFvBuffer);
   }
   // setUniform(_applyUniform, apply);
-  setUniform(_flatNormalsUniform, flat_normals);
+  // setUniform(_flatNormalsUniform, flat_normals);
   setUniform(_numVertsUniform, uint32_t(N));
   setUniform(_phongUniform, phong);
 

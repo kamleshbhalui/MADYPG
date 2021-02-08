@@ -519,169 +519,15 @@ void MainApplication::drawEvent() {
   else if (!ImGui::GetIO().WantTextInput && isTextInputActive())
     stopTextInput();
 
-  if (_gui)  // hideable gui
-    drawSettings();
-  if (_gui_nice_sliders || _gui_nice_stats || true) {  // non-hideabale gui
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 10));
-    ImGui::PushStyleColor(ImGuiCol_ResizeGrip, ImVec4(1,1,1,0));
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0,0,0,1));
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9,0.9,0.9,1));
-    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9,0.9,0.9,1));
-    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
-    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1,1,1,0.6));
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1,1,1,0));
-    
-    static const ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
-    static bool open_ptr = true;
-
-    if (_gui_nice_stats) {
-      ImGui::Begin("##interact", &open_ptr, window_flags);
-      ImGui::SetWindowFontScale(1.5);
-
-      // ImGui::PushItemWidth(150.0f);
-      // ImGui::TextUnformatted("naive");
-      // ImGui::SameLine();
-      // static bool _use_ours = true;
-      // if (ImGui::SliderFloat("ours", &_yarnMapperSettings.deform_reference, 0.0f,
-      //                        1.0f, "")) {
-      //   _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
-      // }
-      // // ImGui::SameLine();
-      // // if (ImGui::Checkbox("##useours", &_use_ours))
-      // //   _yarnMapperSettings.deform_reference = int(_use_ours);
-      // ImGui::PopItemWidth();
-
-      // if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
-      //   static float magn = 0;
-      //   ImGui::PushItemWidth(200.0f);
-      //   ImGui::TextUnformatted("force");
-      //   ImGui::SameLine();
-      //   ImGui::SliderFloat("##force", &magn, 0.0f, 3.0f, "x%.2f");
-      //   if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
-      //     _yarnMapper->applyForce(magn * 3, magn * 0.5f, magn * 0);
-      //   ImGui::PopItemWidth();
-      // }
-
-      // ImGui::Separator();
-
-      // if (_profiler.isMeasurementAvailable(0)) {
-      //   double fps = 1e9 / _profiler.frameTimeMean();
-      //   ImGui::Text("FPS:    %5.0f", fps);
-      // }
-
-
-      ImGui::Text("# vertices: %s", ::Debug::format_locale(_yarnMapper->getNumVertices(), "en_US.UTF-8").c_str());
-
-
-      static const std::vector<std::string> labels{"mesh: strains", "yarns: deform", "yarns: map"};
-      const auto& timer = _yarnMapper->m_timer;
-      double total_ms_meshupdate = 0.001 * timer.getAverage("mesh: update");
-      double total_ms_ours = 0;
-      for (const auto & label : labels) {
-        total_ms_ours += 0.001 * timer.getAverage(label);
-      }
-
-      ImGui::Text("Yarn Animation: %5.2f ms / frame", total_ms_ours);
-
-
-      // // double timer_method_ms = m_timerMethod.getTotal()*0.001;
-      // // double timer_render_ms = m_timerRenderMethod.getTotal()*0.001 - total_ms_ours - total_ms_meshupdate;
-      // double timer_render_ms = 0;
-      // if (_profiler.isMeasurementAvailable(0))
-      //   timer_render_ms = _profiler.frameTimeMean() / 1e6;
-      // // timer_render_ms = m_timerGL.result<Magnum::UnsignedInt>() / 1000;
-      // timer_render_ms = std::max(0.0, timer_render_ms - total_ms_meshupdate - total_ms_ours);
-
-
-      if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
-        ImGui::Text("PBD:            %5.2f ms", total_ms_meshupdate);
-      }
-
-      // ImGui::Text("Render: %5.2f ms", timer_render_ms);
-
-
-      ImGui::End();
-    }
-    if (_gui_nice_sliders) {
-      static const bool slider_deform = true; 
-      static const bool slider_phong = false; 
-      static const bool slider_clamp = false; 
-
-      ImGui::Begin("##interact_force", &open_ptr, window_flags);
-      ImGui::SetWindowFontScale(1.5);
-      ImGui::PushItemWidth(500.0f);
-      if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
-        static float magn = 0;
-        ImGui::TextUnformatted("     ");
-        ImGui::SameLine();
-        ImGui::SliderFloat("##force", &magn, 0.0f, 3.0f, "force: x%.2f");
-        if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
-          _yarnMapper->applyForce(magn * 3, magn * 0.5f, magn * 0);
-      }
-      if (slider_deform) {
-        ImGui::TextUnformatted("naive");
-        ImGui::SameLine();
-        // static bool _use_ours = true;
-        if (ImGui::SliderFloat("ours##sep", &_yarnMapperSettings.deform_reference, 0.0f,
-                              1.0f, "")) {
-          // _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
-        }
-      }
-      if (slider_phong) {
-        ImGui::TextUnformatted("     ");
-        ImGui::SameLine();
-        ImGui::SliderFloat("##phong", &_yarnMapperSettings.phong_deformation, 0.0f,
-                              1.0f, "alpha = %.2f");
-      }
-      if (slider_clamp) {
-        ImGui::TextUnformatted("     ");
-        ImGui::SameLine();
-        ImGui::SliderFloat("##clamp", &_yarnMapperSettings.svdclamp, 0.0f,
-                              1.0f, "lambda_min = %.2f");
-      }
-      ImGui::PopItemWidth();
-      ImGui::End();
-    }
-    // ImGui::Begin("##nsamples", &open_ptr, window_flags);
-    // ImGui::SetWindowFontScale(1.5);
-    // static int nsamples = 5;
-    // bool changed = false;
-    // changed |= ImGui::RadioButton("    5 x 5 x 5", &nsamples, 5);
-    // changed |= ImGui::RadioButton("    9 x 9 x 9", &nsamples, 9);
-    // changed |= ImGui::RadioButton(" 15 x 15 x 15", &nsamples, 15);
-    // changed |= ImGui::RadioButton(" 31 x 31 x 31", &nsamples, 31);
-    // if (changed)
-    //   _yarnMapperSettings.modelfolder = "data/yarnmodels/num_samples/model_stock_" + std::to_string(nsamples);
-    // ImGui::End();
-
-    // ImGui::Begin("##bend", &open_ptr, window_flags);
-    // ImGui::SetWindowFontScale(1.5);
-    // int toggle = int(_yarnMapper->m_dbg.toggle);
-    // bool changed = false;
-    // changed |= ImGui::RadioButton("linearized bending", &toggle, 0);
-    // changed |= ImGui::RadioButton("        4D bending", &toggle, 1);
-    // if (changed)
-    //   _yarnMapper->m_dbg.toggle = (toggle > 0);
-    // ImGui::End();
-
-    // ImGui::Begin("##slide", &open_ptr, window_flags);
-    // ImGui::SetWindowFontScale(1.5);
-    // bool toggle = _yarnMapper->m_dbg.toggle;
-    // ImGui::Checkbox("Sliding Constraint", &toggle);
-    // ImGui::End();
-
-
-
-    ImGui::PopStyleColor();
-    ImGui::PopStyleColor();
-    ImGui::PopStyleColor();
-    ImGui::PopStyleColor();
-    ImGui::PopStyleColor();
-    ImGui::PopStyleColor();
-    ImGui::PopStyleColor(); // grab triangle
-    ImGui::PopStyleVar();
+  if (_simple_gui) {
+    drawGUISimple();
   }
+  else {
+    drawGUIStats();
+    drawGUISettings();
+    drawGUIRender();
+  }
+  drawGUISliders();
 
   _imgui.updateApplicationCursor(*this);
 
@@ -789,193 +635,102 @@ void MainApplication::setupFramebuffer(const Vector2i &size) {
 #endif
 }
 
-void MainApplication::drawSettings() {
-  ImGui::Begin("Render Options");
-  const float spacing = 10;
+
+void MainApplication::drawGUIStats() {
+  ImGui::Begin("Stats/Playback");
+  constexpr float spacing = 10;
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
-  ImGui::PushItemWidth(100.0f);
+  // ImGui::PushItemWidth(100.0f);
 
-  ImGui::Checkbox("n1-stats",&_gui_nice_stats);
-  ImGui::Checkbox("n1-sliders",&_gui_nice_sliders);
-
-  if (ImGui::Button("Hot Reload Shaders")) {
-    Utility::Resource::overrideGroup("ssao-data",
-                                     "src/render/shaders/resources.conf");
-    _ssaoShader         = SsaoShader{SSAO_SAMPLES};
-    _ssaoApplyShader    = SsaoApplyShader{_ssaoApplyFlag};
-    _yarnGeometryShader = YarnShader{};
-    _meshShader         = MeshShader{};
-    _ground             = GroundShader{};
-    _obsMeshShader      = ObsMeshShader{};
-
-    Utility::Resource::overrideGroup("compute-shaders",
-                                     "src/yarns/shaders/resources.conf");
-    _yarnMapper->reloadShaders();
+  if (_profiler.isMeasurementAvailable(0)) {
+    double fps = 1e9 / _profiler.frameTimeMean();
+    ImGui::Text("FPS:    %5.0f", fps);
+    // std::string stats = _profiler.statistics();
+    // ImGui::TextUnformatted(stats.c_str());
+    // ImGui::Separator();
   }
-
-  bool projchanged = false;
-  projchanged |= ImGui::DragFloat("near", &_proj_near, 0.001f, 0.001f, 0.1f);
-  projchanged |= ImGui::DragFloat("far", &_proj_far, 0.01f, 1.0f, 20.0f);
-  if (projchanged)
-    _projection = Matrix4::perspectiveProjection(
-        _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
-        _proj_far);
-
-  if (ImGui::CollapsingHeader("SSAO" /*, ImGuiTreeNodeFlags_DefaultOpen*/)) {
-    ImGui::Indent();
-    {
-      float val = _ao_radius * 100.0f;
-      if (ImGui::SliderFloat("radius (cm)", &val, 0.001f, 5.0f))
-        _ao_radius = val * 0.01f;
-    }
-    {
-      float val = _ao_bias * 100.0f;
-      if (ImGui::SliderFloat("bias (cm)", &val, 0.001f, 0.5f))
-        _ao_bias = val * 0.01f;
-    }
-    ImGui::SliderInt("blur radius", &_ao_blur_radius, 0, 5);
-    //  (ImGui::DragFloat("blur feature (cm)", &_ao_blur_feature, 0.01f,
-    //  0.0f,100.0f,"%.2e"));
-    {
-      float val = _ao_blur_feature * 0.01f;
-      if (ImGui::SliderFloat("blur feature (1/cm)", &val, 0.0f, 50.0f))
-        _ao_blur_feature = val * 100.0f;
-    }
-    ImGui::SliderFloat("strength", &_ao_pow, 0.0f, 10.0f);
-
-    static bool drawOcclusion = false;
-    if (ImGui::Checkbox("Show Occlusion Factor", &drawOcclusion)) {
-      if (drawOcclusion)
-        _ssaoApplyFlag = SsaoApplyShader::Flag::DrawAmbientOcclusion;
-      else
-        _ssaoApplyFlag = {};
-      _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
-    }
-
-    ImGui::Unindent();
-  }
-
-  if (ImGui::CollapsingHeader("Other", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::Indent();
-
-    ImGui::TextBrowser("##txt", *_fileDialog.get(), _matcap_file, [&]() {
-      loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
-      _yarnGeometryShader.bindMatCap(_matcap);
-    });
-    static bool _rep = true;
-    ImGui::TextBrowser("##txt", *_fileDialog.get(), _clothtexture_file, [&]() {
-      loadTexture(_clothtexture_file, _clothTexture,
-                  _rep ? GL::SamplerWrapping::Repeat
-                       : GL::SamplerWrapping::ClampToEdge);
-      _yarnGeometryShader.bindClothTexture(_clothTexture);
-    });
-    ImGui::SameLine();
-    ImGui::Checkbox("Rep", &_rep);
-
-    ImGui::Checkbox("Yarns", &_render_yarns);
-    ImGui::SameLine();
-    ImGui::Checkbox("Mesh", &_render_mesh);
-    ImGui::SameLine();
-    ImGui::Checkbox("Obs", &_render_obstacles);
-    ImGui::SameLine();
-    ImGui::Checkbox("Ground", &_render_ground);
-    ImGui::Checkbox("Rotate Scene", &_rotate_scene);
-
-    {
-      ImGui::PushItemWidth(100.0f);
-      ImGui::DragFloat("yarn radius mult", &_render_radius_mult, 0.01f, 0.0f,
-                       2.0f);
-      // static float _ts = _render_nmtwist  * 0.01f;
-      // if (ImGui::DragFloat("NM twist(1/cm)", &_ts, 0.1f, 0.0f,
-      //                  100.0f))
-      //                  _render_nmtwist = _ts * 100;
-      ImGui::DragFloat("NM twist(*r)", &_render_nmtwist, 0.1f, 0.0f, 10.0f);
-      ImGui::DragFloat("NM num", &_render_nmnum, 1.0f, 0.0f, 10.0f);
-      ImGui::DragFloat("NM height (*r)", &_render_nmheight, 0.01f, 0.0f, 2.0f);
-      // ImGui::DragFloat("NM length", &_render_nmlen, 0.01f, 0.0f,
-      //                  2.0f);
-      ImGui::DragFloat("NM length", &_render_nmlen, 0.1f, 0.0f, 20.0f);
-      // ImGui::DragFloat("mesh offset", &_mesh_dz, 0.001f, -1.0f, 1.0f);
-      ImGui::DragFloat("uv scale", &_clothUV_scale, 0.1f, 0.0f, 100.0f);
-      ImGui::DragFloat2("uv offset", _clothUV_offset.data(), 0.1f, -10.0f, 10.0f);
-      ImGui::PopItemWidth();
-    }
-
-    {
-      ImGui::DragFloat("height", &_ground.dY, 0.01f, -10.0f, 10.0f);
-      ImGui::DragFloat("scale", &_ground.scale, 0.01f, 0.001f, 1000.0f);
-    }
-
-    ImGui::TextBrowser("obs", *_fileDialog.get(), _matcapObs_file, [&]() {
-      loadTexture(_matcapObs_file, _matcapObs,
-                  GL::SamplerWrapping::ClampToEdge);
-      _obsMeshShader.bindMatCap(_matcapObs);
-    });
-
-    ImGui::TextBrowser("mesh", *_fileDialog.get(), _matcapMesh_file, [&]() {
-      loadTexture(_matcapMesh_file, _matcapMesh,
-                  GL::SamplerWrapping::ClampToEdge);
-      _meshShader.bindMatCap(_matcapMesh);
-    });
-
-    if (ImGui::Button("Reset Camera"))
-      _arcball->reset();
-
-    ImGui::SameLine();
-    static bool lagging = true;
-    if (ImGui::Checkbox("Camera Lagging", &lagging)) {
-      _arcball->setLagging(float(lagging) * 0.75f);
-    }
-
-    {
-      static float col[3] = {_bgColor.r(), _bgColor.g(), _bgColor.b()};
-      if (ImGui::ColorEdit3("BG Color", col)) {
-        _bgColor = Color4(col[0], col[1], col[2], 1.0f);
-        // GL::Renderer::setClearColor(_bgColor);
-      }
-    }
-    ImGui::Unindent();
-  }
-
+  ImGui::TextUnformatted("Min. Frame Time:");
+  ImGui::SameLine();
+  ImGui::PushItemWidth(60.0f);
+  if (ImGui::DragInt("##Min. Frame", &_min_loop_ms, 1, 4, 100, "%d ms"))
+    setMinimalLoopPeriod(_min_loop_ms);
   ImGui::PopItemWidth();
-  ImGui::PopStyleVar();
-  ImGui::End();
 
-  ///
+  ImGui::Text("# vertices: %s", ::Debug::format_locale(_yarnMapper->getNumVertices(), "en_US.UTF-8").c_str());
+  {
+    static const std::vector<std::string> labels{"mesh: update", "mesh: strains", "yarns: deform", "yarns: map"};
+    const auto& timer = _yarnMapper->m_timer;
 
-  ImGui::Begin("Sim Options");
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
-  ImGui::PushItemWidth(100.0f);
-  ImGui::Checkbox("Pause", &_paused);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
+    ImGui::Columns(2, NULL, true);
+    ImGui::SetColumnWidth(1, 100);
+    for (const auto & label : labels) {
+      ImGui::TextUnformatted(label.c_str());
+    }
+    ImGui::NextColumn();
+    for (const auto & label : labels) {
+      ImGui::Text("%8.2f ms", 0.001 * timer.getAverage(label));
+    }
+    ImGui::PopStyleVar();
+    ImGui::Columns(1);
+  }
+  if (ImGui::TreeNode("All Timers")) {
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
+    ImGui::Columns(2, NULL, true);
+    ImGui::SetColumnWidth(1, 100);
+    auto averages          = _yarnMapper->m_timer.getAverageList();
+    constexpr double scale = 0.001;
+    for (const auto &avg : averages) ImGui::Text("%s", avg.first.c_str());
+    ImGui::NextColumn();
+    for (const auto &avg : averages)
+      ImGui::Text("%8.2f ms", scale * avg.second);
+    ImGui::PopStyleVar();
+    ImGui::Columns(1);
+    ImGui::TreePop();
+  }
+
+  ImGui::Separator(); // Playback
+
+  ImGui::Text("Frame: %d", _frame);
+  ImGui::Checkbox("[P]ause", &_paused);
   ImGui::SameLine();
   if (ImGui::Button("[S]tep")) {
     _single_step = true;
     _paused      = true;
   }
   ImGui::SameLine();
-  ImGui::PushItemWidth(30.0f);
-  ImGui::DragInt("pause@", &_pauseAt, 1, -1, 1000);
-  ImGui::PopItemWidth();
-  if (ImGui::DragInt("Min. Loop", &_min_loop_ms, 1, 4, 100, "%d (ms)"))
-    setMinimalLoopPeriod(_min_loop_ms);
-  ImGui::SameLine();
-  if (ImGui::Button("(16)##loop16")) {
-    _min_loop_ms = 16;
-    setMinimalLoopPeriod(_min_loop_ms);
+  if (ImGui::Button("[R]eset")) {
+    reset_simulation();
   }
-  ImGui::Separator();
-  ImGui::Checkbox("Repeat Mesh Frame", &_yarnMapperSettings.repeat_frame);
-  ImGui::Checkbox("Flat Normals", &_yarnMapperSettings.flat_normals);
-  ImGui::Checkbox("Flat Strains", &_yarnMapperSettings.flat_strains);
-  ImGui::Checkbox("Def.SameTri", &_yarnMapperSettings.default_same_tri);
+  // ImGui::SameLine();
+  // ImGui::PushItemWidth(30.0f);
+  // ImGui::DragInt("pause@", &_pauseAt, 1, -1, 1000);
+  // ImGui::PopItemWidth();
+  ImGui::Checkbox("Repeat Frame [Space]", &_yarnMapperSettings.repeat_frame);
+
+
+  // ImGui::PopItemWidth();
+  ImGui::PopStyleVar();
+  ImGui::End();
+}
+
+void MainApplication::drawGUISettings() {
+  ImGui::Begin("Animation Settings");
+  constexpr float spacing = 10;
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
+  ImGui::PushItemWidth(100.0f);
+
+  // ImGui::Checkbox("Flat Normals", &_yarnMapperSettings.flat_normals);
+  // ImGui::Checkbox("Flat Strains", &_yarnMapperSettings.flat_strains);
+  // ImGui::Checkbox("Def.SameTri", &_yarnMapperSettings.default_same_tri);
   // if (_yarnMapperSettings.flat_normals) {
   //   ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
   // }
-  ImGui::Checkbox("Shepard Weights", &_yarnMapperSettings.shepard_weights);
+  // ImGui::Checkbox("Shepard Weights", &_yarnMapperSettings.shepard_weights);
   // if (_yarnMapperSettings.flat_normals)
   //   ImGui::PopStyleVar();
-  ImGui::DragFloat("Min len/r", &_yarnMapperSettings.min_yarn_length_per_r,
-                   0.1f, 0.0f, 100.0f);
+  ImGui::DragFloat("Min. length", &_yarnMapperSettings.min_yarn_length_per_r,
+                   0.1f, 0.0f, 100.0f, "%.1f R");
   ImGui::SliderFloat("Deform Ref.", &_yarnMapperSettings.deform_reference, 0.0f,
                      1.0f);
   ImGui::SliderFloat("Lin. Bending", &_yarnMapperSettings.linearized_bending,
@@ -996,7 +751,7 @@ void MainApplication::drawSettings() {
   const char *elems_names[count] = {"ObjSeq", "BinSeq", "PBD"};
   const char *elem_name =
       (elem >= 0 && elem < count) ? elems_names[elem] : "Unknown";
-  if (ImGui::SliderInt("slider enum", &elem, 0, count - 1, elem_name))
+  if (ImGui::SliderInt("Input Method", &elem, 0, count - 1, elem_name))
     _yarnMapperSettings.provider_type =
         static_cast<YarnMapper::Settings::Provider>(elem);
 
@@ -1042,154 +797,318 @@ void MainApplication::drawSettings() {
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
+}
 
-  ///
-
-  ImGui::Begin("Stats");
-  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
-  // ImGui::PushItemWidth(100.0f);
-
-  if (_profiler.isMeasurementAvailable(0)) {
-    double fps = 1e9 / _profiler.frameTimeMean();
-    ImGui::Text("FPS:    %5.0f", fps);
-    std::string stats = _profiler.statistics();
-    ImGui::TextUnformatted(stats.c_str());
-    ImGui::Separator();
-  }
-  ImGui::Text("Frame: %d", _frame);
-  {
-    static const std::vector<std::string> labels{"mesh: update", "mesh: strains", "yarns: deform", "yarns: map"};
-    const auto& timer = _yarnMapper->m_timer;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
-    ImGui::Columns(2, NULL, true);
-    ImGui::SetColumnWidth(1, 100);
-    for (const auto & label : labels) {
-      ImGui::TextUnformatted(label.c_str());
-    }
-    ImGui::NextColumn();
-    for (const auto & label : labels) {
-      ImGui::Text("%8.2f ms", 0.001 * timer.getAverage(label));
-    }
-    ImGui::PopStyleVar();
-    ImGui::Columns(1);
-  }
-  if (ImGui::TreeNode("All Timers")) {
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
-    ImGui::Columns(2, NULL, true);
-    ImGui::SetColumnWidth(1, 100);
-    auto averages          = _yarnMapper->m_timer.getAverageList();
-    constexpr double scale = 0.001;
-    for (const auto &avg : averages) ImGui::Text("%s", avg.first.c_str());
-    ImGui::NextColumn();
-    for (const auto &avg : averages)
-      ImGui::Text("%8.2f ms", scale * avg.second);
-    ImGui::PopStyleVar();
-    ImGui::Columns(1);
-    ImGui::TreePop();
-  }
-
-  // ImGui::PopItemWidth();
-  ImGui::PopStyleVar();
-  ImGui::End();
-
-  ImGui::Begin("DBG");
+void MainApplication::drawGUIRender() {
+ImGui::Begin("Render Options");
+  constexpr float spacing = 10;
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(100.0f);
-  ImGui::Checkbox("D", &_yarnMapper->m_dbg.toggle);
-  if (ImGui::Button("BendTest")) {
-    _yarnMapper->dbg_compare_bending();
-  }
-  if (ImGui::Button("NSamplesTest")) {
-    _yarnMapper->dbg_compare_nsamples();
-  }
-  if (ImGui::TreeNode("Histograms")) {
-    ImGui::TextUnformatted("S");
-    ImGui::SameLine();
-    ImGui::PushItemWidth(20.0f);
-    ImGui::DragFloat("##S0", &_yarnMapper->m_dbg.strain_toggle[0], 0.01f, 0.0f,
-                     1.0f);
-    ImGui::SameLine();
-    ImGui::DragFloat("##S1", &_yarnMapper->m_dbg.strain_toggle[1], 0.01f, 0.0f,
-                     1.0f);
-    ImGui::SameLine();
-    ImGui::DragFloat("sx sa sy##S2", &_yarnMapper->m_dbg.strain_toggle[2],
-                     0.01f, 0.0f, 1.0f);
-    // ImGui::DragFloat("##S3", &_yarnMapper->m_dbg.strain_toggle[3], 0.01f,
-    // 0.0f, 1.0f); ImGui::SameLine(); ImGui::DragFloat("##S4",
-    // &_yarnMapper->m_dbg.strain_toggle[4], 0.01f, 0.0f, 1.0f);
-    // ImGui::SameLine(); ImGui::DragFloat("IIxx IIxy IIyy##S5",
-    // &_yarnMapper->m_dbg.strain_toggle[5], 0.01f, 0.0f, 1.0f);
-    ImGui::DragFloat("IIxx IIxy IIyy##S5", &_yarnMapper->m_dbg.strain_toggle[3],
-                     0.01f, 0.0f, 1.0f);
-    ImGui::PopItemWidth();
-    ImGui::TreePop();
-  }
-#ifdef DO_DEBUG_STATS
-  {
-    // Treeview with imgui histograms
-    if (ImGui::TreeNode("Histograms")) {
-      static float hist_scale = 0.25f;
-      ImGui::DragFloat("scale", &hist_scale, 0.05f, 0.1f, 1.0f);
-      ImGui::Text("%.2f -- %.2f", double(_yarnMapper->m_dbg.hist_min),
-                  double(_yarnMapper->m_dbg.hist_max));
-      // ImGui::PlotHistogram("sx", _yarnMapper->m_dbg.hist_counts[0].data(),
-      // _yarnMapper->m_dbg.hist_nbins, 0, NULL, 0.0f, 1.0f,
-      // ImVec2(160.0f,80.0f));
-      ImGui::PlotHistogram(
-          "##sx", _yarnMapper->m_dbg.hist_counts[0].data(),
-          _yarnMapper->m_dbg.hist_nbins, 0, "SX", 0.0f,
-          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
-          ImVec2(256.0f, 64.0f));
-      ImGui::PlotHistogram(
-          "##sa", _yarnMapper->m_dbg.hist_counts[1].data(),
-          _yarnMapper->m_dbg.hist_nbins, 0, "SA", 0.0f,
-          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
-          ImVec2(256.0f, 64.0f));
-      ImGui::PlotHistogram(
-          "##sy", _yarnMapper->m_dbg.hist_counts[2].data(),
-          _yarnMapper->m_dbg.hist_nbins, 0, "SY", 0.0f,
-          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
-          ImVec2(256.0f, 64.0f));
-      ImGui::PlotHistogram(
-          "##IIxx", _yarnMapper->m_dbg.hist_counts[3].data(),
-          _yarnMapper->m_dbg.hist_nbins, 0, "IIxx", 0.0f,
-          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
-          ImVec2(256.0f, 64.0f));
-      ImGui::PlotHistogram(
-          "##IIxy", _yarnMapper->m_dbg.hist_counts[4].data(),
-          _yarnMapper->m_dbg.hist_nbins, 0, "IIxy", 0.0f,
-          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
-          ImVec2(256.0f, 64.0f));
-      ImGui::PlotHistogram(
-          "##IIyy", _yarnMapper->m_dbg.hist_counts[5].data(),
-          _yarnMapper->m_dbg.hist_nbins, 0, "IIyy", 0.0f,
-          float(_yarnMapper->m_dbg.hist_stepcount) * hist_scale,
-          ImVec2(256.0f, 64.0f));
 
-      if (ImGui::Button("Reset")) {
-        for (size_t i = 0; i < _yarnMapper->m_dbg.hist_counts.size(); i++) {
-          _yarnMapper->m_dbg.hist_counts[i].clear();
-          _yarnMapper->m_dbg.hist_counts[i].resize(
-              _yarnMapper->m_dbg.hist_nbins, 0);
-          _yarnMapper->m_dbg.hist_stepcount = 0;
-        }
-      }
+  ImGui::TextUnformatted("Simple GUI: [H]");
+
+  if (ImGui::Button("Hot Reload Shaders")) {
+    Utility::Resource::overrideGroup("ssao-data",
+                                     "src/render/shaders/resources.conf");
+    _ssaoShader         = SsaoShader{SSAO_SAMPLES};
+    _ssaoApplyShader    = SsaoApplyShader{_ssaoApplyFlag};
+    _yarnGeometryShader = YarnShader{};
+    _meshShader         = MeshShader{};
+    _ground             = GroundShader{};
+    _obsMeshShader      = ObsMeshShader{};
+
+    Utility::Resource::overrideGroup("compute-shaders",
+                                     "src/yarns/shaders/resources.conf");
+    _yarnMapper->reloadShaders();
+  }
+
+
+  if (ImGui::CollapsingHeader("Camera")) {
+    ImGui::Indent();
+    float params[2] = {_proj_near, _proj_far};
+    if (ImGui::DragFloat2("near/far", params, 0.01f, 0.001f, 20.0f)) {
+      _proj_near = params[0];
+      _proj_far = params[1];
+      _projection = Matrix4::perspectiveProjection(
+          _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
+          _proj_far);
+    }
+
+    if (ImGui::Button("Reset Camera"))
+      _arcball->reset();
+    ImGui::SameLine();
+    static bool lagging = true;
+    if (ImGui::Checkbox("Camera Lagging", &lagging)) {
+      _arcball->setLagging(float(lagging) * 0.75f);
+    }
+
+    ImGui::TextUnformatted("Views: [1] [2] [3] (+ modifiers)");
+
+    ImGui::Unindent();
+  }
+
+
+  if (ImGui::CollapsingHeader("SSAO" /*, ImGuiTreeNodeFlags_DefaultOpen*/)) {
+    ImGui::Indent();
+    {
+      float val = _ao_radius * 100.0f;
+      if (ImGui::SliderFloat("radius (cm)", &val, 0.001f, 5.0f))
+        _ao_radius = val * 0.01f;
+    }
+    {
+      float val = _ao_bias * 100.0f;
+      if (ImGui::SliderFloat("bias (cm)", &val, 0.001f, 0.5f))
+        _ao_bias = val * 0.01f;
+    }
+    ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);
+    ImGui::SliderInt("blur radius", &_ao_blur_radius, 0, 5);
+    //  (ImGui::DragFloat("blur feature (cm)", &_ao_blur_feature, 0.01f,
+    //  0.0f,100.0f,"%.2e"));
+    {
+      float val = _ao_blur_feature * 0.01f;
+      if (ImGui::SliderFloat("blur feature (1/cm)", &val, 0.0f, 50.0f))
+        _ao_blur_feature = val * 100.0f;
+    }
+    ImGui::PopStyleVar();
+    ImGui::SliderFloat("strength", &_ao_pow, 0.0f, 10.0f);
+
+    static bool drawOcclusion = false;
+    if (ImGui::Checkbox("Show Occlusion Factor", &drawOcclusion)) {
+      if (drawOcclusion)
+        _ssaoApplyFlag = SsaoApplyShader::Flag::DrawAmbientOcclusion;
+      else
+        _ssaoApplyFlag = {};
+      _ssaoApplyShader = SsaoApplyShader{_ssaoApplyFlag};
+    }
+
+    ImGui::Unindent();
+  }
+  if (ImGui::CollapsingHeader("Yarns", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Indent();
+    ImGui::Checkbox("Render [Y]arns", &_render_yarns);
+
+    ImGui::DragFloat("yarn radius mult", &_render_radius_mult, 0.01f, 0.0f,
+                       2.0f);
+
+    ImGui::TextBrowser("MatCap ##Y", *_fileDialog.get(), _matcap_file, [&]() {
+      loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
+      _yarnGeometryShader.bindMatCap(_matcap);
+    });
+    static bool _rep = true;
+    ImGui::TextBrowser("Texture##Y", *_fileDialog.get(), _clothtexture_file, [&]() {
+      loadTexture(_clothtexture_file, _clothTexture,
+                  _rep ? GL::SamplerWrapping::Repeat
+                       : GL::SamplerWrapping::ClampToEdge);
+      _yarnGeometryShader.bindClothTexture(_clothTexture);
+    });
+    ImGui::SameLine();
+    ImGui::Checkbox("Rep.", &_rep);
+    ImGui::DragFloat("uv scale", &_clothUV_scale, 0.1f, 0.0f, 100.0f);
+    ImGui::DragFloat2("uv offset", _clothUV_offset.data(), 0.1f, -10.0f, 10.0f);
+
+
+    if (ImGui::TreeNode("Ply/Fiber Texture")) {
+      ImGui::DragFloat("twist(*r)", &_render_nmtwist, 0.1f, 0.0f, 10.0f);
+      ImGui::DragFloat("# ply", &_render_nmnum, 1.0f, 0.0f, 10.0f);
+      ImGui::DragFloat("height (*R)", &_render_nmheight, 0.01f, 0.0f, 2.0f);
+      ImGui::DragFloat("length", &_render_nmlen, 0.1f, 0.0f, 20.0f);
       ImGui::TreePop();
     }
+
+    ImGui::Unindent();
   }
-#endif
+
+  if (ImGui::CollapsingHeader("Obstacle", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Indent();
+    ImGui::Checkbox("Render [O]bstacle", &_render_obstacles);
+    
+    ImGui::TextBrowser("MatCap##O", *_fileDialog.get(), _matcapObs_file, [&]() {
+      loadTexture(_matcapObs_file, _matcapObs,
+                  GL::SamplerWrapping::ClampToEdge);
+      _obsMeshShader.bindMatCap(_matcapObs);
+    });
+    
+    ImGui::Unindent();
+  }
+  if (ImGui::CollapsingHeader("Cloth Mesh", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Indent();
+    ImGui::Checkbox("Render Cloth [M]esh", &_render_mesh);
+
+    ImGui::TextBrowser("MatCap##M", *_fileDialog.get(), _matcapMesh_file, [&]() {
+      loadTexture(_matcapMesh_file, _matcapMesh,
+                  GL::SamplerWrapping::ClampToEdge);
+      _meshShader.bindMatCap(_matcapMesh);
+    });
+    
+    ImGui::Unindent();
+  }
+
+  if (ImGui::CollapsingHeader("Other", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Indent();
+
+    {
+      ImGui::Checkbox("Render [G]round", &_render_ground);
+      ImGui::DragFloat("height", &_ground.dY, 0.01f, -10.0f, 10.0f);
+      ImGui::DragFloat("scale", &_ground.scale, 0.01f, 0.001f, 1000.0f);
+    }
+
+    ImGui::Checkbox("[F]lip Scene", &_rotate_scene);
+
+    {
+      static float col[3] = {_bgColor.r(), _bgColor.g(), _bgColor.b()};
+      if (ImGui::ColorEdit3("BG Color", col)) {
+        _bgColor = Color4(col[0], col[1], col[2], 1.0f);
+        // GL::Renderer::setClearColor(_bgColor);
+      }
+    }
+    ImGui::Unindent();
+  }
 
   ImGui::PopItemWidth();
   ImGui::PopStyleVar();
   ImGui::End();
 }
 
+void MainApplication::drawGUISimple() {
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 10));
+  ImGui::PushStyleColor(ImGuiCol_ResizeGrip, ImVec4(1,1,1,0));
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0,0,0,1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9,0.9,0.9,1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9,0.9,0.9,1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1,1,1,0.6));
+  ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1,1,1,0));
+  
+  static const ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
+  static bool open_ptr = true;
+
+  ImGui::Begin("##simple", &open_ptr, window_flags);
+  ImGui::SetWindowFontScale(1.5);
+
+  ImGui::Text("# vertices: %s", ::Debug::format_locale(_yarnMapper->getNumVertices(), "en_US.UTF-8").c_str());
+
+  static const std::vector<std::string> labels{"mesh: strains", "yarns: deform", "yarns: map"};
+  const auto& timer = _yarnMapper->m_timer;
+  double total_ms_meshupdate = 0.001 * timer.getAverage("mesh: update");
+  double total_ms_ours = 0;
+  for (const auto & label : labels) {
+    total_ms_ours += 0.001 * timer.getAverage(label);
+  }
+
+  ImGui::Text("Yarn Animation: %5.2f ms / frame", total_ms_ours);
+
+  if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
+    ImGui::Text("PBD:            %5.2f ms", total_ms_meshupdate);
+  }
+  ImGui::TextUnformatted("Advanced GUI: [H]");
+  ImGui::End();
+
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor(); // grab triangle
+  ImGui::PopStyleVar();
+}
+
+void MainApplication::drawGUISliders() {
+  ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 10));
+  ImGui::PushStyleColor(ImGuiCol_ResizeGrip, ImVec4(1,1,1,0));
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0,0,0,1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9,0.9,0.9,1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9,0.9,0.9,1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1,1,1,0.6));
+  ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1,1,1,0));
+  
+  static const ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
+  static bool open_ptr = true;
+
+  static const bool slider_deform = true; 
+  static const bool slider_phong = false; 
+  static const bool slider_clamp = false; 
+
+  ImGui::Begin("##interact_force", &open_ptr, window_flags);
+  ImGui::SetWindowFontScale(1.5);
+  ImGui::PushItemWidth(500.0f);
+  if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
+    static float magn = 0;
+    ImGui::TextUnformatted("     ");
+    ImGui::SameLine();
+    ImGui::SliderFloat("##force", &magn, 0.0f, 3.0f, "force: x%.2f");
+    if (magn > 0.0001f && !_paused && !_yarnMapperSettings.repeat_frame)
+      _yarnMapper->applyForce(magn * 3, magn * 0.5f, magn * 0);
+  }
+  if (slider_deform) {
+    ImGui::TextUnformatted("naive");
+    ImGui::SameLine();
+    // static bool _use_ours = true;
+    if (ImGui::SliderFloat("ours##sep", &_yarnMapperSettings.deform_reference, 0.0f,
+                          1.0f, "")) {
+      // _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
+    }
+  }
+  if (slider_phong) {
+    ImGui::TextUnformatted("     ");
+    ImGui::SameLine();
+    ImGui::SliderFloat("##phong", &_yarnMapperSettings.phong_deformation, 0.0f,
+                          1.0f, "alpha = %.2f");
+  }
+  if (slider_clamp) {
+    ImGui::TextUnformatted("     ");
+    ImGui::SameLine();
+    ImGui::SliderFloat("##clamp", &_yarnMapperSettings.svdclamp, 0.0f,
+                          1.0f, "lambda_min = %.2f");
+  }
+  ImGui::PopItemWidth();
+  ImGui::End();
+
+  // ImGui::Begin("##nsamples", &open_ptr, window_flags);
+  // ImGui::SetWindowFontScale(1.5);
+  // static int nsamples = 5;
+  // bool changed = false;
+  // changed |= ImGui::RadioButton("    5 x 5 x 5", &nsamples, 5);
+  // changed |= ImGui::RadioButton("    9 x 9 x 9", &nsamples, 9);
+  // changed |= ImGui::RadioButton(" 15 x 15 x 15", &nsamples, 15);
+  // changed |= ImGui::RadioButton(" 31 x 31 x 31", &nsamples, 31);
+  // if (changed)
+  //   _yarnMapperSettings.modelfolder = "data/yarnmodels/num_samples/model_stock_" + std::to_string(nsamples);
+  // ImGui::End();
+
+  // ImGui::Begin("##bend", &open_ptr, window_flags);
+  // ImGui::SetWindowFontScale(1.5);
+  // int toggle = int(_yarnMapper->m_dbg.toggle);
+  // bool changed = false;
+  // changed |= ImGui::RadioButton("linearized bending", &toggle, 0);
+  // changed |= ImGui::RadioButton("        4D bending", &toggle, 1);
+  // if (changed)
+  //   _yarnMapper->m_dbg.toggle = (toggle > 0);
+  // ImGui::End();
+
+  // ImGui::Begin("##slide", &open_ptr, window_flags);
+  // ImGui::SetWindowFontScale(1.5);
+  // bool toggle = _yarnMapper->m_dbg.toggle;
+  // ImGui::Checkbox("Sliding Constraint", &toggle);
+  // ImGui::End();
+
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor();
+  ImGui::PopStyleColor(); // grab triangle
+  ImGui::PopStyleVar();
+}
+
 void MainApplication::keyPressEvent(KeyEvent &event) {
   if (_imgui.handleKeyPressEvent(event))
     return;
 
-  static bool MS = true;
   bool success;
 
   // key press events, that are only allowed while not editing a text field
@@ -1208,6 +1127,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       case KeyEvent::Key::Esc:
         this->exit();
         break;
+      case KeyEvent::Key::H:
+        _simple_gui = !_simple_gui;
+        break;
       case KeyEvent::Key::D:
         _yarnMapper->m_dbg.toggle = !_yarnMapper->m_dbg.toggle;
         break;
@@ -1223,33 +1145,18 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
                              // number
         ::Debug::log("Result:", success);
         break;
-      case KeyEvent::Key::Space:
+      case KeyEvent::Key::P:
         _paused = !_paused;
+        break;
+      case KeyEvent::Key::Space:
+        _yarnMapperSettings.repeat_frame = !_yarnMapperSettings.repeat_frame;
         break;
       case KeyEvent::Key::R:
         reset_simulation();
         break;
       case KeyEvent::Key::S:
-        if ((event.modifiers() & KeyEvent::Modifier::Shift)) {
-          _paused                          = false;
-          _yarnMapperSettings.repeat_frame = !_yarnMapperSettings.repeat_frame;
-        } else {
-          _single_step = true;
-          _paused      = true;
-        }
-        break;
-      case KeyEvent::Key::P:
-        if ((event.modifiers() & KeyEvent::Modifier::Alt))
-          _yarnMapper->applyForce(0, force_mult * -5, force_mult * 0.2f);
-        else
-          _yarnMapper->applyForce(force_mult * 3, force_mult * 1, 0);
-        break;
-      case KeyEvent::Key::B:
-        if (MS)
-          GL::Renderer::disable(GL::Renderer::Feature::Multisampling);
-        else
-          GL::Renderer::enable(GL::Renderer::Feature::Multisampling);
-        MS = !MS;
+        _single_step = true;
+        _paused      = true;
         break;
       case KeyEvent::Key::M:
         _render_mesh = !_render_mesh;
@@ -1267,10 +1174,10 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       //   _yarnMapperSettings.debug_toggle = !_yarnMapperSettings.debug_toggle;
       //   break;
       case KeyEvent::Key::G:
-        _yarnMapperSettings.gpu_compute = !_yarnMapperSettings.gpu_compute;
-        break;
-      case KeyEvent::Key::H:
-        _gui = !_gui; // 2 (full) and 1 (minimal)
+        if ((event.modifiers() & KeyEvent::Modifier::Alt))
+          _yarnMapperSettings.gpu_compute = !_yarnMapperSettings.gpu_compute;
+        else
+          _render_ground = !_render_ground;
         break;
       case KeyEvent::Key::NumOne:
       case KeyEvent::Key::One:
@@ -1288,13 +1195,6 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       case KeyEvent::Key::Three:
         _arcball->setViewParameters(cam_d * Vector3(0, 0, 1), Vector3(0),
                                     Vector3(0, 1, 0));
-        break;
-      case KeyEvent::Key::V:
-        glHint(GL_POLYGON_SMOOTH_HINT,
-               (event.modifiers() & KeyEvent::Modifier::Shift) ? GL_FASTEST
-                                                               : GL_NICEST);
-        // GL::Renderer::setHint(GL::Renderer::Hint::FragmentShaderDerivative,
-        // GL::Renderer::HintMode::Nicest);
         break;
       default:
         break;
