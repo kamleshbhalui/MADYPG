@@ -144,7 +144,7 @@ void YarnMapper::step() {
 
   // WORLD SPACE MESH CHANGES
 
-  mesh.compute_face_data(m_settings.svdclamp);  // face normals and strains I,II
+  mesh.compute_face_data();  // face normals, deformation grad., and I,II
   // interpolate face data to vertices
   mesh.compute_vertex_normals();
   mesh.compute_vertex_defF();
@@ -256,8 +256,8 @@ void YarnMapper::step() {
   m_timer.tick();
 }
 
-void hermitian_eig_clamp(Vector6s& m, float mineigval);
-void hermitian_eig_clamp(Vector6s& m, float mineigval) {
+void symmetric_eig_clamp(Vector6s& m, float mineigval);
+void symmetric_eig_clamp(Vector6s& m, float mineigval) {
   // following:
   // Closed-form expressions of the eigen decomposition of 2x2 and 3x3 Hermitian
   // matrices https://hal.archives-ouvertes.fr/hal-01501221/document
@@ -320,7 +320,7 @@ void YarnMapper::deform_reference(const Mesh& mesh) {
 
 #ifdef MODEL4D
     if (m_settings.svdclamp > 0)
-      hermitian_eig_clamp(s, m_settings.svdclamp);
+      symmetric_eig_clamp(s, m_settings.svdclamp);
     float sx = std::sqrt(s[0]) - 1;
     float sy = std::sqrt(s[2]) - 1;
     float sa = s[1] / ((sx + 1) * (sy + 1));
@@ -339,7 +339,7 @@ void YarnMapper::deform_reference(const Mesh& mesh) {
       s.tail<3>().setZero();
     }
     if (m_settings.svdclamp > 0)
-      hermitian_eig_clamp(s, m_settings.svdclamp);
+      symmetric_eig_clamp(s, m_settings.svdclamp);
     float sx = std::sqrt(s[0]) - 1;
     float sy = std::sqrt(s[2]) - 1;
     float sa = s[1] / ((sx + 1) * (sy + 1));
@@ -689,7 +689,7 @@ void YarnMapper::dbg_compare_bending() {  // copy of deform_reference using both
     {
       Vector6s s4D = s;
       if (m_settings.svdclamp > 0)
-        hermitian_eig_clamp(s4D, m_settings.svdclamp);
+        symmetric_eig_clamp(s4D, m_settings.svdclamp);
       float sx = std::sqrt(s4D[0]) - 1;
       float sy = std::sqrt(s4D[2]) - 1;
       float sa = s4D[1] / ((sx + 1) * (sy + 1));
@@ -706,7 +706,7 @@ void YarnMapper::dbg_compare_bending() {  // copy of deform_reference using both
         sLin.tail<3>().setZero();
       }
       if (m_settings.svdclamp > 0)
-        hermitian_eig_clamp(sLin, m_settings.svdclamp);
+        symmetric_eig_clamp(sLin, m_settings.svdclamp);
       float sx = std::sqrt(sLin[0]) - 1;
       float sy = std::sqrt(sLin[2]) - 1;
       float sa = sLin[1] / ((sx + 1) * (sy + 1));
@@ -774,7 +774,7 @@ void YarnMapper::dbg_compare_nsamples() {  // copy of deform_reference current
       s.tail<3>().setZero();
     }
     if (m_settings.svdclamp > 0)
-      hermitian_eig_clamp(s, m_settings.svdclamp);
+      symmetric_eig_clamp(s, m_settings.svdclamp);
     float sx = std::sqrt(s[0]) - 1;
     float sy = std::sqrt(s[2]) - 1;
     float sa = s[1] / ((sx + 1) * (sy + 1));

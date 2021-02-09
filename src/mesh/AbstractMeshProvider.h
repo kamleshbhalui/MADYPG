@@ -1,8 +1,11 @@
 #ifndef __ABSTRACTMESHPROVIDER__H__
 #define __ABSTRACTMESHPROVIDER__H__
 
-#include "Trafo.h"
 #include "Mesh.h"
+#include "Trafo.h"
+
+// abstraction of mesh animation, to provide updating meshes to the YarnMapper
+// specialized for obj-file sequences and PBD-simulation
 class AbstractMeshProvider {
  public:
   struct Obstacle {
@@ -28,7 +31,7 @@ class AbstractMeshProvider {
   const std::vector<Obstacle> &getObstacles() const { return m_obstacles; }
 
   // only implemented for pbd
-  virtual void applyForce(float fx , float fy, float fz) {}
+  virtual void applyForce(float fx, float fy, float fz) {}
 
  protected:
   std::vector<Obstacle> m_obstacles;

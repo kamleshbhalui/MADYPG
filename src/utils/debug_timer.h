@@ -2,9 +2,9 @@
 #define __DEBUG_TIMER__H__
 
 #include <chrono>
+#include <deque>
 #include <string>
 #include <unordered_map>
-#include <deque>
 #include <vector>
 
 typedef std::chrono::microseconds microseconds;
@@ -68,7 +68,7 @@ class MovingAverageTimer {
     tockDuration(label, duration);
   }
 
-  void tockDuration(const std::string& label, int duration) { 
+  void tockDuration(const std::string& label, int duration) {
     auto& entry   = m_map[label];
     auto& A       = entry.value;
     auto& samples = entry.samples;
@@ -92,9 +92,9 @@ class MovingAverageTimer {
 
     auto search = m_map.find(label);
     if (search != m_map.end()) {
-        return search->second.value;
+      return search->second.value;
     } else {
-        return -1;
+      return -1;
     }
     // return m_map[label].value; // non-const lookup
   }
@@ -103,11 +103,10 @@ class MovingAverageTimer {
     std::vector<std::pair<std::string, double>> pairs;
     pairs.reserve(m_map.size());
     for (auto kv : m_map) {
-      pairs.push_back(std::make_pair(kv.first,kv.second.value));
+      pairs.push_back(std::make_pair(kv.first, kv.second.value));
     }
     return pairs;
   }
-
 
   double getTotal() {
     double t = 0;

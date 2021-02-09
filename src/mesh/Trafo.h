@@ -3,6 +3,7 @@
 
 #include "../EigenDefinitions.h"
 
+// arcsim-like obstacle transformation struct
 struct Trafo {
   Vector4s axis_angle;  // angle, axis
   scalar scale;

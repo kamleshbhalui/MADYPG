@@ -40,11 +40,7 @@ MeshShader::MeshShader() {
   bindFragmentDataLocation(NormalsOutput, "normal");
 
   _transformationUniform = uniformLocation("transformation");
-  // _normalMatrixUniform = uniformLocation("normalMatrix");
-  _projectionUniform   = uniformLocation("projection");
-  // _diffuseColorUniform = uniformLocation("diffuseColor");
-  // _dzUniform           = uniformLocation("dz");
-  // _radiusUniform = uniformLocation("radius");
+  _projectionUniform = uniformLocation("projection");
   setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
 }
 
@@ -57,11 +53,6 @@ MeshShader &MeshShader::setProjection(const Matrix4 &projection) {
   setUniform(_projectionUniform, projection);
   return *this;
 }
-
-// MeshShader &MeshShader::setDiffuseColor(const Color4 &color) {
-//   setUniform(_diffuseColorUniform, color);
-//   return *this;
-// }
 
 MeshShader &MeshShader::bindMatCap(GL::Texture2D &texture) {
   texture.bind(TextureUnit_Matcap);

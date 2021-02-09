@@ -41,7 +41,7 @@ ObsMeshShader::ObsMeshShader() {
 
   _transformationUniform = uniformLocation("transformation");
   // _normalMatrixUniform = uniformLocation("normalMatrix");
-  _projectionUniform   = uniformLocation("projection");
+  _projectionUniform = uniformLocation("projection");
   setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
 }
 

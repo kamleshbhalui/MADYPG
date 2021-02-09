@@ -99,7 +99,7 @@ std::ostream& operator<<(std::ostream& stream, const std::pair<A, B>& pair) {
 bool msgassert(const std::string& msg, bool cond);
 
 template <typename T>
-std::string format_locale(T value, const std::string& locale="en_US.UTF-8") {
+std::string format_locale(T value, const std::string& locale = "en_US.UTF-8") {
   std::stringstream ss;
   try {
     ss.imbue(std::locale(locale));  // use locale for comma separated parts

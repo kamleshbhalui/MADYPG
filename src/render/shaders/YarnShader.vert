@@ -12,17 +12,16 @@ out V2G {
   float arc;
   float th;
   vec2 uv;
-  float r;
+  // float r; // deprecate
   // float pad0;
 } vs_out;
 
 void main(){
-  gl_Position = transformation * vec4(position.rgb,1); // pos.w == twist, shoudlnt use for vec4 trafos
-  // gl_Position = transformation * vec4(uv,0,1);
+  // NOTE: pos.w or pos.a is the edge twist.
+  gl_Position = transformation * vec4(position.rgb,1);
   vs_out.d1 = normalMatrix * d1;
   vs_out.arc = arc;
   vs_out.uv = uv;
-  vs_out.r = local_radius;
+  // vs_out.r = local_radius; // deprecate
   vs_out.th = position.a;
-  // vs_out.viewPosition_vert = transformation*position;
 }

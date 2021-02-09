@@ -10,6 +10,7 @@
 
 namespace Magnum {
 
+// class to specifically draw a textured ground plane
 // NOTE: shader and hardcoded quad mesh drawable combined
 class GroundShader : public Magnum::GL::AbstractShaderProgram {
  public:

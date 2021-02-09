@@ -1,7 +1,7 @@
 // NOTE: DEFORMSHADER_WRKGRPSIZE defined during compilation
 layout(local_size_x = DEFORMSHADER_WRKGRPSIZE, local_size_y = 1, local_size_z = 1) in;
 
-#define LINEARIZED_BENDING
+// input buffer definitions ---------------------------------------------------
 
 struct _XwsVertex
 {
@@ -60,13 +60,15 @@ layout(std430, binding = 6) readonly buffer _texDataBuffer
   vec4 data[];
 } buf_texData;
 
+// ----------------------------------------------------------------------------
+
 uniform float deform_reference = 1;
-#ifdef LINEARIZED_BENDING
-  uniform float linearized_bending = 1;
-  uniform float min_eig = 0;
-#endif
+uniform float linearized_bending = 1;
+uniform float min_eig = 0;
 uniform uint num_vertices; 
 
+// get data entry at specific deformation-cell ix (i_sx, i_sa, i_sy)
+// and additionally offset by periodic vertex index (pix)
 vec4 sample_at(uint i_sx, uint i_sa, uint i_sy, uint pix) {
   uint loc = i_sx + buf_texAxes.lenSX * (i_sa + buf_texAxes.lenSA * (i_sy + buf_texAxes.lenSY * pix));
   return buf_texData.data[loc];
@@ -100,6 +102,7 @@ uint upper_bound(uint istart,uint iend, uint which_array, float value) {
   return istart;
 } 
 
+// trilinear interpolation using strains sx sa sy, and offset pix
 vec4 sample3D(vec3 strain, uint pix) {
   float a_sx, a_sa, a_sy;
   // first cell (i,i+1) s.t. val < ax[i+1] else last = size-2
@@ -135,7 +138,8 @@ vec4 sample3D(vec3 strain, uint pix) {
   return d;
 }
 
-void hermitian_eig_clamp(inout vec3 m, float mineigval) {
+// clamp eigenvalues of a 2x2 symmetric matrix
+void symmetric_eig_clamp(inout vec3 m, float mineigval) {
   // following:
   // Closed-form expressions of the eigen decomposition of 2x2 and 3x3 Hermitian matrices
   // https://hal.archives-ouvertes.fr/hal-01501221/document
@@ -175,7 +179,7 @@ void main()
   _bary B0 = buf_B0.data[vix];
   int tri = B0.tri;
 
-  if(tri < 0)
+  if(tri < 0) // skip 'deleted' vertices
     return;
 
   _XmsVertex Xms = buf_Xms.data[vix];
@@ -201,44 +205,28 @@ void main()
   float[3] abc = B0.abc;
 
   // interpolate strains
-  // TODO also allow flat strains
   uint[3] ms_ixs = buf_meshFms.data[tri];
   vec3 strain = vec3(0);
-  #ifdef LINEARIZED_BENDING
-    for (int i = 0; i < 3; ++i) {
-      float[6] s = buf_meshS.data[ms_ixs[i]];
-      // strain += vec3(s[0], s[1], s[2]) * abc[i]; // original s interpol
-      // strain -= deform_reference *Xms.h * vec3(s[3], s[4], s[5]) * abc[i];
-      // strain += (vec3(s[0], s[1], s[2]) - deform_reference *2*Xms.h*vec3(min(s[3],0), 0*s[4], min(s[5],0))) * abc[i];
-      // if(Xms.h > 0) {
-      //   s[3]=min(s[3],0);
-      //   s[5]=min(s[5],0);
-      // } else {
-      //   s[3]=max(s[3],0);
-      //   s[5]=max(s[5],0);
-      // }
-      // strain += (vec3(s[0], s[1], s[2]) - linearized_bending *2*Xms.h*vec3(s[3],0,s[5])) * abc[i];
-      strain += (vec3(s[0], s[1], s[2]) - linearized_bending *2*Xms.h*vec3(s[3],s[4],s[5])) * abc[i];
-    }
-    // vec4 d =  deform_reference * sample3D(strain, Xms.pix);
-    if(min_eig > 0)
-      hermitian_eig_clamp(strain, min_eig);
-    vec3 strain_actual = vec3(
-      sqrt(strain.x) - 1,          // s_x
-      strain.y / sqrt(strain.x * strain.z),  // s_a
-      sqrt(strain.z) - 1           // s_y
-    );
-    vec4 d = deform_reference * sample3D(strain_actual, Xms.pix);
-    // TODO if not using, undo bending in yarnmapper, epsilon in mesh, conversion here, and redo skip on deform 0
-    // TODO also important to do strain clamping here then.. likely before conversion to s ? but how ?, or clamp at mesh level: clamp epsilon, but also II somehow ..darnit
-    // ideally: allow II to only stretch. not sure how to formulate this... given that data is in S strain :|
-  #else
-    for (int i = 0; i < 3; ++i) {
-      float[6] s = buf_meshS.data[ms_ixs[i]];
-      strain += vec3(s[0], s[1], s[2]) * abc[i];
-    }
-    vec4 d = sample3D(strain, Xms.pix);
-  #endif
+
+  // linearized bending
+  for (int i = 0; i < 3; ++i) {
+    float[6] s = buf_meshS.data[ms_ixs[i]];
+    strain += (vec3(s[0], s[1], s[2]) - linearized_bending *2*Xms.h*vec3(s[3],s[4],s[5])) * abc[i];
+  }
+
+  // clamp compression
+  if(min_eig > 0)
+    symmetric_eig_clamp(strain, min_eig);
+
+  // convert to sx sa sy
+  vec3 strain_actual = vec3(
+    sqrt(strain.x) - 1,          // s_x
+    strain.y / sqrt(strain.x * strain.z),  // s_a
+    sqrt(strain.z) - 1           // s_y
+  );
+
+  // interpolate/texture-lookup displacement
+  vec4 d = deform_reference * sample3D(strain_actual, Xms.pix);
   
   Xws.x += d.x;
   Xws.y += d.y;

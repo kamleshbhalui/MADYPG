@@ -3,12 +3,13 @@
 
 #include "AbstractMeshProvider.h"
 
-// TODO CPP includes
-
+// ...
 #include "../io/framesio.h"
 #include "../utils/debug_logging.h"
 #include "../utils/threadutils.h"
 
+// Binary version of an obj-sequence animation, using pre-baked binary 'Frame's
+// for fast loading
 class BinSeqAnimation : public AbstractMeshProvider {
  public:
   struct Settings {
@@ -33,7 +34,6 @@ class BinSeqAnimation : public AbstractMeshProvider {
         for (size_t i = 0; i < frame.obs_V.size(); ++i)
           frame.obs_V[i] *= m_settings.scale;
       }
-      
     }
 
     update();  // load first frame
@@ -44,6 +44,7 @@ class BinSeqAnimation : public AbstractMeshProvider {
 
   ~BinSeqAnimation() {}
 
+  // load next frame: update cloth mesh / obstacle transformation
   void update() {
     if (m_frames.empty()) {
       m_indicesDirty = false;
@@ -102,9 +103,10 @@ class BinSeqAnimation : public AbstractMeshProvider {
       B.back().map() = A.row(i);
     }
 
-    // parallel: it appears that this is (kind of negligibly but observably)
+    // parallel: it appears that this is (negligibly but still)
     // slower than serial copy! let this be a lesson to default to non-parallel
-    // stuff for trivial operations and when parallelizing always measure!
+    // implementation for trivial operations and when parallelizing always
+    // measure!
     // B.resize(A.rows());
     // tbb::parallel_for(size_t(0),size_t(A.rows()),[&](size_t i){
     //   B[i].map() = A.row(i);

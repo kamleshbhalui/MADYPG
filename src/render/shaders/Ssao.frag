@@ -72,10 +72,9 @@ vec2 noiseScale = vec2(textureSize(positions,0))/vec2(textureSize(noise,0));
 
 void main()
 {
-    // NOTE: could larger scale shadow with radius=0.2, bias=0.05, strength=0.7
-
+    // NOTE modified and imperfect SSAO implementation
+    // splitting the SSAO samples over the MSAA samples to maintain constant number
     #ifdef MSAA
-    // TODO WHY DOES THIS PRODUCE SHADOW AROUND SMOOTH OBSTACLES ( NOTE not tested for long and depends on ssao params)
     float occlusion = 0.0;
     // ambientOcclusion = 0.0;
     ivec2 texsize = textureSize(positions); // assume same for normals
@@ -128,11 +127,11 @@ void main()
     #else
 
     vec3 position = texture(positions, textureCoordinate).xyz;
-    vec3 normal = normalize(texture(normals, textureCoordinate).xyz);
     // if(position.z == 0) {
     //     ambientOcclusion = 1;
     //     return;
     // }
+    vec3 normal = normalize(texture(normals, textureCoordinate).xyz);
     vec3 randomVector = normalize(texture(noise, textureCoordinate*noiseScale).xyz);
 
     /* tangent-space to view-space */

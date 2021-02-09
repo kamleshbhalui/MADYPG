@@ -24,23 +24,21 @@ in V2G {
   float arc;
   float th;
   vec2 uv;
-  float r; // this rlocal will be deprecated once we compute rVolPreserve in here from arc! 
+  // float r; // deprecated
   // float pad0;
 } gs_in[];
 
 out G2F {
-  vec2 plycoord; // ply texture coordinate: N a, l/L
-  // float a; // radial texture coordinate: actually Na - NVl/2 pi r
+  vec2 plycoord; // ply texture coordinate: N alpha - a V N/(L R), a / (LR)
   float r;
   vec3 p;
-  // vec3 n;
-  mat3 Q; // tangential surface frame T1,T2,N, where T1=t x n, T2=t, N=n. for yarn curve tangent n and normal n. 
+  mat3 Q; // tangential surface frame T1,T2,N, where T1=t x n, T2=t, N=n. for yarn curve tangent t and normal n. 
   vec2 uv;
 } gs_out;
 
 uniform float radius = 1.0;
 uniform float plyTwist = 1000;
-uniform float plyLen = 1; // multiple  of radius
+uniform float plyLen = 1;
 uniform float plyNum = 4;
 uniform mat4 projection;
 
@@ -83,7 +81,6 @@ void main() {
   return;
 #else
 
-
   // note: variable naming: vertex values indexed as 0 1 2 3, edge values A B C.
   // [v0] --eA-- [v1] --eB-- [v2] --eC-- [v3]
   // shader outputs the geometry for segment eB
@@ -95,26 +92,20 @@ void main() {
   float invrlAB = 1.0 / (rlA + rlB);
   float invrlBC = 1.0 / (rlB + rlC);
 
-  // rlA=1;
-  // rlB=1;
-  // rlC=1;
-  // invrlAB=0.5;
-  // invrlBC=0.5;
-
   #ifdef volpreserve
-  const float minR = 0.25, maxR = 2.0;
-  // r0^2 l0 pi == rt^2 lt pi --> rt = r0 sqrt(l0/lt)
-  vec3 dA =  gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
-  vec3 dB =  gl_in[2].gl_Position.xyz - gl_in[1].gl_Position.xyz;
-  vec3 dC =  gl_in[3].gl_Position.xyz - gl_in[2].gl_Position.xyz;
-  float rA = min(max(minR, sqrt(rlA) * pow(dot(dA,dA),-0.25)), maxR);
-  float rB = min(max(minR, sqrt(rlB) * pow(dot(dB,dB),-0.25)), maxR);
-  float rC = min(max(minR, sqrt(rlC) * pow(dot(dC,dC),-0.25)), maxR);
-  float r1 = (rlA * rA + rlB * rB) * invrlAB * radius;
-  float r2 = (rlB * rB + rlC * rC) * invrlBC * radius;
+    const float minR = 0.25, maxR = 2.0;
+    // r0^2 l0 pi == rt^2 lt pi --> rt = r0 sqrt(l0/lt)
+    vec3 dA =  gl_in[1].gl_Position.xyz - gl_in[0].gl_Position.xyz;
+    vec3 dB =  gl_in[2].gl_Position.xyz - gl_in[1].gl_Position.xyz;
+    vec3 dC =  gl_in[3].gl_Position.xyz - gl_in[2].gl_Position.xyz;
+    float rA = min(max(minR, sqrt(rlA) * pow(dot(dA,dA),-0.25)), maxR);
+    float rB = min(max(minR, sqrt(rlB) * pow(dot(dB,dB),-0.25)), maxR);
+    float rC = min(max(minR, sqrt(rlC) * pow(dot(dC,dC),-0.25)), maxR);
+    float r1 = (rlA * rA + rlB * rB) * invrlAB * radius;
+    float r2 = (rlB * rB + rlC * rC) * invrlBC * radius;
   #else
-  float r1 = radius; // gs_in[1].r *
-  float r2 = radius; // gs_in[2].r *
+    float r1 = radius; // gs_in[1].r *
+    float r2 = radius; // gs_in[2].r *
   #endif
 
   // segment tangent, and weighted avg vertex tangents
@@ -133,76 +124,69 @@ void main() {
   
 
   #ifdef usetheta
-  // NOTE actually instead of computing ca1 ca2 sa1 sa2 for each circle vertex,
-  // could instead just apply the twist beforehand to each edge segment, and
-  // then average the material frames. this might cut down on a bunch of
-  // sin/cos, and should work as long as consecutive material frames are
-  // less than +180deg apart
-  float th1 = (rlB * gs_in[1].th + rlA * gs_in[0].th) * invrlAB;
-  float th2 = (rlC * gs_in[2].th + rlB * gs_in[1].th) * invrlBC;
+    // NOTE actually instead of computing ca1 ca2 sa1 sa2 for each circle vertex,
+    // could instead just apply the twist beforehand to each edge segment, and
+    // then average the material frames. this might cut down on a bunch of
+    // sin/cos, and should work as long as consecutive material frames are
+    // less than +180deg apart
+    float th1 = (rlB * gs_in[1].th + rlA * gs_in[0].th) * invrlAB;
+    float th2 = (rlC * gs_in[2].th + rlB * gs_in[1].th) * invrlBC;
   #endif
 
   #ifdef LEVEL_OF_DETAIL
-  float lod = LOD(0.5*(V1.gl_Position.z+V0.gl_Position.z));
-  int segs = int(lod*NSEGSCLOSE+(1-lod)*NSEGSSFAR);
+    float lod = LOD(0.5*(V1.gl_Position.z+V0.gl_Position.z));
+    int segs = int(lod*NSEGSCLOSE+(1-lod)*NSEGSSFAR);
   #else
-  int segs = NVERTICES/2;
+    int segs = NVERTICES/2;
   #endif
+
   vec3 n;
+  float invLR = 1.0/(plyLen*radius);
   for(int i=0; i<segs; i++) {
     float alpha = i/float(segs-1);
     float a = alpha * 2.0 * 3.14159;
     #ifdef usetheta
-    float ca1 = cos(a + th1); float sa1 = sin(a + th1);
-    float ca2 = cos(a + th2); float sa2 = sin(a + th2); // NOTE: could speed up by ignoring twist theta
+      float ca1 = cos(a + th1); float sa1 = sin(a + th1);
+      float ca2 = cos(a + th2); float sa2 = sin(a + th2); // NOTE: could speed up by ignoring twist theta
     #else
-    float ca1 = cos(a); float sa1 = sin(a);
-    float ca2 = ca1; float sa2 = sa1; // NOTE: could speed up by ignoring twist theta
+      float ca1 = cos(a); float sa1 = sin(a);
+      float ca2 = ca1; float sa2 = sa1;
     #endif
-    // float ca = cos(a + gs_in[1].th); float sa = sin(a + gs_in[1].th);
-
-    // viewNormal = vec3( ca*b.x + sa*n.x,
-    //                 ca*b.y + sa*n.y,
-    //                 ca*b.z + sa*n.z );
+    
+    // vertex 1 ---------------------------------------------------------------
     
     gs_out.r = radius;
-    // gs_out.r = r2; // doesnt work well with texture
-    // NOTE: -a == (1-a) because of expecting lookup orientation in normal map
-    // gs_out.a = plyNum*(-alpha - 0.1591549 * plyTwist * gs_in[2].arc / gs_out.r);
-    gs_out.plycoord = vec2(plyNum*-alpha - gs_in[2].arc/(plyLen*radius)*plyTwist*plyNum , gs_in[2].arc / (plyLen*radius)); // TODO precomp invradius and l/L
-    // gs_out.plycoord = vec2(plyNum*-alpha - gs_in[2].arc/(plyLen*radius)*plyTwist , gs_in[2].arc / (plyLen*radius)); // TODO precomp invradius and l/L
+    gs_out.plycoord = vec2(plyNum*-alpha - gs_in[2].arc/(plyLen*radius)*plyTwist*plyNum , gs_in[2].arc * invLR);
     gs_out.uv = gs_in[2].uv;
-    // gs_out.uv = vec2(segs/8.0,0);
-    // gs_out.uv = vec2(twistSpeed * gs_in[2].arc,0);
     n = ca2*nv1 + sa2 * bv1;
     gs_out.Q = mat3(cross(tv1, n), tv1, n);
-    // noise? xyz + (r+rand(vertex,i)) * n;
+
     #ifdef randomize
-    // gs_out.p = V1.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn+1,i)) * r2 * n;
-    gs_out.p = V1.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn,2*i)) * r2 * n;
+      // gs_out.p = V1.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn+1,i)) * r2 * n;
+      gs_out.p = V1.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn,2*i)) * r2 * n;
     #else
-    gs_out.p = V1.gl_Position.xyz + r2 * n;
+      gs_out.p = V1.gl_Position.xyz + r2 * n;
     #endif
-    gl_Position = projection*vec4(gs_out.p, 1.0);
+
+    gl_Position = projection * vec4(gs_out.p, 1.0);
     EmitVertex();   
     
+    // vertex 0 ---------------------------------------------------------------
+
     gs_out.r = radius;
-    // gs_out.r = r1; // doesnt work well with texture
-    // gs_out.a = plyNum*(-alpha - 0.1591549 * plyTwist * gs_in[1].arc / gs_out.r);
-    gs_out.plycoord = vec2(plyNum*-alpha - gs_in[1].arc/(plyLen*radius)*plyTwist*plyNum , gs_in[1].arc / (plyLen*radius)); // TODO precomp invradius and l/L
-    // gs_out.plycoord = vec2(plyNum*-alpha - gs_in[1].arc/(plyLen*radius)*plyTwist , gs_in[1].arc / (plyLen*radius)); // TODO precomp invradius and l/L
+    gs_out.plycoord = vec2(plyNum*-alpha - gs_in[1].arc/(plyLen*radius)*plyTwist*plyNum , gs_in[1].arc * invLR);
     gs_out.uv = gs_in[1].uv;
-    // gs_out.uv = vec2(segs/8.0,0);
-    // gs_out.uv = vec2(twistSpeed * gs_in[1].arc,0);
     n = ca1*nv0 + sa1 * bv0;
     gs_out.Q = mat3(cross(tv0, n), tv0, n);
+
     #ifdef randomize
-    // gs_out.p = V0.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn+0,i)) * r1 * n;
-    gs_out.p = V0.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn,2*i+1)) * r1 * n;
+      // gs_out.p = V0.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn+0,i)) * r1 * n;
+      gs_out.p = V0.gl_Position.xyz +  (0.5+1.5*rand(gl_PrimitiveIDIn,2*i+1)) * r1 * n;
     #else
-    gs_out.p = V0.gl_Position.xyz + r1 * n;
+      gs_out.p = V0.gl_Position.xyz + r1 * n;
     #endif
-    gl_Position = projection*vec4(gs_out.p, 1.0);
+
+    gl_Position = projection * vec4(gs_out.p, 1.0);
     EmitVertex();  
   }
   EndPrimitive();  

@@ -102,11 +102,6 @@ static void parallel_sort(Iterable& vec, const Compare& func) {
   std::sort(vec.begin(), vec.end(), func);
 }
 
-// template <typename T, typename A>
-// static void parallel_sort(std::vector<T, A>& vec) {
-//   std::sort(vec.begin(), vec.end(), std::less<T>);
-// }
-
 #else  // PARALLEL =====================================
 
 inline unsigned get_num_threads() {
@@ -160,15 +155,6 @@ static void parallel_sort(Iterable& vec, const Compare& func) {
   std::sort(vec.begin(), vec.end(), func);
 #endif
 }
-
-// template <typename T, typename A>
-// static void parallel_sort(std::vector<T, A>& vec) {
-// #if (defined(NDEBUG) || DEBUG_PARALLEL) && !NO_PARALLEL
-// TODO
-// #else
-//   std::sort(vec.begin(), vec.end(), std::less<T>);
-// #endif
-// }
 
 #endif
 }  // namespace threadutils

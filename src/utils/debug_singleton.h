@@ -2,10 +2,10 @@
 #define _DEBUG_SINGLETON_H_
 
 #include <boost/format.hpp>
+#include <iostream>
 #include <map>
 #include <string>
 #include <unordered_map>
-#include <iostream>
 
 // TODO maybe add second template parameter with default value
 // e.g. Map<typename T, int ID = 0> such that we can have multiple maps

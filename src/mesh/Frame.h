@@ -4,6 +4,9 @@
 #include "../EigenDefinitions.h"
 #include "Trafo.h"
 
+// single frame of animation
+// including cloth mesh, obstacle meshes, obstacle transformations
+// empty matrices correspond to no change from previous frames
 struct Frame {
   MatrixGLf cloth_V, cloth_U;
   MatrixGLi cloth_F, cloth_Fms;
@@ -12,5 +15,4 @@ struct Frame {
   std::vector<Trafo> obs_trafo;
 };
 
-
-#endif // __FRAME__H__
+#endif  // __FRAME__H__

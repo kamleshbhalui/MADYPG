@@ -1,18 +1,24 @@
 #ifndef __OBJIO_H__
 #define __OBJIO_H__
 
+#include <assert.h> /* assert */
+
 #include <deque>
 #include <fstream>
+#include <iostream>
 #include <iterator>
 #include <sstream>
 #include <string>
 #include <vector>
-#include <assert.h>     /* assert */
-#include <iostream>
 
 #include "../utils/threadutils.h"
 
 int count_words(const std::string &str);
+
+// NOTE: due to circumstances this file contains two version of obj loading
+// one with templates/Eigen matrices, and one with vector<structs>
+// we use the first one in obj2bin.cpp to create binary sequences, and the 
+// latter otherwise..
 
 template <typename Mf, typename Mi>
 bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U, Mi &Fms,
@@ -33,7 +39,9 @@ bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U, Mi &Fms,
   std::deque<std::string> str_v;
   std::deque<std::string> str_vt;
 
-  // TODO maybe go through file once to get number of verts/faces and reserve the str things. if going through file twice and resetting the ifs is faster than constantly reallocating the strings this should help.
+  // TODO maybe go through file once to get number of verts/faces and reserve
+  // the str things. if going through file twice and resetting the ifs is faster
+  // than constantly reallocating the strings this should help.
 
   std::string line, kw;
   while (std::getline(ifs, line)) {
@@ -169,20 +177,21 @@ bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U,
   return load_obj(path, V, F, U, Fms, true, true);
 }
 
-
-
-
 #include "../mesh/Mesh.h"
-// same as above but now for the vector<struct> data types ...
-bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X, std::vector<Mesh::Face> &F, std::vector<Mesh::MSVertex> &U, std::vector<Mesh::Face> &Fms, bool with_faces, bool with_uvs);
-bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X, std::vector<Mesh::Face> &F, std::vector<Mesh::MSVertex> &U, std::vector<Mesh::Face> &Fms);
-bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X, std::vector<Mesh::Face> &F);
+// NOTE: same as above but now for the vector<struct> data types ...
+
+bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X,
+              std::vector<Mesh::Face> &F, std::vector<Mesh::MSVertex> &U,
+              std::vector<Mesh::Face> &Fms, bool with_faces, bool with_uvs);
+bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X,
+              std::vector<Mesh::Face> &F, std::vector<Mesh::MSVertex> &U,
+              std::vector<Mesh::Face> &Fms);
+bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X,
+              std::vector<Mesh::Face> &F);
 bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X);
-
-
 
 template <typename Mf, typename Mi>
 bool load_obj(const std::string &path, Mf &V, Mi &F, Mf &U, Mi &Fms,
-              bool with_faces, bool with_uvs) ;
+              bool with_faces, bool with_uvs);
 
 #endif  //__OBJIO_H__

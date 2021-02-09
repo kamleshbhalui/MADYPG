@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "../utils/debug_logging.h"  // DEBUG REMOVE
 #include "../utils/threadutils.h"
 
 bool barycentric_inside(const Vector3s &abc) {
@@ -16,7 +15,7 @@ scalar signed_angle(const Vector3s &u, const Vector3s &v, const Vector3s &e) {
 void Mesh::compute_invDm() {
   auto &invDmU_cpu = invDmU.cpu();
   invDmU_cpu.resize(Fms.getCPUSize());
-  const auto& Uc = U.cpu();
+  const auto &Uc = U.cpu();
   threadutils::parallel_for(size_t(0), invDmU_cpu.size(), [&](size_t i) {
     auto &ixs = Fms.cpu()[i];
     Matrix2s Dm;
@@ -172,7 +171,7 @@ void Mesh::compute_face_adjacency() {
   });
 }
 
-void Mesh::compute_face_data(float svdclamp) {
+void Mesh::compute_face_data() {
   auto &Fc = F.cpu();
   auto Xc  = X.cpu();
   ;
@@ -201,8 +200,6 @@ void Mesh::compute_face_data(float svdclamp) {
 
     defgrads[f].map() = defoF;
 
-#define LINEARIZED_BENDING
-#ifdef LINEARIZED_BENDING
     // in plane
     scalar C00 = defoF.col(0).squaredNorm();
     scalar C01 = defoF.col(0).dot(defoF.col(1));
@@ -234,23 +231,6 @@ void Mesh::compute_face_data(float svdclamp) {
       s[4] += c * FTti[0] * FTti[1];
       s[5] += c * FTti[1] * FTti[1];
     }
-#else
-    // testing clamping
-    if (svdclamp > 0) {
-      Eigen::JacobiSVD<MatrixNMs<3, 2>> svd(defoF, Eigen::ComputeThinU | Eigen::ComputeThinV);
-      defoF = svd.matrixU() * svd.singularValues().cwiseMax(svdclamp).asDiagonal() * svd.matrixV().transpose();
-    }
-
-    // in plane
-    scalar C00 = defoF.col(0).squaredNorm();
-    scalar C01 = defoF.col(0).dot(defoF.col(1));
-    scalar C11 = defoF.col(1).squaredNorm();
-    C00 = std::sqrt(C00);
-    C11 = std::sqrt(C11);
-    s[0]       = C00 - 1;            // s_x
-    s[2]       = C11 - 1;            // s_y
-    s[1]       = C01 / (C00 * C11);  // s_a
-#endif
   });
 }
 

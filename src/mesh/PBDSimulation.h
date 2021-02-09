@@ -7,6 +7,7 @@
 
 #include "AbstractMeshProvider.h"
 
+// Position-Based Dynamics cloth simulation
 class PBDSimulation : public AbstractMeshProvider {
  public:
   struct Settings {
@@ -20,16 +21,16 @@ class PBDSimulation : public AbstractMeshProvider {
     float timestep          = 0.001;
     float density           = 0.3;  // doesn't do anything in pbd :(
     float sdf_samples_per_m = 200;
-    float gravity[3]        = {0.0f, -25.0f, 0.0f}; // -9.81
+    float gravity[3]        = {0.0f, -25.0f, 0.0f};  // -9.81
 
   } m_settings;
 
   PBDSimulation(const Settings& settings);
-
   ~PBDSimulation();
 
+  // step the simulation
   void update();
-
+  // apply force to a (currently hard-coded) selection of vertices
   void applyForce(float fx, float fy, float fz);
 
  private:
@@ -38,7 +39,6 @@ class PBDSimulation : public AbstractMeshProvider {
   PBD::CubicSDFCollisionDetection m_cd2;
   std::vector<std::shared_ptr<PBD::CubicSDFCollisionDetection::Grid>> m_rbsdfs;
   std::vector<uint32_t> m_selected;
-  // ...
 
   bool loadClothMesh(const std::string& filepath);
   bool loadBoxObstacle(const std::string& filepath);

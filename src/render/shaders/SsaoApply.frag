@@ -104,23 +104,7 @@ void main()
     fragmentColor.rgb = vec3(blurredOcclusion);
     #endif
 
-
-
-
-    // float p = 1/2.4;
-    // fragmentColor.rgb = vec3(pow(fragmentColor.r,p),pow(fragmentColor.g,p),pow(fragmentColor.b,p));
-
-    // TODO better color correction
-    // like keep hue but just pow the lightness ?
-    // or just shift brightness up? idk
-    // fragmentColor.rgb = rgb2hsv(fragmentColor.rgb);
-    // fragmentColor.b = pow(fragmentColor.b,0.6);
-    // // fragmentColor.b = min(1,fragmentColor.b+0.2);
-    // fragmentColor.rgb = hsv2rgb(fragmentColor.rgb);
-
-    return;
-
-    // MSAA blur not implemented ...
+    return; // MSAA blur not implemented ...
 #else
 
 
@@ -185,6 +169,6 @@ void main()
     fragmentColor.rgb = vec3(blurredOcclusion);
 #endif
 
-#endif // TODO del MSAA hack
+#endif
 }
 

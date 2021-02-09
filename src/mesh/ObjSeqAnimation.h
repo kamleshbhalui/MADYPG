@@ -5,24 +5,25 @@
 
 #include "AbstractMeshProvider.h"
 
-// TODO CPP includes
+// ...
 #include <algorithm>
 #include <filesystem>  // requires C++17, g++ >= 8 & linking to stdc++fs)
 #include <regex>
 
-#include "../utils/debug_logging.h"
-// #include "meshio.h"
-#include "../io/trafoio.h"
 #include "../io/objio.h"
+#include "../io/trafoio.h"
+#include "../utils/debug_logging.h"
 // namespace fs = std::experimental::filesystem;
 namespace fs = std::filesystem;
 
-// IN: folder, repeat, constant_material_space(=topology&positions)
-// OUT: update (sets mesh and flags)
+// TODO optionally implement caching
+//   (store each frame in a mesh array like BinSeq...)
+//   either during animation or once up-front with some button toggle
 
-// TODO implement caching (store each frame in a mesh array like BinSeq...)
-//    either on the fly, maybe with a button toggle once up-front
-
+// mesh animation based on a folder of cloth-mesh '.obj' files
+// with two modes:
+//  1. arcsim-like sequences (fixed naming convention, Trafo-animated obstacles)
+//  2. general sequence (arbitrary names, but fixed obstacle mesh in subfolder)
 class ObjSeqAnimation : public AbstractMeshProvider {
  public:
   struct Settings {
@@ -31,16 +32,6 @@ class ObjSeqAnimation : public AbstractMeshProvider {
     bool constant_material_space = false;
     float scale                  = 1.0;
   } m_settings;
-
-  // TODO PUT SOMEWHERE
-  bool endsWith(const std::string& mainStr, const std::string& toMatch) {
-    if (mainStr.size() >= toMatch.size() &&
-        mainStr.compare(mainStr.size() - toMatch.size(), toMatch.size(),
-                        toMatch) == 0)
-      return true;
-    else
-      return false;
-  }
 
   ObjSeqAnimation(const Settings& settings) : m_settings(settings) {
     m_indicesDirty = true;
@@ -59,19 +50,21 @@ class ObjSeqAnimation : public AbstractMeshProvider {
     if (!arcsim_mode) {
       for (auto& p : fs::directory_iterator(m_settings.folder)) {
         if (fs::is_regular_file(p))
-          m_files.push_back(p.path());
+          m_files.push_back(p.path());  // cloth mesh frame
+        // obs subfolder for non-animated obstacle meshes
         else if (fs::is_directory(p) && p.path().filename() == "obs") {
           for (auto& p2 : fs::directory_iterator(p)) {
             m_obstacles.emplace_back();
             if (fs::is_regular_file(p2)) {
-              load_obj(p2.path(), m_obstacles.back().mesh.X.cpu(), m_obstacles.back().mesh.F.cpu());
+              load_obj(p2.path(), m_obstacles.back().mesh.X.cpu(),
+                       m_obstacles.back().mesh.F.cpu());
             }
             // load_obj_mesh(p2.path(), m_obstacles.back().mesh, true);
           }
         }
       }
       std::sort(m_files.begin(), m_files.end());
-    } else {
+    } else {  // arcsim mode
       static const auto regex_clothobj = std::regex("(\\d{4})_00\\.obj");
       static const auto regex_obstrafo =
           std::regex("(\\d{4})obs(\\d{2})\\.txt");
@@ -84,6 +77,7 @@ class ObjSeqAnimation : public AbstractMeshProvider {
         const auto& str = p.path().filename().string();
         std::smatch match;
         if (std::regex_search(str, match, regex_clothobj)) {
+          // cloth mesh frame
           int frame = std::stoi(match[1].str());
           if (frame >= int(m_files.size()))
             m_files.resize(frame + 1);
@@ -105,7 +99,8 @@ class ObjSeqAnimation : public AbstractMeshProvider {
           int id = std::stoi(match[1].str());
           if (id >= int(m_obstacles.size()))
             m_obstacles.resize(id + 1);
-          load_obj(p.path(), m_obstacles[id].mesh.X.cpu(), m_obstacles[id].mesh.F.cpu());
+          load_obj(p.path(), m_obstacles[id].mesh.X.cpu(),
+                   m_obstacles[id].mesh.F.cpu());
           // load_obj_mesh(p.path(), m_obstacles[id].mesh, true);
         }
       }
@@ -114,8 +109,7 @@ class ObjSeqAnimation : public AbstractMeshProvider {
       if (rescale)
         for (auto& obs : m_obstacles) {
           auto& X = obs.mesh.X.cpu();
-          for (auto& x : X)
-            x.map() *= m_settings.scale;
+          for (auto& x : X) x.map() *= m_settings.scale;
         }
     }
 
@@ -127,6 +121,7 @@ class ObjSeqAnimation : public AbstractMeshProvider {
 
   ~ObjSeqAnimation() {}
 
+  // load next mesh frame / update obstacle transformation
   void update() {
     if (m_files.empty()) {
       m_indicesDirty = false;
@@ -146,21 +141,19 @@ class ObjSeqAnimation : public AbstractMeshProvider {
       m_indicesDirty = load_uv;
       // load_obj_mesh(m_files[m_iter], m_mesh, load_uv);
       if (load_uv)
-        load_obj(m_files[m_iter], m_mesh.X.cpu(), m_mesh.F.cpu(), m_mesh.U.cpu(), m_mesh.Fms.cpu());
+        load_obj(m_files[m_iter], m_mesh.X.cpu(), m_mesh.F.cpu(),
+                 m_mesh.U.cpu(), m_mesh.Fms.cpu());
       else
         load_obj(m_files[m_iter], m_mesh.X.cpu());
-
 
       bool rescale = std::abs(m_settings.scale - 1.0f) > 0.001f;
       if (rescale) {
         auto& X = m_mesh.X.cpu();
-        for (auto& x : X)
-          x.map() *= m_settings.scale;
+        for (auto& x : X) x.map() *= m_settings.scale;
 
         if (load_uv) {
           auto& U = m_mesh.U.cpu();
-          for (auto& u : U)
-            u.map() *= m_settings.scale;
+          for (auto& u : U) u.map() *= m_settings.scale;
         }
       }
 
@@ -181,8 +174,7 @@ class ObjSeqAnimation : public AbstractMeshProvider {
 
  private:
   std::vector<std::string> m_files;
-  std::vector<std::deque<Trafo>>
-      m_obstacle_trafos;
+  std::vector<std::deque<Trafo>> m_obstacle_trafos;
   size_t m_iter;
 
   bool arcsim_mode;

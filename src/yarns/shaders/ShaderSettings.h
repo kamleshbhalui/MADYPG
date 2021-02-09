@@ -1,5 +1,5 @@
 #define DEFAULT_WRKGRPSIZE 8
-// simple test on rib sweater & yarn model
+// simple test on rib sweater & rib_15 yarn model
 // 4: 70fps
 // 8: 74fps (best)
 // 16: 66fps

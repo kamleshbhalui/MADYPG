@@ -25,7 +25,9 @@ bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X,
   std::deque<std::string> str_v;
   std::deque<std::string> str_vt;
 
-  // TODO maybe go through file once to get number of verts/faces and reserve the str things. if going through file twice and resetting the ifs is faster than constantly reallocating the strings this should help.
+  // TODO maybe go through file once to get number of verts/faces and reserve
+  // the str things. if going through file twice and resetting the ifs is faster
+  // than constantly reallocating the strings this should help.
 
   std::string line, kw;
   while (std::getline(ifs, line)) {
@@ -104,7 +106,7 @@ bool load_obj(const std::string &path, std::vector<Mesh::WSVertex> &X,
             {ixs_ms[0], ixs_ms[1], ixs_ms[2], ixs_ws[0], ixs_ws[1], ixs_ws[2]});
       } else if (N == 4) {
         scalar_type diag02 = 0, diag13 = 0;
-        if (U.size() > 0) { // use uvs for triangulation if it exists
+        if (U.size() > 0) {  // use uvs for triangulation if it exists
           diag02 = (U[ixs_ms[0]].map() - U[ixs_ms[2]].map()).squaredNorm();
           diag13 = (U[ixs_ms[1]].map() - U[ixs_ms[3]].map()).squaredNorm();
         } else {

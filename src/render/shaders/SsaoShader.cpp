@@ -63,9 +63,9 @@ SsaoShader::SsaoShader(UnsignedInt sampleCount) {
   GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
 
   vert.addSource(rs.get("FullScreenTriangle.vert"));
-  #ifdef MSAA
-  frag.addSource("#define MSAA " +  std::to_string(MSAA) + "\n");
-  #endif
+#ifdef MSAA
+  frag.addSource("#define MSAA " + std::to_string(MSAA) + "\n");
+#endif
   frag.addSource(
           Utility::formatString("#define SAMPLE_COUNT {}\n", sampleCount))
       .addSource(rs.get("Ssao.frag"));
@@ -88,8 +88,6 @@ SsaoShader::SsaoShader(UnsignedInt sampleCount) {
 
   setUniform(_samplesUniform, randomSamples);
 }
-
-
 
 #ifdef MSAA
 SsaoShader& SsaoShader::bindPositionTexture(GL::MultisampleTexture2D& texture) {
@@ -114,8 +112,6 @@ SsaoShader& SsaoShader::bindNormalTexture(GL::Texture2D& texture) {
 }
 
 #endif
-
-
 
 SsaoShader& SsaoShader::bindOcclusionTexture(GL::Texture2D& texture) {
   texture.bindImage(OcclusionUnit, 0, GL::ImageAccess::WriteOnly,

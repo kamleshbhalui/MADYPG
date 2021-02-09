@@ -1,4 +1,5 @@
 #include "debug_logging.h"
+
 #include <alloca.h>
 // convenience type extensions
 // std::ostream& Debug::operator<< (std::ostream& stream, const Magnum::Vector3&
@@ -42,7 +43,8 @@ void Debug::errorf(const char *format, ...) {
   va_copy(args2, args1);
   // char buf[1 + vsnprintf(nullptr, 0, format, args1)];
   int buf_len = vsnprintf(nullptr, 0, format, args1);
-  char *buf = (char *)alloca(buf_len); // allocate dynamically on stack, gets freed automatically
+  char *buf   = (char *)alloca(
+      buf_len);  // allocate dynamically on stack, gets freed automatically
   va_end(args1);
   // vsnprintf(buf, sizeof(buf), format, args2);
   vsnprintf(buf, buf_len, format, args2);
@@ -51,12 +53,11 @@ void Debug::errorf(const char *format, ...) {
 #endif
 }
 
-
-bool Debug::msgassert(const std::string& msg, bool cond) {
-  if(!cond)
+bool Debug::msgassert(const std::string &msg, bool cond) {
+  if (!cond)
     std::cerr << "Assert failed: " << msg << "\n";
-  #ifndef NDEBUG // debug mode
+#ifndef NDEBUG  // debug mode
   assert(cond);
-  #endif
+#endif
   return cond;
 }

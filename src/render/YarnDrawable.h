@@ -16,30 +16,26 @@
 #include "shaders/YarnShader.h"
 
 namespace Magnum {
+// class for rendering yarns using reference to the vertex and index buffers created and modified in YarnMapper/YarnSoup.
 class YarnDrawable {
  public:
-
-  explicit YarnDrawable(
-      YarnShader &shader, VectorBuffer<VertexWSData> &vertexBufferRef, VectorBuffer<uint32_t> &indexBuffer)
+  explicit YarnDrawable(YarnShader &shader,
+                        VectorBuffer<VertexWSData> &vertexBufferRef,
+                        VectorBuffer<uint32_t> &indexBuffer)
       : m_shader(shader) {
-    m_mesh
-        .setIndexBuffer(indexBuffer.gpu(), 0, GL::MeshIndexType::UnsignedInt)
+    m_mesh.setIndexBuffer(indexBuffer.gpu(), 0, GL::MeshIndexType::UnsignedInt)
         .setCount(indexBuffer.getGPUSize())
         // .setPrimitive(GL::MeshPrimitive::LineStrip);
         .setPrimitive(GL::MeshPrimitive::LineStripAdjacency);
-    m_mesh.addVertexBuffer(
-        vertexBufferRef.gpu(), 0, YarnShader::Position{},
-        YarnShader::Arc{},
-        YarnShader::Director{},
-        YarnShader::TextureCoordinates{},
-        YarnShader::Radius{}
-        // ,YarnShader::Pad{}
-        );  // something about memory layout of data in
-                                // vertex buffer
+    m_mesh.addVertexBuffer(vertexBufferRef.gpu(), 0, YarnShader::Position{},
+                           YarnShader::Arc{}, YarnShader::Director{},
+                           YarnShader::TextureCoordinates{},
+                           YarnShader::Radius{}  // ,YarnShader::Pad{}
+    );  // memory layout of data in vertex buffer
 
     // enable breaking of linestrips within single index buffer by using the
     // index GLuint::max
-    glEnable(GL_PRIMITIVE_RESTART); // TODO DO THIS SOMEWHERE ELSE AND EXPOSE GLUINT
+    glEnable(GL_PRIMITIVE_RESTART);  // NOTE maybe this should be done in draw()
     glPrimitiveRestartIndex(std::numeric_limits<GLuint>::max());
   }
 
@@ -47,8 +43,7 @@ class YarnDrawable {
     // assumed that non-obj specific things like camera proj already set
     // Matrix4 MV = V * M;
     const Matrix4 &MV = V;
-    m_shader
-        .setTransformation(MV)
+    m_shader.setTransformation(MV)
         .setNormalMatrix(MV.normalMatrix())
         .setRadius(m_radius)
         .setPlyTwist(m_nmtwist)
@@ -58,11 +53,11 @@ class YarnDrawable {
         .draw(m_mesh);
   }
 
-  float m_radius = 0.001f;
-  float m_nmtwist = 1.0f;
-  float m_nmnum = 1.0f;
+  float m_radius   = 0.001f;
+  float m_nmtwist  = 1.0f;
+  float m_nmnum    = 1.0f;
   float m_nmheight = 0.1f;
-  float m_nmlen = 1.0f;
+  float m_nmlen    = 1.0f;
 
  protected:
   YarnShader &m_shader;

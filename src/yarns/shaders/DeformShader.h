@@ -4,6 +4,7 @@
 #include <Magnum/GL/AbstractShaderProgram.h>
 #include <Magnum/GL/Buffer.h>
 
+// compute shader for local displacements based on mesh strains
 class DeformShader : public Magnum::GL::AbstractShaderProgram {
  public:
   enum SSBO {
@@ -15,10 +16,10 @@ class DeformShader : public Magnum::GL::AbstractShaderProgram {
     TexAxesBuffer    = 5,
     TexDataBuffer    = 6
   };
+  // UBO not possible because layout std430 not supported in UBO,
+  // and std140 is padding each entry in a float[] to 16 bytes..
   // enum UBO {
-  //   TexAxesBuffer = 0 // UBO not possible because layout std430 not supported
-  //   in UBO, and std140 is stupid padding each entry in a float[] to 16
-  //   bytes..
+  //   TexAxesBuffer = 0
   // };
 
   explicit DeformShader(Magnum::NoCreateT)

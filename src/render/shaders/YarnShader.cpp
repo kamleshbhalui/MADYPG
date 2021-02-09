@@ -71,17 +71,16 @@ YarnShader::YarnShader() {
   bindFragmentDataLocation(NormalsOutput, "normal");
 
   _transformationUniform = uniformLocation("transformation");
-  _normalMatrixUniform = uniformLocation("normalMatrix");
-  _projectionUniform   = uniformLocation("projection");
+  _normalMatrixUniform   = uniformLocation("normalMatrix");
+  _projectionUniform     = uniformLocation("projection");
   // _diffuseColorUniform = uniformLocation("diffuseColor");
-  _radiusUniform       = uniformLocation("radius");
-  _plyTwistUniform   = uniformLocation("plyTwist");
-  _plyNumUniform     = uniformLocation("plyNum");
-  _plyHeightUniform     = uniformLocation("plyHeight");
-  _plyLengthUniform     = uniformLocation("plyLen");
-  _uvscaleUniform     = uniformLocation("uv_scale");
-  _uvoffsetUniform     = uniformLocation("uv_offset");
-  
+  _radiusUniform    = uniformLocation("radius");
+  _plyTwistUniform  = uniformLocation("plyTwist");
+  _plyNumUniform    = uniformLocation("plyNum");
+  _plyHeightUniform = uniformLocation("plyHeight");
+  _plyLengthUniform = uniformLocation("plyLen");
+  _uvscaleUniform   = uniformLocation("uv_scale");
+  _uvoffsetUniform  = uniformLocation("uv_offset");
 
   // get uniform location and immediately use to set to textureunit
   setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
@@ -94,9 +93,9 @@ YarnShader &YarnShader::setTransformation(const Matrix4 &transformation) {
   return *this;
 }
 
-YarnShader& YarnShader::setNormalMatrix(const Matrix3x3& normalMatrix){
-   setUniform(_normalMatrixUniform, normalMatrix);
-   return *this;
+YarnShader &YarnShader::setNormalMatrix(const Matrix3x3 &normalMatrix) {
+  setUniform(_normalMatrixUniform, normalMatrix);
+  return *this;
 }
 
 YarnShader &YarnShader::setProjection(const Matrix4 &projection) {
@@ -155,7 +154,7 @@ YarnShader &YarnShader::setTextureScale(float scale) {
   return *this;
 }
 
-YarnShader &YarnShader::setTextureOffset(const Vector2& offset) {
+YarnShader &YarnShader::setTextureOffset(const Vector2 &offset) {
   setUniform(_uvoffsetUniform, offset);
   return *this;
 }

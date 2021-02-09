@@ -36,8 +36,7 @@
 #include <random>
 
 #include "arcball/ArcBall.h"
-#include "arcball/ArcBallCamera.h"
-#include "imfilebrowser/imfilebrowser.h"
+#include "dependencies/imfilebrowser/imfilebrowser.h"
 #include "render/MeshDrawable.h"
 #include "render/ObsMeshDrawable.h"
 #include "render/YarnDrawable.h"
