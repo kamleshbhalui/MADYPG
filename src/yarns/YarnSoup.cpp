@@ -34,8 +34,6 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
   //   return local_eix + n_edges_tile * cix;
   // };
 
-
-
   // precompute tangents
   AlignedVector<Vector3s> tangents;
   tangents.reserve(pyp.Q.rows());
@@ -51,7 +49,6 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
   // allocate memory for vertex data, vertex/edge topology
   auto& Xms = X_ms.cpu();
   Xms.resize(n_verts);
-  // m_pypix.resize(n_verts);  // TODO parametric fake
   E = MatrixXXRMi::Constant(n_edges, 2,
                             -1);  // NOTE parallelizable? (or just set -1
                                   // explicitly in edge copy for borders)
@@ -72,9 +69,7 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
       Xvec = pyp.Q.row(lvix);
       X.a = 0;
       Xvec.head<2>() += vpos_shift;
-
-      X.pix = lvix;  // TODO parametric fake
-      // m_pypix[vix_shift + lvix] = lvix;  // TODO parametric fake
+      X.pix = lvix; // remember index in pyp
 
       // optionally check if due to floating point precision ij match the
       // shifted position, and if not try a heuristic of shrinking the copy away
@@ -88,7 +83,7 @@ void YarnSoup::fill_from_grid(const PYP& pyp, const Grid& grid) {
     }
 
     for (int lvix = 0; lvix < n_verts_tile; ++lvix) {
-      auto Bi = Xms[vix_shift + lvix].mapB();
+      auto Bi = Xms[vix_shift + lvix].mapN();
       Vector3s b = pyp.RefD1.row(lvix);
       const Vector3s& t = tangents[lvix];
       Bi = (b - b.dot(t) * t).normalized(); // orthonormalize just in case
@@ -146,9 +141,10 @@ void YarnSoup::assign_triangles(const Grid& grid, const Mesh& mesh) {
                       // actually not using this after deform anymore, but for
                       // rib it still ends up here, why?
                       // grid not allocated large enough? it might also be because of nonrectangulized pyp ie not all vertices of pyp are inside. then would have to make grid larger by tolerance s.t. those verts are respected 
-      Debug::log("WARNING NODE OUTSIDE");
-      Debug::log(i, grid.getNy(), j, grid.getNx());
-      // TODO fall back to closest grid node and check with its triangles!
+                      // NOTE: this should not happen in any of the submitted results, but I am leaving this here, in case of future debugging.
+      Debug::warning("Node outside!");
+      Debug::warning(i, grid.getNy(), j, grid.getNx());
+      // fall back to closest grid node and check with its triangles!
       i = std::min(std::max(0, i), grid.getNy() - 1);
       j = std::min(std::max(0, j), grid.getNx() - 1);
     }
@@ -202,6 +198,7 @@ void YarnSoup::reassign_triangles(const Grid& grid, const Mesh& mesh,
   auto& bary0 = B0.cpu();
   auto& bary = B.cpu();
   bary.resize(bary0.size());
+  auto& Xwsc = X_ws.cpu();
 
 
   if (default_same) {  // just use previous triangle
@@ -209,7 +206,7 @@ void YarnSoup::reassign_triangles(const Grid& grid, const Mesh& mesh,
       int tri = bary0[vix].tri;
       if (tri < 0)
         return;  // skip unassigned
-      Vector2s p   = X_ws.row<float,2>(vix);
+      Vector2s p   = Xwsc[vix].mapSlice<0,2>();
       Vector3s abc = mesh.barycentric_ms(tri, p);
       bary[vix].tri = tri;
       bary[vix].a = abc[0];
@@ -224,7 +221,7 @@ void YarnSoup::reassign_triangles(const Grid& grid, const Mesh& mesh,
     if (tri < 0)
       return;  // skip unassigned
 
-    Vector2s p   = X_ws.row<float,2>(vix);
+    Vector2s p   = Xwsc[vix].mapSlice<0,2>();
 
     Vector3s abc;
     int i, j;
@@ -382,41 +379,4 @@ void YarnSoup::generate_index_list(const std::vector<scalar> & pypRL, scalar min
     }
     indices[offset + c] = delim;
   });
-
-  
-  // // compute arc length
-  // threadutils::parallel_for(0, int(starts.size()), [&](int i) {
-  //   float arc = 0;
-  //   int vix               = starts[i];
-  //   Xms[vix].a = arc;
-  //   while (hasNext(vix)) {
-  //     // arc += pypRL[m_pypix[vix]];
-  //     arc += pypRL[Xms[vix].pix];
-  //     vix = getNext(vix);
-  //     Xms[vix].a = arc;
-  //   }
-  // });
-  // float arc = 0;
-  // for (size_t i = 0; i < indices.size(); i++)
-  // {
-  //   int vix               = indices[i];
-  //   if (vix != delim) {
-  //     X_ms(vix,4) = arc;
-  //     arc += pypRL[m_pypix[vix]];
-  //     Debug::log(" ",X_ms(vix,4));
-  //   }
-  //   else {
-  //     arc = 0;
-  //     Debug::log(" ------ ");
-  //   }
-  // }
-
-  // for (size_t i = 0; i < indices.size(); i++)
-  // {
-  //   int vix               = indices[i];
-  //   if (vix != delim)
-  //     Debug::log(" ",X_ms(vix,4));
-  //   else
-  //     Debug::log(" ------ ");
-  // }
 }

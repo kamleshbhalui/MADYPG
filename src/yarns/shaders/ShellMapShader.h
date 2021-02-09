@@ -4,6 +4,8 @@
 #include <Magnum/GL/AbstractShaderProgram.h>
 #include <Magnum/GL/Buffer.h>
 
+// compute shader for embedded mapping from (deformed) material-space
+// to world-space triangles.
 class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
  public:
   enum {
@@ -24,6 +26,7 @@ class ShellMapShader : public Magnum::GL::AbstractShaderProgram {
 
   explicit ShellMapShader();
 
+  // map (deformed) material-space yarns to world-space based on mesh
   void compute(size_t N, Magnum::GL::Buffer &Xws, Magnum::GL::Buffer &B0,
                Magnum::GL::Buffer &DinvU, Magnum::GL::Buffer &NNv,
                Magnum::GL::Buffer &mX, Magnum::GL::Buffer &mF,

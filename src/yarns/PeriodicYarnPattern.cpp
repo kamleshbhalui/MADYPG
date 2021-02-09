@@ -10,7 +10,6 @@
 #include "../utils/threadutils.h"
 
 // trim string from left and right (inc. comments)
-
 static inline void trim(std::string &, const std::string &, const std::string &,
                         const std::string &);
 static inline void trim(std::string &str,
@@ -26,7 +25,7 @@ static inline void trim(std::string &str,
   str.erase(0, str.find_first_not_of(lchars));
 }
 
-// load a file consisting of blocks separated by empty lines into deque(blocks)
+// load a file consisting of blocks separated by empty lines into a deque(blocks)
 // of deques(block) of strings(line)
 std::deque<std::deque<std::string>> preload_chunks(const std::string &);
 std::deque<std::deque<std::string>> preload_chunks(
@@ -182,57 +181,4 @@ std::vector<uint32_t> PYP::compute_simple_yarns() {
   }
 
   return ixs;
-}
-
-// yarn index and restlength along-yarn-parameter t ϵ [0, L)
-void PYP::compute_parametric() {
-  // TODO DEPRECATE, INSTEAD USE FROM MODEL
-  if (VE.rows() != Q.rows())
-    recompute_VE_table();
-
-  std::deque<int> starts;
-  std::vector<bool> visited;
-  visited.resize(Q.rows(), false);
-
-  param_v2t.resize(Q.rows());
-  param_v2y.resize(Q.rows());
-  int y = 0;
-  for (int e = 0; e < int(E.rows()); ++e) {
-    if (isPeriodicEdge(e)) {
-      int vix = E(e, 1);
-      if (!visited[vix]) {
-        param_y2v.push_back({});
-        auto &y2v = param_y2v.back();
-        int eix  = VE(vix, 1);
-        scalar L = 0;
-        do {
-          visited[vix]    = true;
-          y2v.push_back(vix);
-          // y2t.push_back(L);
-          param_v2y[vix] = y;
-          param_v2t[vix]    = L;
-          L += RL[vix]; // NOTE using vix because RL in HYLC computed indexed per vertex for its outgoing edge
-          vix = E(eix, 1);
-          eix = VE(vix, 1);
-        } while (!visited[vix]);
-        ++y;
-      }
-    }
-  }
-
-  param_y2t.resize(param_y2v.size());
-  threadutils::parallel_for(size_t(0),param_y2v.size(), [&](size_t i){
-      auto &y2t = param_y2t[i];
-      auto &y2v = param_y2v[i];
-      y2t.reserve(y2v.size());
-      for (int vix : y2v) {
-        y2t.push_back(param_v2t[vix]);
-      }
-  });
-
-  Debug::log("Y2V 0:\n",param_y2v[0],"\n");
-  Debug::log("Y2V 1:\n",param_y2v[1],"\n");
-
-  Debug::log("Y2T 0:\n",param_y2t[0],"\n");
-  Debug::log("Y2T 1:\n",param_y2t[1],"\n");
 }

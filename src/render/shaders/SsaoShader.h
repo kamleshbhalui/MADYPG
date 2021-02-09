@@ -1,7 +1,6 @@
 #ifndef Magnum_Examples_Ssao_SsaoShader_h
 #define Magnum_Examples_Ssao_SsaoShader_h
 
-#include "../../magnum-master-changes.h"
 #include <Corrade/Containers/Array.h>
 
 #include <Magnum/GL/AbstractShaderProgram.h>
@@ -10,6 +9,29 @@
 #include <Magnum/GL/MultisampleTexture.h>
 
 #include "../render_definitions.h"
+
+#include <Magnum/Math/TypeTraits.h>
+#include <type_traits>
+#include <Magnum/Tags.h>
+
+// fmod from more up-to-date version of Magnum (than the one in vcpkg)
+namespace Magnum {
+namespace Math {
+
+template <class T>
+inline typename std::enable_if<IsScalar<T>::value, T>::type fmod(T a, T b) {
+  return T(std::fmod(UnderlyingTypeOf<T>(a), UnderlyingTypeOf<T>(b)));
+}
+
+template <std::size_t size, class T>
+inline Vector<size, T> fmod(const Vector<size, T>& a,
+                            const Vector<size, T>& b) {
+  Vector<size, T> out{Magnum::NoInit};
+  for (std::size_t i = 0; i != size; ++i) out[i] = Math::fmod(a[i], b[i]);
+  return out;
+}
+}
+}
 
 namespace Magnum {
 

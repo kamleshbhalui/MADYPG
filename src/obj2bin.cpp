@@ -11,15 +11,17 @@ namespace fs = std::filesystem;
 #include "io/objio.h"
 #include "io/trafoio.h"
 
+// This file is a script to convert obj-sequences into our custom binary format
+// for fast preloading of mesh animations.
+// It basically follows the same principle as the 'ObjSeqAnimation',
+// with two modes for general cloth sims and ARCsim, due to naming conventions
+// and obstacle data
+// Compile & use:
+//    python exec.py obj2binary IN-FOLDER OUT-FILE [constuv=1]
+
 // #include "io/bitsery_eigen.h"
 std::vector<Frame> load_folder(const std::string& folder, bool const_uv=true) {
   std::vector<Frame> frames;
-  // Mf cloth_V, cloth_U;
-  // Mi cloth_F, cloth_Fms;
-  // std::vector<Mf> obs_V;
-  // std::vector<Mi> obs_F;
-  // std::vector<Trafo> obs_trafo;
-
 
   // heuristic check for arcsim simulation, with specific file names etc.
   bool arcsim_mode = fs::exists(fs::path(folder) / "conf.json");
@@ -146,16 +148,13 @@ bool convert_folder(const std::string& folder, const std::string& outfile, bool 
 
 int main(int argc, char* argv[]) {
   if (argc < 3) {
-    std::cout << "Not enough arguments. Expecting in-folder and out-file.\n";
+    std::cout << "Not enough arguments. Expecting ./obj2binary in-folder out-file [constuv=1].\n";
     return 1;
   }
 
+  // assuming: constant number of obstacles, data existing for each rame, ...
 
-  // currently using a lot of assumptions, including const_uv of cloth,
-  // constant number of obstacles, with data existing for each frame
-  // cloth data for each frame, ...
-  bool const_uv = true;
-
+  bool const_uv = true; // false if it's a remeshing sim
   if (argc >= 4) {
     const_uv = bool(atof(argv[3]));
   }
@@ -163,12 +162,8 @@ int main(int argc, char* argv[]) {
     std::cout<< "Assuming remeshed simulation, each frame will get updated topology.\n";
   }
 
-
   if (!convert_folder(argv[1], argv[2], const_uv))
     return 2;
 
-//   Trafo tf;
-//   load_xml_trafo(argv[1], tf);
-//   std::cout << tf.axis_angle << "\n";
   return 0;
 }

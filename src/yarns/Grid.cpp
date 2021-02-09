@@ -1,11 +1,14 @@
 #include "Grid.h"
 
+#include <tbb/parallel_reduce.h>
+
 #include "../utils/debug_logging.h"
 #include "../utils/threadutils.h"
 
 // def rotate(edge):
 //     return np.array([-edge[1], edge[0]])
 
+// check if a triangle and a 2D AABB overlap
 // 2D version of https://stackoverflow.com/a/17503268
 bool intersect_box_tri(const Matrix2s& box,
                        const Eigen::Matrix<scalar, 3, 2, Eigen::RowMajor>& tri,
@@ -66,21 +69,39 @@ void Grid::fromTiling(const Mesh& mesh, const PYP& pyp) {
   if (mesh.empty()) {
     nx = ny = 0;
     cx = cy = 0;
-    offset << 0,0;
-    pivot << 0,0;
+    offset << 0, 0;
+    pivot << 0, 0;
     return;
   }
 
-  // compute uv bounds PARALLELIZABLE (reduce both min and max simulatenously
-  // or separately)
-  auto U = mesh.U.matrixView<float,2>();
-  Vector2s uv_min = U.colwise().minCoeff();
-  Vector2s uv_max = U.colwise().maxCoeff();
+  // compute uv bounds
+  const auto& Uc  = mesh.U.cpu();
+  Vector2s uv_min = Uc[0].map();
+  Vector2s uv_max = uv_min;
+  uv_min          = tbb::parallel_reduce(
+      tbb::blocked_range<int>(0, Uc.size()), uv_min,
+      [&](tbb::blocked_range<int> r, Vector2s reduced) {
+        for (int i = r.begin(); i < r.end(); ++i) {
+          reduced = reduced.cwiseMin(Uc[i].map());
+        }
+        return reduced;
+      },
+      [](const Vector2s& A, const Vector2s& B) { return A.cwiseMin(B); });
+  uv_max = tbb::parallel_reduce(
+      tbb::blocked_range<int>(0, Uc.size()), uv_max,
+      [&](tbb::blocked_range<int> r, Vector2s reduced) {
+        for (int i = r.begin(); i < r.end(); ++i) {
+          reduced = reduced.cwiseMax(Uc[i].map());
+        }
+        return reduced;
+      },
+      [](const Vector2s& A, const Vector2s& B) { return A.cwiseMax(B); });
+
   // grow bounds for added robustness
   uv_min -= 0.1f * MakeVec(pyp.px, pyp.py);
   uv_max += 0.1f * MakeVec(pyp.px, pyp.py);
 
-  pivot = pyp.Qmin; // offset to cell corners (e.g. to align with pyp)
+  pivot = pyp.Qmin;  // offset to cell corners (e.g. to align with pyp)
 
   cx = pyp.px;
   cy = pyp.py;
@@ -96,19 +117,15 @@ void Grid::fromTiling(const Mesh& mesh, const PYP& pyp) {
   offset[0] = i_startx * cx + pivot[0];
   offset[1] = i_starty * cy + pivot[1];
 
-  Debug::logf("Grid: [%d x %d]\n", ny, nx);
-  // Debug::log("grid from to",offset.transpose(), (offset +
-  // MakeVec(nx*cx,ny*cy)).transpose());
-  // Debug::log("uv from to", uv_min.transpose(),
-  // uv_max.transpose());
+  Debug::logf("UV Grid: [%d x %d]\n", ny, nx);
 }
 
 void Grid::overlap_triangles(const Mesh& mesh, float eps) {
   eps *= (cx + cy) * 0.5f;  // tolerance relative to cell size
 
-  auto Fmsc = mesh.Fms.matrixView<int32_t,3>();
-  auto Uc = mesh.U.matrixView<float,2>();
-  int n_tris = Fmsc.rows();
+  auto Fmsc  = mesh.Fms.cpu();
+  auto Uc    = mesh.U.cpu();
+  int n_tris = Fmsc.size();
 
   // NOTE for now tri2cells is temporary, and used to construct its inverse
   std::vector<std::vector<std::pair<int, int>>>
@@ -116,9 +133,10 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
   tri2cells.resize(n_tris);
 
   threadutils::parallel_for(0, n_tris, [&](int tri) {
-    auto ixs = Fmsc.row(tri);
+    auto ixs = Fmsc[tri];
     Eigen::Matrix<scalar, 3, 2, Eigen::RowMajor> coords;
-    coords << Uc.row(ixs[0]), Uc.row(ixs[1]), Uc.row(ixs[2]);
+    coords << Uc[ixs.v0].map().transpose(), Uc[ixs.v1].map().transpose(),
+        Uc[ixs.v2].map().transpose();
 
     overlap_triangle(tri2cells[tri], coords, eps);
   });
@@ -128,8 +146,8 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
   k2ij.clear();
   k2ij.reserve(nx * ny);  // conservative / naive upper bound
   int k = 0;
-  for (const auto& cells : tri2cells) { // cell list of triangle
-    for (const auto& cell : cells) { // cell in list
+  for (const auto& cells : tri2cells) {  // cell list of triangle
+    for (const auto& cell : cells) {     // cell in list
       if (ij2k(cell.first, cell.second) < 0) {
         ij2k(cell.first, cell.second) = k++;
         k2ij.push_back(cell);
@@ -148,17 +166,6 @@ void Grid::overlap_triangles(const Mesh& mesh, float eps) {
       cellk2tris[k].push_back(tri);
     }
   }
-  
-  // Debug::log("----------------------");
-  // for (int i = ny-1; i >= 0; i--) {
-  //   for (int j = 0; j < nx; j++) {
-  //     std::cout << (filled(i, j) ? "F" : ".") << " ";
-  //   }
-  //   std::cout << "\n";
-  // }
-  // Debug::log("----------------------");
-
-  // Debug::logf("Grid filled %d/%d\n", n_filled, ny * nx);
 }
 
 void Grid::overlap_triangle(
@@ -204,7 +211,7 @@ void Grid::overlap_triangle(
 void Grid::print() {
   Debug::logf("Grid filled %zu/%d\n", cellk2tris.size(), ny * nx);
   Debug::log("----------------------");
-  for (int i = ny-1; i >= 0; i--) {
+  for (int i = ny - 1; i >= 0; i--) {
     for (int j = 0; j < nx; j++) {
       // std::cout << (filled(i, j) ? "F" : ".") << " ";
       if (ij2k(i, j) >= 0)

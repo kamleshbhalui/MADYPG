@@ -16,12 +16,13 @@ scalar signed_angle(const Vector3s &u, const Vector3s &v, const Vector3s &e) {
 void Mesh::compute_invDm() {
   auto &invDmU_cpu = invDmU.cpu();
   invDmU_cpu.resize(Fms.getCPUSize());
+  const auto& Uc = U.cpu();
   threadutils::parallel_for(size_t(0), invDmU_cpu.size(), [&](size_t i) {
     auto &ixs = Fms.cpu()[i];
     Matrix2s Dm;
-    Vector2s U0             = U.row<float, 2>(ixs.v0);
-    Dm.col(0)               = U.row<float, 2>(ixs.v1) - U0;
-    Dm.col(1)               = U.row<float, 2>(ixs.v2) - U0;
+    Vector2s U0             = Uc[ixs.v0].map();
+    Dm.col(0)               = Uc[ixs.v1].map() - U0;
+    Dm.col(1)               = Uc[ixs.v2].map() - U0;
     invDmU_cpu[i].mapDinv() = Dm.inverse();
     invDmU_cpu[i].mapU0()   = U0;
   });
@@ -30,7 +31,6 @@ void Mesh::compute_invDm() {
 Vector3s Mesh::barycentric_ms(int tri, const Vector2s &p) const {
   const auto &invDmU_cpu = invDmU.cpu();
   Vector3s abc;
-  // auto u0       = U.row<float, 2>(Fms.cpu()[tri].v0);
   const auto &iDmU = invDmU_cpu[tri];
   abc.tail<2>()    = iDmU.mapDinv() * (p - iDmU.mapU0());
   abc[0]           = scalar(1) - abc[1] - abc[2];
@@ -173,8 +173,9 @@ void Mesh::compute_face_adjacency() {
 }
 
 void Mesh::compute_face_data(float svdclamp) {
-  auto &Fc         = F.cpu();
-  auto Xc          = X.matrixView<float, 3>();
+  auto &Fc = F.cpu();
+  auto Xc  = X.cpu();
+  ;
   auto &invDmU_cpu = invDmU.cpu();
   normals.cpu().resize(Fc.size());
   auto &defgrads = defF.cpu();
@@ -184,8 +185,8 @@ void Mesh::compute_face_data(float svdclamp) {
   S.resize(Fc.size());
   threadutils::parallel_for(size_t(0), normals.cpu().size(), [&](size_t f) {
     auto ixs     = Fc[f].map();
-    Vector3s e01 = Xc.row(ixs[1]) - Xc.row(ixs[0]);
-    Vector3s e02 = Xc.row(ixs[2]) - Xc.row(ixs[0]);
+    Vector3s e01 = Xc[ixs[1]].map() - Xc[ixs[0]].map();
+    Vector3s e02 = Xc[ixs[2]].map() - Xc[ixs[0]].map();
 
     Vector3s n   = (e01.cross(e02));
     scalar inv2A = 1 / n.norm();
@@ -218,12 +219,12 @@ void Mesh::compute_face_data(float svdclamp) {
     for (int i = 0; i < 3; ++i) {
       if (adj.faces[i] < 0)
         continue;
-      Vector3s ei = Xc.row(ixs[(i + 1) % 3]) - Xc.row(ixs[i]);
+      Vector3s ei = Xc[ixs[(i + 1) % 3]].map() - Xc[ixs[i]].map();
       // NOTE alternatively could precompute normals and then just look up
       // neighbor normal, but then might also want to precompute invA such as to
       // not have to compute normal again
       Vector3s ni =
-          Vector3s(Xc.row(Fc[adj.faces[i]].map()[adj.opp[i]]) - Xc.row(ixs[i]))
+          (Xc[Fc[adj.faces[i]].map()[adj.opp[i]]].map() - Xc[ixs[i]].map())
               .cross(ei);
       Vector2s FTti = defoF.transpose() * ei.cross(n);
       scalar invli  = 1 / ei.norm();

@@ -97,9 +97,8 @@ class MainApplication : public Platform::Application {
   GL::Texture2D _matcap{NoCreate};
   GL::Texture2D _clothTexture{NoCreate};
   GL::Texture2D _gridTexture{NoCreate};
-  // GL::Texture1D _normalMap{NoCreate};
   GL::Texture2D _normalMap{NoCreate};
-  bool _simple_gui               = true;
+  bool _simple_gui               = false;
   bool _paused                   = false;
   int _pauseAt                   = -1;
   int _frame                     = 0;
@@ -115,7 +114,6 @@ class MainApplication : public Platform::Application {
   std::string _matcapMesh_file   = "data/textures/matcaps/blue.jpg";
   std::string _clothtexture_file = "data/textures/colorgridy.jpg";
   std::string _gridtexture_file  = "data/textures/groundgrid.jpg";
-  // std::string _normalMap_file = "data/textures/normalMap.jpg";
   std::string _normalMap_file = "data/textures/PLY.jpg";
   float _render_radius_mult   = 1.0f;
   float _render_nmtwist       = 1.0f;
@@ -127,8 +125,6 @@ class MainApplication : public Platform::Application {
   Vector2 _clothUV_offset     = Vector2(0.0f);
   Color4 _bgColor             = Color4(1.0f);  // Color4(Color3(0.2f), 1.0f);
 
-  // std::unique_ptr<ArcBallCamera> _arcballCamera;
-
   GroundShader _ground{NoCreate};
   MeshShader _meshShader{NoCreate};
   ObsMeshShader _obsMeshShader{NoCreate};
@@ -139,8 +135,8 @@ class MainApplication : public Platform::Application {
   Containers::Optional<ArcBall> _arcball;
   Matrix4 _projection;
   Deg _proj_fov    = 45.0_degf;
-  float _proj_near = 0.01f;  // 0.0001f;
-  float _proj_far  = 10.0f;  // TODO reduce further?
+  float _proj_near = 0.01f;
+  float _proj_far  = 10.0f;
 
   GL::Mesh _screenAlignedTriangle{NoCreate};
 
@@ -165,9 +161,6 @@ class MainApplication : public Platform::Application {
   /* Profiling */
   DebugTools::GLFrameProfiler _profiler;
 
-  // TODO make a rendersettings struct with default init
-  // which can the also be used to reset the settings!
-  Color4 _specularColor{0.3};  // TODO remove
 #ifdef MSAA
   Float _ao_radius = 0.015f;  // m
   Float _ao_bias   = 0.001f;  // m
@@ -183,12 +176,6 @@ class MainApplication : public Platform::Application {
   SsaoApplyShader::Flag _ssaoApplyFlag = {};
 
   ImGuiIntegration::Context _imgui{NoCreate};
-
-
-  // ::Debug::MovingAverageTimer<30, std::chrono::microseconds> m_timerMethod;
-  ::Debug::MovingAverageTimer<30, std::chrono::microseconds> m_timerRenderMethod;
-  Magnum::GL::TimeQuery m_timerGL{NoCreate};
-
 };
 }  // namespace Magnum
 

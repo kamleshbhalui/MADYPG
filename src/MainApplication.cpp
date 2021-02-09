@@ -2,12 +2,6 @@
 
 #include <imgui_stdlib.h>
 
-// #ifdef MSAA
-// #define SSAO_SAMPLES 32
-// #else
-#define SSAO_SAMPLES 64
-// #endif
-
 using namespace Magnum;
 using namespace Math::Literals;
 
@@ -142,34 +136,28 @@ bool loadTexture1D(const std::string &file, GL::Texture1D &tex1D,
 }
 
 void MainApplication::reset_simulation() {
+  // create new YarnMapper instance
   if (!_yarnMapper)
     _yarnMapper = std::make_unique<YarnMapper>();
   else
     _yarnMapper.reset(new YarnMapper());
 
+  // copy settings
   _yarnMapper->m_settings = _yarnMapperSettings;
 
+  // init
   _yarnMapper->initialize();
+  
+  // set up drawable objects for rendering of yarns, mesh, obstacles
   _yarnDrawable.clear();
   _yarnDrawable.emplace_back(_yarnGeometryShader,
                              _yarnMapper->getVertexBuffer(),
                              _yarnMapper->getIndexBuffer());
 
-  // _yarnDrawable.back().setIndices(_yarnMapper->getIndices());
-  // _yarnDrawable.back().setVertices(_yarnMapper->getVertexData());
-  // _yarnDrawable.back().m_radius =
-  //     _yarnMapper->getRadius() * _render_radius_mult;
-  // _yarnDrawable.back().m_nmtwist = _render_nmtwist;
-  // _yarnDrawable.back().m_nmnum = _render_nmnum;
-  // _yarnDrawable.back().m_nmheight = _render_nmheight;
-  // _yarnDrawable.back().m_nmlen = _render_nmlen;
-
   auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
   _meshdrawable.release();
   _meshdrawable =
       std::make_unique<MeshDrawable<MeshShader>>(_meshShader, mesh.F, mesh.X);
-  // _meshdrawable->setIndices(mesh.F);
-  // _meshdrawable->setVertices(mesh.X);
 
   _obsmeshdrawables.clear();
   for (const auto &obs : _yarnMapper->getMeshSimulation()->getObstacles()) {
@@ -187,21 +175,24 @@ MainApplication::MainApplication(const Arguments &arguments)
   ::Debug::logf("Using %dx MSAA\n", MSAA);
   GL::Renderer::enable(GL::Renderer::Feature::Multisampling);
 #endif
-  #ifdef SUPERSAMPLING
+#ifdef SUPERSAMPLING
   ::Debug::logf("Using %dx SSAA\n", SUPERSAMPLING);
-  #endif
+#endif
 
   /* Setup window */
   {
     const Vector2 dpiScaling = this->dpiScaling({});
     Configuration conf;
     // conf.setSize({1200, 800}, dpiScaling);
-    conf.setSize({1920, 1080}, dpiScaling);
-    conf.setTitle("Mesh 2 Yarns")
+    // conf.setSize({1920, 1080}, dpiScaling);
+    conf.setSize({1600, 1000}, dpiScaling);
+    conf.setTitle(
+            "Mechanics-Aware Deformation of Yarn Pattern Geometry [Sperl et "
+            "al. 2021]")
         .setSize(conf.size(), dpiScaling)
-        // .setWindowFlags(Configuration::WindowFlag::Borderless);
-        // .setWindowFlags(Configuration::WindowFlag::Maximized)
-        .setWindowFlags(Configuration::WindowFlag::Resizable);
+        .setWindowFlags(Configuration::WindowFlag::Maximized |
+                        // Configuration::WindowFlag::Borderless |
+                        Configuration::WindowFlag::Resizable);
     GLConfiguration glConf;
     glConf.setSampleCount(0);
     if (!tryCreate(conf, glConf)) {
@@ -223,9 +214,7 @@ MainApplication::MainApplication(const Arguments &arguments)
         GL::Renderer::BlendFunction::OneMinusSourceAlpha);
   }
 
-  m_timerGL = Magnum::GL::TimeQuery{Magnum::GL::TimeQuery::Target::TimeElapsed};
-
-  /* Load Mesh, setup textures and framebuffer*/
+  /* SSAO and other setup */
   {
     _screenAlignedTriangle = GL::Mesh{};
     _screenAlignedTriangle.setCount(3);
@@ -259,22 +248,17 @@ MainApplication::MainApplication(const Arguments &arguments)
     _fbo_ssao = GL::Framebuffer{viewport};
 #endif
 
-
-// #ifdef SUPERSAMPLING
-// GL::defaultFramebuffer.setViewport({{}, vpSize});
-//     _fbo_gbuffer.setViewport({{}, vpSize * SUPERSAMPLING});
-//     _fbo_ssao.setViewport({{}, vpSize * SUPERSAMPLING});
-// #ifdef MSAA
-//     _fbo_ssao = GL::Framebuffer{viewport};
-// #endif
+    // #ifdef SUPERSAMPLING
+    // GL::defaultFramebuffer.setViewport({{}, vpSize});
+    //     _fbo_gbuffer.setViewport({{}, vpSize * SUPERSAMPLING});
+    //     _fbo_ssao.setViewport({{}, vpSize * SUPERSAMPLING});
+    // #ifdef MSAA
+    //     _fbo_ssao = GL::Framebuffer{viewport};
+    // #endif
     // setupFramebuffer(vpSize * SUPERSAMPLING);
-// #else
+    // #else
     setupFramebuffer(vpSize);
-// #endif
-
-    // GL::Renderer::setClearColor({});
-    // GL::Renderer::setClearColor(_bgColor);
-    // GL::defaultFramebuffer.clearColor(_bgColor);
+    // #endif
 
     _yarnGeometryShader = YarnShader{};
     _meshShader         = MeshShader{};
@@ -283,8 +267,7 @@ MainApplication::MainApplication(const Arguments &arguments)
     _ssaoShader         = SsaoShader{SSAO_SAMPLES};
     _ssaoApplyShader    = SsaoApplyShader{};
 
-    {  // default settings
-      // _yarnMapperSettings.modelfolder = "data/yarnmodels/model_stock_15";
+    {  // initial yarnmapper settings overrides
       _yarnMapperSettings.modelfolder = "data/yarnmodels/model_stock_9";
       _yarnMapperSettings.provider_type =
           YarnMapper::Settings::Provider::BinSeq;
@@ -293,6 +276,7 @@ MainApplication::MainApplication(const Arguments &arguments)
       _yarnMapperSettings.objseq_settings.folder = "data/objseqs/sxsy_const";
       _yarnMapperSettings.objseq_settings.constant_material_space = true;
     }
+
     _folderDialog = std::make_unique<ImGui::FileBrowser>(
         ImGuiFileBrowserFlags_SelectDirectory |
         ImGuiFileBrowserFlags_CloseOnEsc);
@@ -336,25 +320,24 @@ MainApplication::MainApplication(const Arguments &arguments)
           DebugTools::GLFrameProfiler::Value::CpuDuration,
       60};
 
-  /* Loop at 60 Hz max */
   setSwapInterval(0);  // 0 no vsync, 1 vsync
-  setMinimalLoopPeriod(_min_loop_ms);
+  setMinimalLoopPeriod(_min_loop_ms); // limit fps (default: ~60)
 }
 
 void MainApplication::drawEvent() {
-  m_timerRenderMethod.tick();
-  m_timerGL.begin();
   _profiler.beginFrame();
 
+  // update simulation
   bool simChanged = false;
   if (!_paused || _single_step) {  // SIM
     if (_yarnMapper->isInitialized()) {
       // force update some settings
       _yarnMapper->m_settings = _yarnMapperSettings;
+      
+      // actual update
       _yarnMapper->step();
 
       const auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
-
       // if (_yarnMapper->getMeshSimulation()->meshIndicesDirty())
       _meshdrawable->updateIndexCount(mesh.F.getGPUSize() * 3);
     }
@@ -369,7 +352,6 @@ void MainApplication::drawEvent() {
   }
 
   const bool camChanged = _arcball->updateTransformation();
-  DECLARE_UNUSED(camChanged);
 
   GL::defaultFramebuffer.clear(GL::FramebufferClear::Color |
                                GL::FramebufferClear::Depth);
@@ -378,6 +360,7 @@ void MainApplication::drawEvent() {
     Matrix4 tf = _arcball->viewMatrix();
 
     /* render the scene into g-buffer */
+    // ie. render colors, positions, normals as textures to use for SSAO
     _fbo_gbuffer
         .mapForDraw(
             {{YarnShader::AlbedoOutput, GL::Framebuffer::ColorAttachment{0}},
@@ -418,22 +401,21 @@ void MainApplication::drawEvent() {
     }
 
     if (_render_mesh) {
-      // for debug rendering only: overwrite mesh shader data with material space
+      // for debug rendering only: overwrite mesh shader data with material
+      // space
       auto &mesh = _yarnMapper->getMeshSimulation()->getMesh();
       if (!_yarnMapperSettings.shell_map && _render_mesh) {
         // m_mesh.F.
         // draw instead: Fms & U+0
         std::vector<Mesh::WSVertex> tmpX;
         tmpX.reserve(mesh.U.getCPUSize());
-        for (const auto& u : mesh.U.cpu())
-          tmpX.push_back({u.u, u.v, 0});
+        for (const auto &u : mesh.U.cpu()) tmpX.push_back({u.u, u.v, 0});
         std::vector<Mesh::Face> tmpF;
         tmpF.reserve(mesh.Fms.getCPUSize());
-        for (const auto& f : mesh.Fms.cpu())
-          tmpF.push_back(f);
+        for (const auto &f : mesh.Fms.cpu()) tmpF.push_back(f);
         mesh.X.gpu().setData({tmpX.data(), uint32_t(tmpX.size())});
         mesh.F.gpu().setData({tmpF.data(), uint32_t(tmpF.size())});
-  
+
         _meshdrawable->updateIndexCount(mesh.Fms.getGPUSize() * 3);
       }
 
@@ -443,7 +425,7 @@ void MainApplication::drawEvent() {
       _meshdrawable->draw(tf);
       GL::Renderer::enable(GL::Renderer::Feature::FaceCulling);
 
-      //undo debug render
+      // undo debug render
       if (!_yarnMapperSettings.shell_map && _render_mesh) {
         mesh.F.bufferData();
       }
@@ -462,6 +444,7 @@ void MainApplication::drawEvent() {
       }
     }
 
+    // Compute SSAO occlusion from positions and normals
     _ssaoShader.bindNormalTexture(_normals)
         .bindNoiseTexture(_noise)
         .bindPositionTexture(_positions)
@@ -474,14 +457,8 @@ void MainApplication::drawEvent() {
         .mapForDraw({{SsaoShader::AmbientOcclusionOutput,
                       GL::Framebuffer::ColorAttachment{0}}})
         .clear(GL::FramebufferClear::Color)
-        // .clearColor(3, Color4(0.0, 0.0, 1.0, 1.0))
-        // .clear(GL::FramebufferClear::Color) // TODO? WHAT IS COLORATTACHMENT,
-        // replace with clearColor(3, ...)
         .bind();
 
-    // ::Debug::error("TEST",_fbo_ssao.checkStatus(GL::FramebufferTarget::Draw)
-    // ==
-    //                     GL::Framebuffer::Status::Complete);
     _ssaoShader.draw(_screenAlignedTriangle);
 #else
     _fbo_gbuffer
@@ -492,27 +469,17 @@ void MainApplication::drawEvent() {
 #endif
   }
 
-  // TODO if supersampling:
-  // bind _fbo_supersample and render ssaoapply
-  // afterwards bind / blit to defaultframebuffer, then imgui
-  #ifdef SUPERSAMPLING
-  #else
-  #endif
-
+  // combine color and occlusion for final image
   GL::defaultFramebuffer.bind();
   _ssaoApplyShader.bindAlbedoTexture(_albedo)
       .bindOcclusionTexture(_occlusion)
-      // .bindNormalTexture(_normals)
       .bindPositionTexture(_positions)
-      // .setLightPosition({5.0f, 5.0f, 7.0f})
-      // .setLightColor(Color3{1.f})
-      // .setShininess(80)
-      // .setSpecularColor(_specularColor.rgb())
       .setAOBlurRadius(_ao_blur_radius)
       .setAOBlurFeature(_ao_blur_feature)
       .setAOPow(_ao_pow)
       .draw(_screenAlignedTriangle);
 
+  // draw GUI on top
   _imgui.newFrame();
   if (ImGui::GetIO().WantTextInput && !isTextInputActive())
     startTextInput();
@@ -521,8 +488,7 @@ void MainApplication::drawEvent() {
 
   if (_simple_gui) {
     drawGUISimple();
-  }
-  else {
+  } else {
     drawGUIStats();
     drawGUISettings();
     drawGUIRender();
@@ -548,9 +514,6 @@ void MainApplication::drawEvent() {
   _profiler.endFrame();
 
   redraw();
-  m_timerGL.end();
-  // m_timerRenderMethod.tock("");
-  m_timerRenderMethod.tockDuration("", m_timerGL.result<Magnum::UnsignedInt>() / 1000);
 }
 
 void MainApplication::viewportEvent(ViewportEvent &event) {
@@ -559,29 +522,28 @@ void MainApplication::viewportEvent(ViewportEvent &event) {
 
   GL::defaultFramebuffer.setViewport({{}, fbSize});
 
-  #ifdef SUPERSAMPLING
-    _fbo_gbuffer.setViewport({{}, fbSize * SUPERSAMPLING});
-    #ifdef MSAA
-      _fbo_ssao.setViewport({{}, fbSize * SUPERSAMPLING});
-    #endif
-  #else
-    _fbo_gbuffer.setViewport({{}, fbSize});
-    #ifdef MSAA
-      _fbo_ssao.setViewport({{}, fbSize});
-    #endif
-  #endif
+#ifdef SUPERSAMPLING
+  _fbo_gbuffer.setViewport({{}, fbSize * SUPERSAMPLING});
+#ifdef MSAA
+  _fbo_ssao.setViewport({{}, fbSize * SUPERSAMPLING});
+#endif
+#else
+  _fbo_gbuffer.setViewport({{}, fbSize});
+#ifdef MSAA
+  _fbo_ssao.setViewport({{}, fbSize});
+#endif
+#endif
 
   _arcball->reshape(wSize);
   _projection = Matrix4::perspectiveProjection(
       _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
       _proj_far);
 
-  #ifdef SUPERSAMPLING
+#ifdef SUPERSAMPLING
   setupFramebuffer(fbSize * SUPERSAMPLING);
-  #else
+#else
   setupFramebuffer(fbSize);
-  #endif
-
+#endif
 
   _imgui.relayout(Vector2{wSize} / event.dpiScaling(), event.windowSize(),
                   fbSize);
@@ -594,8 +556,6 @@ void MainApplication::setupFramebuffer(const Vector2i &size) {
   setupTexture(_occlusion, size, GL::TextureFormat::R32F);
   setupTexture(_depth, size, GL::TextureFormat::DepthComponent32F);
 
-// _depth.setStorage(128,GL::TextureFormat::DepthComponent32F,size); TODO WHY
-// DOESNT THIS THROW AN ERROR, MAKING VARZING
 #ifdef MSAA
   _fbo_gbuffer.attachTexture(GL::Framebuffer::BufferAttachment::Depth, _depth)
       .attachTexture(GL::Framebuffer::ColorAttachment{0}, _albedo)
@@ -614,12 +574,11 @@ void MainApplication::setupFramebuffer(const Vector2i &size) {
       GL::Framebuffer::Status::Complete);
 
 #ifdef MSAA
-  // TODO maybe only attach the textures that need to be drawn?
   _fbo_ssao
       // .attachTexture(GL::Framebuffer::ColorAttachment{1}, _positions)
       // .attachTexture(GL::Framebuffer::ColorAttachment{2}, _normals)
       .attachTexture(GL::Framebuffer::ColorAttachment{0}, _occlusion,
-                     0);  // TEST ATTACHMENT {0}
+                     0); 
   CORRADE_INTERNAL_ASSERT(
       _fbo_gbuffer.checkStatus(GL::FramebufferTarget::Read) ==
       GL::Framebuffer::Status::Complete);
@@ -627,14 +586,8 @@ void MainApplication::setupFramebuffer(const Vector2i &size) {
                           GL::Framebuffer::Status::Complete);
   CORRADE_INTERNAL_ASSERT(_fbo_ssao.checkStatus(GL::FramebufferTarget::Read) ==
                           GL::Framebuffer::Status::Complete);
-  // ::Debug::error("TEST",_fbo_ssao.checkStatus(GL::FramebufferTarget::Draw) ==
-  //                     GL::Framebuffer::Status::Complete);
-  // ::Debug::error("TEST",_fbo_gbuffer.checkStatus(GL::FramebufferTarget::Draw)
-  // ==
-  //                     GL::Framebuffer::Status::Complete);
 #endif
 }
-
 
 void MainApplication::drawGUIStats() {
   ImGui::Begin("Stats/Playback");
@@ -656,19 +609,23 @@ void MainApplication::drawGUIStats() {
     setMinimalLoopPeriod(_min_loop_ms);
   ImGui::PopItemWidth();
 
-  ImGui::Text("# vertices: %s", ::Debug::format_locale(_yarnMapper->getNumVertices(), "en_US.UTF-8").c_str());
+  ImGui::Text(
+      "# vertices: %s",
+      ::Debug::format_locale(_yarnMapper->getNumVertices(), "en_US.UTF-8")
+          .c_str());
   {
-    static const std::vector<std::string> labels{"mesh: update", "mesh: strains", "yarns: deform", "yarns: map"};
-    const auto& timer = _yarnMapper->m_timer;
+    static const std::vector<std::string> labels{
+        "mesh: update", "mesh: strains", "yarns: deform", "yarns: map"};
+    const auto &timer = _yarnMapper->m_timer;
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 4));
     ImGui::Columns(2, NULL, true);
     ImGui::SetColumnWidth(1, 100);
-    for (const auto & label : labels) {
+    for (const auto &label : labels) {
       ImGui::TextUnformatted(label.c_str());
     }
     ImGui::NextColumn();
-    for (const auto & label : labels) {
+    for (const auto &label : labels) {
       ImGui::Text("%8.2f ms", 0.001 * timer.getAverage(label));
     }
     ImGui::PopStyleVar();
@@ -689,7 +646,7 @@ void MainApplication::drawGUIStats() {
     ImGui::TreePop();
   }
 
-  ImGui::Separator(); // Playback
+  ImGui::Separator();  // Playback
 
   ImGui::Text("Frame: %d", _frame);
   ImGui::Checkbox("[P]ause", &_paused);
@@ -707,7 +664,6 @@ void MainApplication::drawGUIStats() {
   // ImGui::DragInt("pause@", &_pauseAt, 1, -1, 1000);
   // ImGui::PopItemWidth();
   ImGui::Checkbox("Repeat Frame [Space]", &_yarnMapperSettings.repeat_frame);
-
 
   // ImGui::PopItemWidth();
   ImGui::PopStyleVar();
@@ -800,7 +756,7 @@ void MainApplication::drawGUISettings() {
 }
 
 void MainApplication::drawGUIRender() {
-ImGui::Begin("Render Options");
+  ImGui::Begin("Render Options");
   constexpr float spacing = 10;
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
   ImGui::PushItemWidth(100.0f);
@@ -822,13 +778,12 @@ ImGui::Begin("Render Options");
     _yarnMapper->reloadShaders();
   }
 
-
   if (ImGui::CollapsingHeader("Camera")) {
     ImGui::Indent();
     float params[2] = {_proj_near, _proj_far};
     if (ImGui::DragFloat2("near/far", params, 0.01f, 0.001f, 20.0f)) {
-      _proj_near = params[0];
-      _proj_far = params[1];
+      _proj_near  = params[0];
+      _proj_far   = params[1];
       _projection = Matrix4::perspectiveProjection(
           _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
           _proj_far);
@@ -846,7 +801,6 @@ ImGui::Begin("Render Options");
 
     ImGui::Unindent();
   }
-
 
   if (ImGui::CollapsingHeader("SSAO" /*, ImGuiTreeNodeFlags_DefaultOpen*/)) {
     ImGui::Indent();
@@ -888,24 +842,24 @@ ImGui::Begin("Render Options");
     ImGui::Checkbox("Render [Y]arns", &_render_yarns);
 
     ImGui::DragFloat("yarn radius mult", &_render_radius_mult, 0.01f, 0.0f,
-                       2.0f);
+                     2.0f);
 
     ImGui::TextBrowser("MatCap ##Y", *_fileDialog.get(), _matcap_file, [&]() {
       loadTexture(_matcap_file, _matcap, GL::SamplerWrapping::ClampToEdge);
       _yarnGeometryShader.bindMatCap(_matcap);
     });
     static bool _rep = true;
-    ImGui::TextBrowser("Texture##Y", *_fileDialog.get(), _clothtexture_file, [&]() {
-      loadTexture(_clothtexture_file, _clothTexture,
-                  _rep ? GL::SamplerWrapping::Repeat
-                       : GL::SamplerWrapping::ClampToEdge);
-      _yarnGeometryShader.bindClothTexture(_clothTexture);
-    });
+    ImGui::TextBrowser("Texture##Y", *_fileDialog.get(), _clothtexture_file,
+                       [&]() {
+                         loadTexture(_clothtexture_file, _clothTexture,
+                                     _rep ? GL::SamplerWrapping::Repeat
+                                          : GL::SamplerWrapping::ClampToEdge);
+                         _yarnGeometryShader.bindClothTexture(_clothTexture);
+                       });
     ImGui::SameLine();
     ImGui::Checkbox("Rep.", &_rep);
     ImGui::DragFloat("uv scale", &_clothUV_scale, 0.1f, 0.0f, 100.0f);
     ImGui::DragFloat2("uv offset", _clothUV_offset.data(), 0.1f, -10.0f, 10.0f);
-
 
     if (ImGui::TreeNode("Ply/Fiber Texture")) {
       ImGui::DragFloat("twist(*r)", &_render_nmtwist, 0.1f, 0.0f, 10.0f);
@@ -921,25 +875,26 @@ ImGui::Begin("Render Options");
   if (ImGui::CollapsingHeader("Obstacle", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui::Indent();
     ImGui::Checkbox("Render [O]bstacle", &_render_obstacles);
-    
+
     ImGui::TextBrowser("MatCap##O", *_fileDialog.get(), _matcapObs_file, [&]() {
       loadTexture(_matcapObs_file, _matcapObs,
                   GL::SamplerWrapping::ClampToEdge);
       _obsMeshShader.bindMatCap(_matcapObs);
     });
-    
+
     ImGui::Unindent();
   }
   if (ImGui::CollapsingHeader("Cloth Mesh", ImGuiTreeNodeFlags_DefaultOpen)) {
     ImGui::Indent();
     ImGui::Checkbox("Render Cloth [M]esh", &_render_mesh);
 
-    ImGui::TextBrowser("MatCap##M", *_fileDialog.get(), _matcapMesh_file, [&]() {
-      loadTexture(_matcapMesh_file, _matcapMesh,
-                  GL::SamplerWrapping::ClampToEdge);
-      _meshShader.bindMatCap(_matcapMesh);
-    });
-    
+    ImGui::TextBrowser("MatCap##M", *_fileDialog.get(), _matcapMesh_file,
+                       [&]() {
+                         loadTexture(_matcapMesh_file, _matcapMesh,
+                                     GL::SamplerWrapping::ClampToEdge);
+                         _meshShader.bindMatCap(_matcapMesh);
+                       });
+
     ImGui::Unindent();
   }
 
@@ -971,34 +926,40 @@ ImGui::Begin("Render Options");
 
 void MainApplication::drawGUISimple() {
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 10));
-  ImGui::PushStyleColor(ImGuiCol_ResizeGrip, ImVec4(1,1,1,0));
-  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0,0,0,1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9,0.9,0.9,1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9,0.9,0.9,1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1,1,1,0.6));
-  ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1,1,1,0));
-  
-  static const ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
+  ImGui::PushStyleColor(ImGuiCol_ResizeGrip, ImVec4(1, 1, 1, 0));
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9, 0.9, 0.9, 1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9, 0.9, 0.9, 1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9, 0.9, 0.9, 1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9, 0.9, 0.9, 1));
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1, 1, 1, 0.6));
+  ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1, 1, 1, 0));
+
+  static const ImGuiWindowFlags window_flags =
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
   static bool open_ptr = true;
 
   ImGui::Begin("##simple", &open_ptr, window_flags);
   ImGui::SetWindowFontScale(1.5);
 
-  ImGui::Text("# vertices: %s", ::Debug::format_locale(_yarnMapper->getNumVertices(), "en_US.UTF-8").c_str());
+  ImGui::Text(
+      "# vertices: %s",
+      ::Debug::format_locale(_yarnMapper->getNumVertices(), "en_US.UTF-8")
+          .c_str());
 
-  static const std::vector<std::string> labels{"mesh: strains", "yarns: deform", "yarns: map"};
-  const auto& timer = _yarnMapper->m_timer;
+  static const std::vector<std::string> labels{"mesh: strains", "yarns: deform",
+                                               "yarns: map"};
+  const auto &timer          = _yarnMapper->m_timer;
   double total_ms_meshupdate = 0.001 * timer.getAverage("mesh: update");
-  double total_ms_ours = 0;
-  for (const auto & label : labels) {
+  double total_ms_ours       = 0;
+  for (const auto &label : labels) {
     total_ms_ours += 0.001 * timer.getAverage(label);
   }
 
   ImGui::Text("Yarn Animation: %5.2f ms / frame", total_ms_ours);
 
-  if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
+  if (_yarnMapperSettings.provider_type ==
+      YarnMapper::Settings::Provider::PBD) {
     ImGui::Text("PBD:            %5.2f ms", total_ms_meshupdate);
   }
   ImGui::TextUnformatted("Advanced GUI: [H]");
@@ -1010,32 +971,34 @@ void MainApplication::drawGUISimple() {
   ImGui::PopStyleColor();
   ImGui::PopStyleColor();
   ImGui::PopStyleColor();
-  ImGui::PopStyleColor(); // grab triangle
+  ImGui::PopStyleColor();  // grab triangle
   ImGui::PopStyleVar();
 }
 
 void MainApplication::drawGUISliders() {
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 10));
-  ImGui::PushStyleColor(ImGuiCol_ResizeGrip, ImVec4(1,1,1,0));
-  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0,0,0,1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9,0.9,0.9,1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9,0.9,0.9,1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9,0.9,0.9,1));
-  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1,1,1,0.6));
-  ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1,1,1,0));
-  
-  static const ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
+  ImGui::PushStyleColor(ImGuiCol_ResizeGrip, ImVec4(1, 1, 1, 0));
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9, 0.9, 0.9, 1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9, 0.9, 0.9, 1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9, 0.9, 0.9, 1));
+  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9, 0.9, 0.9, 1));
+  ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1, 1, 1, 0.6));
+  ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1, 1, 1, 0));
+
+  static const ImGuiWindowFlags window_flags =
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
   static bool open_ptr = true;
 
-  static const bool slider_deform = true; 
-  static const bool slider_phong = false; 
-  static const bool slider_clamp = false; 
+  static const bool slider_deform = true;
+  static const bool slider_phong  = false;
+  static const bool slider_clamp  = false;
 
   ImGui::Begin("##interact_force", &open_ptr, window_flags);
   ImGui::SetWindowFontScale(1.5);
   ImGui::PushItemWidth(500.0f);
-  if (_yarnMapperSettings.provider_type == YarnMapper::Settings::Provider::PBD) {
+  if (_yarnMapperSettings.provider_type ==
+      YarnMapper::Settings::Provider::PBD) {
     static float magn = 0;
     ImGui::TextUnformatted("     ");
     ImGui::SameLine();
@@ -1047,8 +1010,8 @@ void MainApplication::drawGUISliders() {
     ImGui::TextUnformatted("naive");
     ImGui::SameLine();
     // static bool _use_ours = true;
-    if (ImGui::SliderFloat("ours##sep", &_yarnMapperSettings.deform_reference, 0.0f,
-                          1.0f, "")) {
+    if (ImGui::SliderFloat("ours##sep", &_yarnMapperSettings.deform_reference,
+                           0.0f, 1.0f, "")) {
       // _use_ours = _yarnMapperSettings.deform_reference > 0.001f;
     }
   }
@@ -1056,13 +1019,13 @@ void MainApplication::drawGUISliders() {
     ImGui::TextUnformatted("     ");
     ImGui::SameLine();
     ImGui::SliderFloat("##phong", &_yarnMapperSettings.phong_deformation, 0.0f,
-                          1.0f, "alpha = %.2f");
+                       1.0f, "alpha = %.2f");
   }
   if (slider_clamp) {
     ImGui::TextUnformatted("     ");
     ImGui::SameLine();
-    ImGui::SliderFloat("##clamp", &_yarnMapperSettings.svdclamp, 0.0f,
-                          1.0f, "lambda_min = %.2f");
+    ImGui::SliderFloat("##clamp", &_yarnMapperSettings.svdclamp, 0.0f, 1.0f,
+                       "lambda_min = %.2f");
   }
   ImGui::PopItemWidth();
   ImGui::End();
@@ -1076,7 +1039,8 @@ void MainApplication::drawGUISliders() {
   // changed |= ImGui::RadioButton(" 15 x 15 x 15", &nsamples, 15);
   // changed |= ImGui::RadioButton(" 31 x 31 x 31", &nsamples, 31);
   // if (changed)
-  //   _yarnMapperSettings.modelfolder = "data/yarnmodels/num_samples/model_stock_" + std::to_string(nsamples);
+  //   _yarnMapperSettings.modelfolder =
+  //   "data/yarnmodels/num_samples/model_stock_" + std::to_string(nsamples);
   // ImGui::End();
 
   // ImGui::Begin("##bend", &open_ptr, window_flags);
@@ -1101,7 +1065,7 @@ void MainApplication::drawGUISliders() {
   ImGui::PopStyleColor();
   ImGui::PopStyleColor();
   ImGui::PopStyleColor();
-  ImGui::PopStyleColor(); // grab triangle
+  ImGui::PopStyleColor();  // grab triangle
   ImGui::PopStyleVar();
 }
 
@@ -1130,9 +1094,9 @@ void MainApplication::keyPressEvent(KeyEvent &event) {
       case KeyEvent::Key::H:
         _simple_gui = !_simple_gui;
         break;
-      case KeyEvent::Key::D:
-        _yarnMapper->m_dbg.toggle = !_yarnMapper->m_dbg.toggle;
-        break;
+      // case KeyEvent::Key::D:
+      //   _yarnMapper->m_dbg.toggle = !_yarnMapper->m_dbg.toggle;
+      //   break;
       case KeyEvent::Key::E:
         ::Debug::log("Exporting FBX...");
         if ((event.modifiers() & KeyEvent::Modifier::Shift))

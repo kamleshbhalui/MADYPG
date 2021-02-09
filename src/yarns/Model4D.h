@@ -2,30 +2,35 @@
 #define __MODEL4D__H__
 
 #include "PeriodicYarnPattern.h"
-#include "YarnSoup.h" // vertexmsdata
-
-// CPP INCLUDES
-
+#include "YarnSoup.h"  // vertexmsdata
+// ...
 #include <cnpy/cnpy.h>
+
 #include <filesystem>  // requires C++17, g++ >= 8 & linking to stdc++fs)
-// #include <set>
 #include <fstream>
-#include <sstream>
 #include <regex>
+#include <sstream>
 namespace fs = std::filesystem;
 #include "../utils/debug_logging.h"
 #include "../utils/threadutils.h"
 
 // compile time integer pow https://stackoverflow.com/a/1506856
-template<int X, int P>
-struct Pow { enum { result = X*Pow<X,P-1>::result }; };
-template<int X>
-struct Pow<X,0> { enum { result = 1 }; };
-template<int X>
-struct Pow<X,1> { enum { result = X }; }; 
+template <int X, int P>
+struct Pow {
+  enum { result = X * Pow<X, P - 1>::result };
+};
+template <int X>
+struct Pow<X, 0> {
+  enum { result = 1 };
+};
+template <int X>
+struct Pow<X, 1> {
+  enum { result = X };
+};
 
+// 'ground truth' bending model for displacements, using 4D data of combined
+// bending and stretching.
 class Model4D {
-
  public:
   Model4D(const std::string& folder) {
     m_initialized = false;
@@ -40,17 +45,18 @@ class Model4D {
     }
 
     // Load model / pyp
-    m_pyp.deserialize(pypfile);  // DEBUG hardcoded file
+    m_pyp.deserialize(pypfile);
     m_pyp.recompute_VE_table();
     m_pyp.rectangulize();
 
-    // for bend4Dx, bend4Dy: load axes info and data 
+    // for bend4Dx, bend4Dy: load axes info and data
     {
       m_tex_SIIx.getAxes().resize(4);
-      if (!load_axs(fs::path(folder) / "bend4Dx" / "axes.txt", m_tex_SIIx.getAxes()))
+      if (!load_axs(fs::path(folder) / "bend4Dx" / "axes.txt",
+                    m_tex_SIIx.getAxes()))
         return;
       m_tex_SIIx.initAxes();
-      
+
       cnpy::NpyArray npyarr =
           cnpy::npy_load(fs::path(folder) / "bend4Dx" / "data.npy");
       auto& data = m_tex_SIIx.getData();
@@ -66,10 +72,11 @@ class Model4D {
 
     {
       m_tex_SIIy.getAxes().resize(4);
-      if (!load_axs(fs::path(folder) / "bend4Dy" / "axes.txt", m_tex_SIIy.getAxes()))
+      if (!load_axs(fs::path(folder) / "bend4Dy" / "axes.txt",
+                    m_tex_SIIy.getAxes()))
         return;
       m_tex_SIIy.initAxes();
-      
+
       cnpy::NpyArray npyarr =
           cnpy::npy_load(fs::path(folder) / "bend4Dy" / "data.npy");
       auto& data = m_tex_SIIy.getData();
@@ -83,25 +90,28 @@ class Model4D {
       });
     }
 
- 
     m_initialized = true;
   }
 
-
-  Vector4s deformation(const Vector6s& strain,
-                                                         int pix) const {
+  // compute displacement given a strain and periodic vertex id
+  Vector4s displacement(const Vector6s& strain, int pix) const {
     Vector4s g = Vector4s::Zero();
 
     float l1, l2, c2;
-    std::tie(l1,l2,c2) = robust_eigenstuff(strain[3],strain[4],strain[5]);
+    std::tie(l1, l2, c2) = robust_eigenstuff(strain[3], strain[4], strain[5]);
 
     // g += c2 g_x(S, l1) + (1-c2) g_x(S, l2)
     // g += c2 g_y(S, l2) + (1-c2) g_y(S, l1)
     // g -= g_x(S,0)
 
-    g += c2 * (m_tex_SIIx.sample({strain[0],strain[1],strain[2],l1}, pix) + m_tex_SIIy.sample({strain[0],strain[1],strain[2],l2}, pix));
-    g += (1 - c2) * (m_tex_SIIx.sample({strain[0],strain[1],strain[2],l2}, pix) + m_tex_SIIy.sample({strain[0],strain[1],strain[2],l1}, pix));
-    g -= m_tex_SIIx.sample({strain[0],strain[1],strain[2],0}, pix); // hijacking one of the texs for subtracting the doubly counted pure inplane defo...
+    g += c2 * (m_tex_SIIx.sample({strain[0], strain[1], strain[2], l1}, pix) +
+               m_tex_SIIy.sample({strain[0], strain[1], strain[2], l2}, pix));
+    g += (1 - c2) *
+         (m_tex_SIIx.sample({strain[0], strain[1], strain[2], l2}, pix) +
+          m_tex_SIIy.sample({strain[0], strain[1], strain[2], l1}, pix));
+    g -= m_tex_SIIx.sample({strain[0], strain[1], strain[2], 0},
+                           pix);  // hijacking one of the texs for subtracting
+                                  // the doubly counted pure inplane defo...
 
     return g;
   }
@@ -113,7 +123,8 @@ class Model4D {
   bool m_initialized;
   PeriodicYarnPattern m_pyp;
 
-  bool load_axs(const std::string& filepath, std::vector<std::vector<float>>& axs) {
+  bool load_axs(const std::string& filepath,
+                std::vector<std::vector<float>>& axs) {
     std::fstream ifs(filepath.c_str(), std::ios::in);
     if (!ifs) {
       // std::cerr << "Error: failed to open file " << filepath << "\n";
@@ -137,8 +148,8 @@ class Model4D {
 
     return true;
   }
-  
-  struct DeformationEntry {
+
+  struct DisplacementEntry {
     float x, y, z, th;
     Eigen::Map<Eigen::Matrix<float, 4, 1, Eigen::ColMajor>, Eigen::Unaligned>
     map() {
@@ -154,69 +165,70 @@ class Model4D {
     }
   };
 
-  std::tuple<float, float, float> robust_eigenstuff(float IIxx, float IIxy, float IIyy) const {
-    float A = 0.5f * (IIxx + IIyy);
-    float B = 0.5f * (IIxx - IIyy);
-    float eps = 1e-8;
-    float IIxy2 = IIxy*IIxy;
-    float S = std::sqrt(B*B + IIxy2 + eps);
-    int k = (IIxx - IIyy) < 0 ? -1 : 1;
-    float BkS = B + k * S;
-    float lam1 = A + S;
-    float lam2 = A - S;
-    float c2 = 0.5f + k * (0.5f - IIxy2 / (BkS*BkS + IIxy2));
+  // compute eigenvalues lambda1, lambda2 and c2, the squared cosine of the
+  // angle between the x-axis and the eigenvector for lambda1
+  std::tuple<float, float, float> robust_eigenstuff(float IIxx, float IIxy,
+                                                    float IIyy) const {
+    float A     = 0.5f * (IIxx + IIyy);
+    float B     = 0.5f * (IIxx - IIyy);
+    float eps   = 1e-8;
+    float IIxy2 = IIxy * IIxy;
+    float S     = std::sqrt(B * B + IIxy2 + eps);
+    int k       = (IIxx - IIyy) < 0 ? -1 : 1;
+    float BkS   = B + k * S;
+    float lam1  = A + S;
+    float lam2  = A - S;
+    float c2    = 0.5f + k * (0.5f - IIxy2 / (BkS * BkS + IIxy2));
     return std::make_tuple(lam1, lam2, c2);
   }
 
   template <int N>
   class TexND {
-    public:
-
+   public:
     void initAxes() {
       // precompute axes inverse
       m_axesinv.resize(m_axes.size());
-      m_accsize.reserve(m_axes.size()+1);
+      m_accsize.reserve(m_axes.size() + 1);
       for (size_t i = 0; i < N; ++i) {
-        auto& ax = m_axes[i];
+        auto& ax    = m_axes[i];
         auto& axinv = m_axesinv[i];
         axinv.resize(int(ax.size()) - 1);
         for (size_t j = 0; j < axinv.size(); ++j)
           axinv[j] = 1 / (ax[j + 1] - ax[j]);
-        
+
         if (i == 0)
           m_accsize.push_back(1);
         else
-          m_accsize.push_back(m_accsize.back() * m_axes[i-1].size());
+          m_accsize.push_back(m_accsize.back() * m_axes[i - 1].size());
       }
       m_accsize.push_back(m_accsize.back() * m_axes.back().size());
     }
 
-    // std::tuple<Vector4s, float, float> sample (const std::vector<float>& in) {
-    Vector4s sample (const std::vector<float>& in, int pix) const {
+    // sample displacement from data texture, using recursive 4D linear
+    // interpolation
+    Vector4s sample(const std::vector<float>& in, int pix) const {
       std::vector<float> A;
       std::vector<int> C;
       A.reserve(N);
       C.reserve(N);
-      // assert(int(in.size())==N && "Incorrect texture sample input length.");
-      // Debug::msgassert("Incorrect texture sample input length.", int(in.size())==N);
 
       for (int i = 0; i < N; i++) {
-        float val = in[i];
+        float val      = in[i];
         const auto& ax = m_axes[i];
-        int c = std::distance(ax.begin(),
+        int c          = std::distance(ax.begin(),
                               std::upper_bound(ax.begin() + 1, ax.end() - 1,
-                                                val)) -
+                                               val)) -
                 1;  // first cell (c,c+1) s.t. val < ax[i+1] else last = size-2
         float a = (val - ax[c]) * m_axesinv[i][c];
-        a = std::min(std::max(float(0), a), float(1)); // clamp extrapolation
+        a = std::min(std::max(float(0), a), float(1));  // clamp extrapolation
         A.push_back(a);
         C.push_back(c);
       }
 
       AlignedVector<Vector4s> samples;
-      samples.reserve(Pow<2,N>::result);
+      samples.reserve(Pow<2, N>::result);
 
-      for (int i = 0; i < Pow<2,N>::result; i++) {
+      for (int i = 0; i < Pow<2, N>::result; i++) {
         // for halfing procedure order if N=4:
         // c0   c1 c2 c3
         // c0+1 c1 c2 c3
@@ -231,12 +243,14 @@ class Model4D {
       // lerp-combine one half with the other until only one sample left
       size_t sz = samples.size();
       for (int i = 0; i < N; i++) {
-        // samples[ < len(samples)/2] = (1-a[i]) samples[ < len(samples)/2] + (a[i]) samples[ >= len(samples)/2]
-        // samples.resize(len(samples)/2)
-        size_t sz2 = sz/2;
-        float a = A[N-1-i]; // inverse order bc sample layout such that last axis changes slowest
+        // samples[ < len(samples)/2] = (1-a[i]) samples[ < len(samples)/2] +
+        // (a[i]) samples[ >= len(samples)/2] samples.resize(len(samples)/2)
+        size_t sz2 = sz / 2;
+        float a    = A[N - 1 - i];  // inverse order bc sample layout such that
+                                    // last axis changes slowest
         for (size_t j = 0; j < sz2; j++)
-          samples[j] = (1-a) * samples[j] + a * samples[j + sz2]; // lerp into first half
+          samples[j] = (1 - a) * samples[j] +
+                       a * samples[j + sz2];  // lerp into first half
         sz = sz2;
       }
       assert(sz == 1);
@@ -244,16 +258,20 @@ class Model4D {
       return samples[0];
     }
 
-    std::vector<std::vector<scalar>>& getAxes(){return m_axes;}
-    std::vector<DeformationEntry>& getData(){return m_data;}
-    
-    private:
+    std::vector<std::vector<scalar>>& getAxes() { return m_axes; }
+    std::vector<DisplacementEntry>& getData() { return m_data; }
 
-    int data_index (const std::vector<int>& axixs, int binary_offset, int pix) const {
+   private:
+    // row index of a displacement entry in the data array
+    // given per-dimension indices axixs, per-dimension '+1'-offset encoded in
+    // an integer, and periodic vertex id
+    int data_index(const std::vector<int>& axixs, int binary_offset,
+                   int pix) const {
       // python:
-      // dix = isx + (len(SX)) * isa + (len(SX) * len(SA)) * isy + (len(SX) * len(SA) * len(SY)) * ibend + (len(SX) * len(SA) * len(SY) * len(bendarr)) * vix
-      // axes order: SX SA SY bend
-      
+      // dix = isx + (len(SX)) * isa + (len(SX) * len(SA)) * isy + (len(SX) *
+      // len(SA) * len(SY)) * ibend + (len(SX) * len(SA) * len(SY) *
+      // len(bendarr)) * vix axes order: SX SA SY bend
+
       // binary offset offsets individual ixs for hypercube cell lookup
       int dix = 0;
       for (int i = 0; i < N; i++) {
@@ -263,14 +281,13 @@ class Model4D {
       return dix + m_accsize.back() * pix;
     }
 
-    std::vector<DeformationEntry> m_data;
+    std::vector<DisplacementEntry> m_data;
     std::vector<std::vector<float>> m_axes;
     std::vector<std::vector<float>> m_axesinv;
     std::vector<int> m_accsize;
   };
 
   TexND<4> m_tex_SIIx, m_tex_SIIy;
-
 };
 
 #endif  // __MODEL4D__H__

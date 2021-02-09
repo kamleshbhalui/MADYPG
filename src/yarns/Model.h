@@ -4,11 +4,13 @@
 #include "PeriodicYarnPattern.h"
 #include "YarnSoup.h"  // vertexmsdata
 
+// Class containing the periodic yarn pattern geometry, and the precomputed local displacement data.
 class Model {
  public:
   Model(const std::string& folder);
 
-  Vector4s deformation(const Vector6s& strain, uint32_t pix) const;
+  // compute displacement given a strain and periodic vertex id
+  Vector4s displacement(const Vector6s& strain, uint32_t pix) const;
 
   const PeriodicYarnPattern& getPYP() const { return m_pyp; }
   bool isInitialized() const { return m_initialized; }
@@ -19,7 +21,7 @@ class Model {
   bool m_initialized;
   PeriodicYarnPattern m_pyp;
 
-  struct DeformationEntry {
+  struct DisplacementEntry {
     float x, y, z, th;
     Eigen::Map<Eigen::Matrix<float, 4, 1, Eigen::ColMajor>, Eigen::Unaligned>
     map() {
@@ -36,6 +38,7 @@ class Model {
   };
 
 #define AXES_MAX_LENGTH 32
+  // per-dimension/-axis lists of samples and inverses of cell sizes
   struct AxesInfo {
     uint32_t lenSX, lenSA, lenSY;
     float SX[AXES_MAX_LENGTH];
@@ -46,8 +49,9 @@ class Model {
     float invSY[AXES_MAX_LENGTH];
   };
 
-  struct axwrapper {  // helper struct to pass arrays in the 'AxesInfo' uniform
-                      // buffer into the file loading method
+  // helper struct to pass arrays in the 'AxesInfo' uniform buffer into the file
+  // loading method
+  struct axwrapper {
     uint32_t& len;
     float (&data)[AXES_MAX_LENGTH];  // ref of fixes size array..
     float (&invdata)[AXES_MAX_LENGTH];
@@ -56,14 +60,17 @@ class Model {
         : len(lenref), data(dataref), invdata(invdataref) {}
   };
 
+  // load sample axes from file
   bool load_axes(const std::string& filepath, std::vector<axwrapper>& axes);
 
+  // trilinear interpolation in data using sample strain and periodic vertex
+  // index
   Vector4s sample3D(Vector3s strain, uint32_t pix) const;
 
   VectorBuffer<AxesInfo>
       m_tex_sxsasy_axes;  // note: axinfo exploiting "vector"buffer for just
                           // single entry
-  VectorBuffer<DeformationEntry> m_tex_sxsasy_data;
+  VectorBuffer<DisplacementEntry> m_tex_sxsasy_data;
 };
 
 #endif  // __MODEL__H__

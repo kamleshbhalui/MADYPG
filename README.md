@@ -18,3 +18,18 @@ compile and run using:
   python exec.py 
 debug build: -d, non-parallel: -p 0, don't run: -r 0 -- run instead using gdb or similar
   python exec.py -d -p 0 -r 0
+
+
+TODO about yarnmapper.h main entry of method
+and mainapplication.h for gui/rendering messy
+
+
+TODO PBD/Discregrid/GenericParams: cmake download specific tags?
+
+TODO how to convert a folder of obj seq to bin seq (untested remeshing animations with third parameter)
+
+TODO about folder structure (data/)
+  maybe separate readme there
+
+TODO about model structure, pix and strain ... axes.txt
+  show where created and where loaded

@@ -25,17 +25,16 @@ Model::Model(const std::string& folder) {
   // Load model / pyp
   m_pyp.deserialize(pypfile);  // DEBUG hardcoded file
   m_pyp.recompute_VE_table();
-  m_pyp.rectangulize();  // TODO potentially assume that this is true for
-  // new pyp, but it should take only a millisecond anyway
-  // TODO ACTUALlY RECTANGULIZING HERE MIGHT BE BAD
-  // BECAUSE IF IM USING THE DATA TO LOOK UP G = Xdef - Xref, and Xref is
-  // rectangulized while Xdef is deformed version of unrectangulized THEN THIS
-  // IS INCONSISTENT AND WILL PRODUCE ERRORS, SPURIOUS DEFORMATION
-  // m_pyp.compute_parametric();  // TODO potentially cache // actually
-  // ideally already store with python model creation
+  m_pyp.rectangulize();  // make sure the pattern vertices are contained in a
+                         // rectangle, important for tiling the pattern using
+                         // rectangular cells. crucially, this does not break
+                         // the displacement lookup (as compared to looking up
+                         // actual vertex positions)
 
-  {  // sxsasy texture
-     // load sxsy axes.txt
+  // load in-plane-deformation displacement texture
+  // ie for strains sx sa sy
+  {
+    // load sxsy axes.txt
     m_tex_sxsasy_axes.cpu().resize(1);
     AxesInfo& axinf = m_tex_sxsasy_axes.cpu()[0];
     std::vector<axwrapper> axs{axwrapper(axinf.lenSX, axinf.SX, axinf.invSX),
@@ -67,7 +66,7 @@ Model::Model(const std::string& folder) {
   m_initialized = true;
 }
 
-Vector4s Model::deformation(const Vector6s& strain, uint32_t pix) const {
+Vector4s Model::displacement(const Vector6s& strain, uint32_t pix) const {
   Vector4s g = sample3D(strain.head<3>(), pix);
   return g;
 }
@@ -102,7 +101,8 @@ bool Model::load_axes(const std::string& filepath,
   return true;
 }
 
-// // DEBUG
+// // DEBUG testing own upper_bound implementation, which is used in the compute
+// shader
 //   uint upper_bound(uint istart,uint iend, uint which_array, float value) {
 //     auto axes = m_tex_sxsasy_axes.cpu()[0];
 //   uint i,step,count;
@@ -130,6 +130,10 @@ bool Model::load_axes(const std::string& filepath,
 // }
 
 Vector4s Model::sample3D(Vector3s strain, uint32_t pix) const {
+  // NOTE: the pix is used as a hard offset (interpretation of data as 3D
+  // textures per periodic yarn vertex 'pix') and then trilinearly interpolate
+  // using the strain sx sa sy
+
   const auto& axes = m_tex_sxsasy_axes.cpu()[0];
   const auto& data = m_tex_sxsasy_data.cpu();
 
@@ -141,10 +145,8 @@ Vector4s Model::sample3D(Vector3s strain, uint32_t pix) const {
         i_sx + axes.lenSX * (i_sa + axes.lenSA * (i_sy + axes.lenSY * pix));
     return Vector4s(data[loc].map());
   };
-  // if(pix == 10)
-  // Debug::log(2 + axes.lenSX * (3 + axes.lenSA * (4 + axes.lenSY * 5)));
 
-  // bad code block here is finding the cell/sample-index the lookup strain
+  // ugly code block here is finding the cell/sample-index the lookup strain
   // falls into, as well as its lerp-weight/fraction
   float a_sx, a_sa, a_sy;
   int i_sx, i_sa, i_sy;
@@ -164,10 +166,11 @@ Vector4s Model::sample3D(Vector3s strain, uint32_t pix) const {
 
     // int check =  upper_bound(1, len - 1, i, val) - 1;
     // if (check != c) {
-    //   Debug::log("DIFF",c, check );
+    //   Debug::error("DIFF",c, check );
     // }
   }
 
+  // trilinear interpolation
   Vector4s g = Vector4s::Zero();
   g += (1 - a_sx) * (1 - a_sa) * (1 - a_sy) * sample_at(i_sx, i_sa, i_sy, pix);
   g += (1 - a_sx) * (1 - a_sa) * a_sy * sample_at(i_sx, i_sa, i_sy + 1, pix);

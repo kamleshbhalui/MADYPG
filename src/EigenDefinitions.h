@@ -1,7 +1,8 @@
 #ifndef _EIGENDEFINITIONS_H_
 #define _EIGENDEFINITIONS_H_
 
-// in debug mode: initialize all eigen stuff as nan, to find uninitialized stuff
+// in debug mode: initialize all eigen matrices as nan
+// to find uninitialized matrices
 // (if this file is included first)
 #ifndef NDEBUG
 #define EIGEN_INITIALIZE_MATRICES_BY_NAN
@@ -13,8 +14,6 @@
 #include <Eigen/StdVector>
 #include <list>
 #include <deque>
-
-// TODO CLEAN UP THIS FILE ONCE PROGRAM IS RUNNING
 
 template <typename S, int _options = Eigen::ColMajor>
 Eigen::Matrix<S, 2, 1, _options> MakeVec(S x, S y)
@@ -46,7 +45,6 @@ typedef Eigen::Matrix<scalar, 3, 3> Matrix3s;
 typedef Eigen::Matrix<scalar, 4, 4> Matrix4s;
 
 // Dynamic size matrices
-typedef Eigen::VectorXi VectorXi;
 typedef Eigen::Matrix<scalar, Eigen::Dynamic, 1> VectorXs;
 typedef Eigen::Matrix<scalar, Eigen::Dynamic, Eigen::Dynamic> MatrixXXs;
 typedef Eigen::MatrixXi MatrixXXi;
@@ -56,7 +54,7 @@ typedef Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Matr
 
 // OpenGL specific
 typedef Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixGLf;
-typedef Eigen::Matrix<float, 1, Eigen::Dynamic, Eigen::RowMajor> VectorGLf;
+typedef Eigen::Matrix<float, 1, Eigen::Dynamic, Eigen::RowMajor> VectorGLXf;
 typedef Eigen::Matrix<float, 1, 2, Eigen::RowMajor> VectorGL2f;
 typedef Eigen::Matrix<float, 1, 3, Eigen::RowMajor> VectorGL3f;
 typedef Eigen::Matrix<uint32_t, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> MatrixGLi;
