@@ -17,7 +17,7 @@ If cloned non-recursively, you can download the submodules afterwards using
 `git submodule update --init --recursive`
 ```
 
-Next, use the submodule [vcpkg](https://github.com/microsoft/vcpkg/) to install additional dependencies.
+Next, use the submodule [vcpkg](https://github.com/microsoft/vcpkg/) to install additional dependencies from within the `vcpkg/` directory:
 ```sh
 ./bootstrap-vcpkg.sh
 ./vcpkg install eigen3 tbb magnum[gl,meshtools,shaders,scenegraph,trade,debugtools,sdl2application] magnum-integration[imgui] magnum-plugins[pngimporter,jpegimporter]
@@ -26,7 +26,7 @@ Next, use the submodule [vcpkg](https://github.com/microsoft/vcpkg/) to install 
 ## Compile & Run
 
 We tested our code on Ubuntu 18.04 with g++ version > 8 for the filesystem API.
-To compile and run, we use a helper python script: `python exec.py`.
+To compile and run our interactive program, we use a helper python script: `python exec.py`.
 
 To only compile a debug build without cpu-paralleism, use e.g.: `python exec.py -d -p 0 -r 0`.
 
@@ -44,8 +44,7 @@ Loop/rendering/gui related code can be found in `MainApplication.h` and the `ren
 
 The `data/` directory contains the following subdirectories:
 
- objseqs binseqs  yarnmodels textures
-- `objseqs/` contains cloth animations as folders of '.obj'-sequences. (See also: `ObjSeqAnimation.h`)
+- `objseqs/` contains cloth mesh animations as folders of '.obj'-sequences. (See also: `ObjSeqAnimation.h`)
 
 - `binseqs/` contains binary single-file versions of such mesh animations for fast loading. (See also: `BinSeqAnimation.h, obj2bin.cpp`)
 
@@ -55,13 +54,13 @@ The `data/` directory contains the following subdirectories:
 
 - `textures/` contains an assortment of matcaps (for shading yarns, or cloth/obstacle meshes), cloth textures, and the base texture for twistable ply/fiber-detail.
 
-The meshes/animation have been mostly created with our previous method `<TODO HYLC REPO>` (sweater animations, stretching/draping), or Blender.
+The meshes/animation have been mostly created with our previous method [TODO HYLC REPO](.) (sweater animations, stretching/draping), or Blender.
 
 The dummy.fbx file in the `data` directory is used for a rudimentary fbx-export of yarn or cloth geometry.
 
 ### Data Generation
 
-The `generate_yarnmodels` folder contains the scripts we used to precompute the local-displacement data. These scripts use the python-bound optimization from our previous paper `<TODO HYLC REPO>`.
+The `generate_yarnmodels` folder contains the scripts we used to precompute the local-displacement data. These scripts use the python-bound optimization from our previous paper [TODO HYLC REPO](.).
 
 Note that we already provide generated data in the `data/yarnmodels/` directory, so it is not necessary to download/compile the HYLC code or rerun those scripts.
 
@@ -71,11 +70,19 @@ TODO maybe about model structure, pix and strain ... axes.txt
 
 ## License & Citation
 
-This code is released under the MIT license (see LICENSE.txt).
+This code is released under the MIT license (see [LICENSE.txt](LICENSE.txt)).
 Note that some files in `src/` (files from the Magnum library, but also `threadutils.h` and other dependencies) may have a (compatible) license comment at the top instead.
 
 If you use our code, please consider citing our work:
-`TODO`
+```
+@article{sperl2021madypg,
+  author    = {Sperl, Georg and Narain, Rahul and Wojtan, Chris},
+  title     = {Mechanics-Aware Deformation of Yarn Pattern Geometry},
+  ...
+  year      = {2021},
+  ...
+}
+```
 <!-- @article{sperl2020hylc,
   author    = {Sperl, Georg and Narain, Rahul and Wojtan, Chris},
   title     = {Homogenized Yarn-Level Cloth},
