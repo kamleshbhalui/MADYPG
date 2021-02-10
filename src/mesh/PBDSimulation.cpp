@@ -25,11 +25,8 @@ PBDSimulation::PBDSimulation(const Settings& settings) : m_settings(settings) {
   PBD::Simulation::getCurrent()->setModel(m_model.get());
   PBD::TimeManager::getCurrent()->setTimeStepSize(m_settings.timestep);
 
-  std::string filepath    = "data/pbdscene/sock/cloth.obj";
-  std::string obsfilepath = "data/pbdscene/sock/obstacle.obj";
-
-  // std::string filepath = "pbdscene/cloth.obj";
-  // std::string obsfilepath = "pbdscene/obstacle.obj";
+  std::string filepath    = "data/pbdsock/cloth.obj";
+  std::string obsfilepath = "data/pbdsock/obstacle.obj";
 
   // cloth
   // std::string filepath = "pbdscene/cloth.obj";
@@ -37,26 +34,6 @@ PBDSimulation::PBDSimulation(const Settings& settings) : m_settings(settings) {
     return;
 
   // obstacle
-  // std::string obsfilepath = "pbdscene/cube.obj";
-  // if (loadBoxObstacle(obsfilepath)) {
-  //   PBD::Simulation::getCurrent()->getTimeStep()->setCollisionDetection(*m_model.get(),
-  //   &m_cd); m_cd.setTolerance(static_cast<Real>(0.005));
-
-  //   // add collider to cloth
-  //   auto &tm = m_model->getTriangleModels();
-  //   auto &pd = m_model->getParticles();
-  //   for (unsigned int i = 0; i < tm.size(); i++)
-  //   {
-  //     const unsigned int nVert = tm[i]->getParticleMesh().numVertices();
-  //     unsigned int offset = tm[i]->getIndexOffset();
-  // tm->setRestitutionCoeff(0.2f); // 0.6
-  // tm->setFrictionCoeff(0.1f); // 0.2
-  //     m_cd.addCollisionObjectWithoutGeometry(i,
-  //     PBD::CollisionDetection::CollisionObject::TriangleModelCollisionObjectType,
-  //     &pd.getPosition(offset), nVert, true);
-  //   }
-  // }
-
   if (loadSDFObstacle(obsfilepath)) {
     PBD::Simulation::getCurrent()->getTimeStep()->setCollisionDetection(
         *m_model.get(), &m_cd2);

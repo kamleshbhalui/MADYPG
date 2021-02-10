@@ -1,7 +1,5 @@
 #include "Grid.h"
 
-#include <tbb/parallel_reduce.h>
-
 #include "../utils/debug_logging.h"
 #include "../utils/threadutils.h"
 
@@ -78,24 +76,14 @@ void Grid::fromTiling(const Mesh& mesh, const PYP& pyp) {
   const auto& Uc  = mesh.U.cpu();
   Vector2s uv_min = Uc[0].map();
   Vector2s uv_max = uv_min;
-  uv_min          = tbb::parallel_reduce(
-      tbb::blocked_range<int>(0, Uc.size()), uv_min,
-      [&](tbb::blocked_range<int> r, Vector2s reduced) {
-        for (int i = r.begin(); i < r.end(); ++i) {
-          reduced = reduced.cwiseMin(Uc[i].map());
-        }
-        return reduced;
-      },
-      [](const Vector2s& A, const Vector2s& B) { return A.cwiseMin(B); });
-  uv_max = tbb::parallel_reduce(
-      tbb::blocked_range<int>(0, Uc.size()), uv_max,
-      [&](tbb::blocked_range<int> r, Vector2s reduced) {
-        for (int i = r.begin(); i < r.end(); ++i) {
-          reduced = reduced.cwiseMax(Uc[i].map());
-        }
-        return reduced;
-      },
-      [](const Vector2s& A, const Vector2s& B) { return A.cwiseMax(B); });
+  uv_min = threadutils::parallel_reduce(Uc.size(), uv_min, 
+    [&](Vector2s& reduced, int i) { reduced = reduced.cwiseMin(Uc[i].map()); },
+    [](const Vector2s& A, const Vector2s& B){ return A.cwiseMin(B); }
+  );
+  uv_max = threadutils::parallel_reduce(Uc.size(), uv_max, 
+    [&](Vector2s& reduced, int i) { reduced = reduced.cwiseMax(Uc[i].map()); },
+    [](const Vector2s& A, const Vector2s& B){ return A.cwiseMax(B); }
+  );
 
   // grow bounds for added robustness
   uv_min -= 0.1f * MakeVec(pyp.px, pyp.py);

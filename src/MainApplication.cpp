@@ -931,7 +931,6 @@ void MainApplication::drawGUISimple() {
   ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9, 0.9, 0.9, 1));
   ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9, 0.9, 0.9, 1));
   ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9, 0.9, 0.9, 1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9, 0.9, 0.9, 1));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1, 1, 1, 0.6));
   ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1, 1, 1, 0));
 
@@ -981,7 +980,6 @@ void MainApplication::drawGUISliders() {
   ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0, 0, 0, 1));
   ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.9, 0.9, 0.9, 1));
   ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.9, 0.9, 0.9, 1));
-  ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9, 0.9, 0.9, 1));
   ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.9, 0.9, 0.9, 1));
   ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(1, 1, 1, 0.6));
   ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1, 1, 1, 0));

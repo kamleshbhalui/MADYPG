@@ -48,25 +48,27 @@ The `data/` directory contains the following subdirectories:
 
 - `binseqs/` contains binary single-file versions of such mesh animations for fast loading. (See also: `BinSeqAnimation.h, obj2bin.cpp`)
 
-- `pbdscene/` contains the meshes used in our real-time sock example. (See also: `PBDSimulation.h`)
+- `pbdsock/` contains the meshes used in our real-time sock example. (See also: `PBDSimulation.h`)
 
 - `yarnmodels/` contains the precomputed local-displacement data for the several yarn patterns we experimented with. (See also: `Model.h`)
 
 - `textures/` contains an assortment of matcaps (for shading yarns, or cloth/obstacle meshes), cloth textures, and the base texture for twistable ply/fiber-detail.
 
-The meshes/animation have been mostly created with our previous method [TODO HYLC REPO](.) (sweater animations, stretching/draping), or Blender.
+**Missing animations:** Due to filesize/bloating we have not uploaded all mesh animations to this repository. Crucially, the sweater animations (each of which is around 180mb in binary format) are missing. Instead we provide a direct download link to these animations:
+[TODO DOWNLOAD LINK](.)
+
+**Missing yarnmodels:** Similarly, due to the filesize we did not upload the 4D bending models or the 15x15x15 and 31x31x31 yarn models, which you can download here:
+[TODO DOWNLOAD LINK](.)
+
+The meshes/animation have been mostly created with our previous method [TODO HYLC REPO](.) (sweater animations, 30x30cm^2 stretches), or Blender.
 
 The dummy.fbx file in the `data` directory is used for a rudimentary fbx-export of yarn or cloth geometry.
 
-### Data Generation
+### Displacement Data Generation
 
 The `generate_yarnmodels` folder contains the scripts we used to precompute the local-displacement data. These scripts use the python-bound optimization from our previous paper [TODO HYLC REPO](.).
 
 Note that we already provide generated data in the `data/yarnmodels/` directory, so it is not necessary to download/compile the HYLC code or rerun those scripts.
-
-<!-- ## Other Explanation
-TODO maybe about model structure, pix and strain ... axes.txt
-  show where created and where loaded -->
 
 ## License & Citation
 

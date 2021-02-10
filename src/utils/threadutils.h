@@ -62,7 +62,7 @@ using vsize_type = typename std::vector<T, A>::size_type;
 #include <tbb/parallel_sort.h>
 // #include <tbb/parallel_for_each.h> // NOTE could use this instead of manual
 // for_each
-// #include <tbb/parallel_reduce.h>
+#include <tbb/parallel_reduce.h>
 #include <time.h>
 
 #include <iostream>
@@ -100,6 +100,18 @@ static void parallel_for_each(const std::vector<Data, A>& vec, Callable func) {
 template <typename Iterable, typename Compare>
 static void parallel_sort(Iterable& vec, const Compare& func) {
   std::sort(vec.begin(), vec.end(), func);
+}
+
+
+template <typename T, typename F1, typename F2>
+static T parallel_reduce(int size, const T& init,
+                         const F1& reduceElementFunc,
+                         const F2& mergeFunc) {
+  T reduced = init;
+  for (int i = 0; i < size; ++i) {
+    reduceElementFunc(reduced, i);
+  }
+  return reduced;
 }
 
 #else  // PARALLEL =====================================
@@ -154,6 +166,23 @@ static void parallel_sort(Iterable& vec, const Compare& func) {
 #else
   std::sort(vec.begin(), vec.end(), func);
 #endif
+}
+
+template <typename T, typename F1, typename F2>
+static T parallel_reduce(int size, const T& init,
+                         const F1& reduceElementFunc,
+                         const F2& mergeFunc) {
+  return tbb::parallel_reduce(
+      tbb::blocked_range<int>(0, size), init,
+      [&](tbb::blocked_range<int> r, T reduced) {
+        for (int i = r.begin(); i < r.end(); ++i) {
+          // e.g. [](int& reduced, int b) { reduced += b; }
+          reduceElementFunc(reduced, i); 
+        }
+        return reduced;
+      },
+      mergeFunc  // e.g. [](int a, int b) { return a+b; }
+  );
 }
 
 #endif

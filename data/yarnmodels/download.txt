@@ -1,0 +1,2 @@
+Due to their filesize, we have not uploaded all models here (e.g. the 4D bending model and the 15x15x15 or 31x31x31 comparison models).
+The readme file in the root directory contains a link from which to download these files.
