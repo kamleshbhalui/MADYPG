@@ -589,7 +589,9 @@ void MainApplication::setupFramebuffer(const Vector2i &size) {
 #endif
 }
 
-void MainApplication::drawGUIStats() {
+void MainApplication::drawGUIStats() { 
+  ImGui::SetNextWindowPos(ImVec2(10,10), ImGuiCond_FirstUseEver );
+  ImGui::SetNextWindowSize(ImVec2(270,300), ImGuiCond_FirstUseEver );
   ImGui::Begin("Stats/Playback");
   constexpr float spacing = 10;
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
@@ -671,6 +673,8 @@ void MainApplication::drawGUIStats() {
 }
 
 void MainApplication::drawGUISettings() {
+  ImGui::SetNextWindowPos(ImVec2(10,320), ImGuiCond_FirstUseEver );
+  ImGui::SetNextWindowSize(ImVec2(270,550), ImGuiCond_FirstUseEver );
   ImGui::Begin("Animation Settings");
   constexpr float spacing = 10;
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
@@ -756,6 +760,8 @@ void MainApplication::drawGUISettings() {
 }
 
 void MainApplication::drawGUIRender() {
+  ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 300 - 10,10), ImGuiCond_FirstUseEver );
+  ImGui::SetNextWindowSize(ImVec2(300,750), ImGuiCond_FirstUseEver );
   ImGui::Begin("Render Options");
   constexpr float spacing = 10;
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, spacing));
@@ -962,6 +968,9 @@ void MainApplication::drawGUISimple() {
     ImGui::Text("PBD:            %5.2f ms", total_ms_meshupdate);
   }
   ImGui::TextUnformatted("Advanced GUI: [H]");
+  
+  ImGui::SetWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - ImGui::GetWindowWidth() - 10,10), ImGuiCond_FirstUseEver );
+
   ImGui::End();
 
   ImGui::PopStyleColor();
@@ -1026,6 +1035,8 @@ void MainApplication::drawGUISliders() {
                        "lambda_min = %.2f");
   }
   ImGui::PopItemWidth();
+
+  ImGui::SetWindowPos(ImVec2((ImGui::GetIO().DisplaySize.x - ImGui::GetWindowWidth())*0.5f, ImGui::GetIO().DisplaySize.y - ImGui::GetWindowHeight() - 50), ImGuiCond_FirstUseEver ); // ImGuiCond_None
   ImGui::End();
 
   // ImGui::Begin("##nsamples", &open_ptr, window_flags);
