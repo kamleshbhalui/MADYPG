@@ -7,8 +7,8 @@
 #include "../utils/threadutils.h"
 
 // NOTE: 4D-bending model comparison hardcoded here, ignored if undefined
-// #define MODEL4D "data/yarnmodels/model_stock_bend4D"
-// #define MODEL4D "data/yarnmodels/model_rib_bend4D"
+// #define MODEL4D "data/yarnmodels/bending4D/model_stock_bend4D"
+// #define MODEL4D "data/yarnmodels/bending4D/model_rib_bend4D"
 
 YarnMapper::YarnMapper() : m_initialized(false) {}
 
@@ -181,8 +181,8 @@ void YarnMapper::step() {
         m_settings.linearized_bending, m_settings.svdclamp);
 
     // memory barrier so that the next compute shader gets updated values
-    // NOTE: current version of Magnum defines wrong constant, so need raw GL
-    // after updating Magnum, replace with
+    // NOTE: current version of Magnum defines wrong constant, so need raw GL.
+    // after updating Magnum, replace with:
     // Magnum::GL::Renderer::setMemoryBarrier(Magnum::GL::Renderer::MemoryBarrier::ShaderStorage);
     glMemoryBarrier(GLbitfield(GL_SHADER_STORAGE_BARRIER_BIT));
 

@@ -32,7 +32,6 @@ add_library(fbx dependencies/fbx/fbxdocument.cpp
 target_include_directories(fbx SYSTEM INTERFACE dependencies/)
 target_compile_options(fbx PRIVATE -Wno-all)
 
-
 #discregrid sublibrary of pbd for collision detection
 add_subdirectory(dependencies/Discregrid)
 target_compile_options(Discregrid PRIVATE -Wno-all)
