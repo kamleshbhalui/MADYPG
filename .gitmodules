@@ -7,3 +7,6 @@
 [submodule "src/dependencies/PositionBasedDynamics"]
 	path = src/dependencies/PositionBasedDynamics
 	url = https://github.com/InteractiveComputerGraphics/PositionBasedDynamics.git
+[submodule "src/dependencies/GenericParameters"]
+	path = src/dependencies/GenericParameters
+	url = https://github.com/InteractiveComputerGraphics/GenericParameters.git
