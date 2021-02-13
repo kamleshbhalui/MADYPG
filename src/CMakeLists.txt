@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.4)
 
-project(MESH2YARNS CXX)
+project(MADYPG LANGUAGES CXX VERSION 1.0)
 
 SET(CMAKE_CXX_STANDARD 17) # NOTE: c++17 e.g. for filesystem iteration
 SET(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS} -Wall -pthread")

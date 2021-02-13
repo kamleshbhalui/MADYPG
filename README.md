@@ -14,7 +14,7 @@ git clone --recurse-submodules <REPOSITORY>
 ```
 If cloned non-recursively, you can download the submodules afterwards using
 ```sh
-`git submodule update --init --recursive`
+git submodule update --init --recursive
 ```
 
 Next, use the submodule [vcpkg](https://github.com/microsoft/vcpkg/) to install additional dependencies from within the `vcpkg/` directory:
@@ -73,10 +73,10 @@ Note that we already provide generated data in the `data/yarnmodels/` directory,
 ## License & Citation
 
 This code is released under the MIT license (see [LICENSE.txt](LICENSE.txt)).
-Note that some files in `src/` (files from the Magnum library, but also `threadutils.h` and other dependencies) may have a (compatible) license comment at the top instead.
+Note that some files in `src/` (files from the Magnum library and its [SSAO example](https://github.com/Janos95/magnum-examples/tree/master/src/ssao), but also `threadutils.h` and other dependencies) may have a (compatible) license comment at the top instead.
 
 If you use our code, please consider citing our work:
-```
+```bibtex
 @article{sperl2021madypg,
   author    = {Sperl, Georg and Narain, Rahul and Wojtan, Chris},
   title     = {Mechanics-Aware Deformation of Yarn Pattern Geometry},
