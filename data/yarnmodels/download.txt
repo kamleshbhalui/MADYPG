@@ -1,2 +1,2 @@
-Due to their filesize, we have not uploaded all models here (e.g. the 4D bending model and the 15x15x15 or 31x31x31 comparison models).
+Due to their filesize, we have not uploaded all models here (e.g. the 4D bending model, varying-number-of-samples models, or models for testing more sampling of stretching deformations).
 The readme file in the root directory contains a link from which to download these files.
