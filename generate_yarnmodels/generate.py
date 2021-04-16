@@ -13,7 +13,7 @@ max_time = 60  # -1 # max solver time spent
 ffmt = "%.10g"  # output format
 
 
-def make_settings(f):
+def make_settings(f, stretch_test=False):
     """initialize solver and material settings by name"""
     s = ps.SimulationSettings()
     s.pypfile = f
@@ -28,6 +28,12 @@ def make_settings(f):
         s.material.density = 1.2e3
         s.extpx = 1.6
         s.extpy = 1.8
+
+    if stretch_test:
+        # higher collision stiffness, lower step limit
+        s.material.kc = 2e2
+        s.solvableSettings.step_factor = 0.1
+
     return s
 
 
@@ -40,8 +46,8 @@ def getNverts(f):
     return N
 
 
-def compute_dQrd(strains, f, noslide=False):
-    s = make_settings(f)
+def compute_dQrd(strains, f, noslide=False, stretch_test=False):
+    s = make_settings(f, stretch_test)
     s.strains = strains
     s.solvableSettings.disable_slide_constraint = noslide
     sim = ps.Simulation(s)
@@ -79,17 +85,17 @@ def compute_dQrd(strains, f, noslide=False):
 
 # note this needs to be declared outside, for multiprocessing...
 def do_thing(args):
-    sx, sa, sy, pypfile, i0, i1, i2, noslide = args
+    sx, sa, sy, pypfile, i0, i1, i2, noslide, stretchtest = args
     strains = np.zeros(6,)
     strains[0] = sx
     strains[1] = sa
     strains[2] = sy
     # print(strains)
-    D = compute_dQrd(strains, pypfile, noslide)
+    D = compute_dQrd(strains, pypfile, noslide, stretchtest)
     return i0, i1, i2, D
 
 
-def generate_data(name, pypfile, SX, SA, SY, disable_slide_constr=False):
+def generate_data(name, pypfile, SX, SA, SY, disable_slide_constr=False, stretch_test=False):
     Nv = getNverts(pypfile)
 
     Nsims = len(SX)*len(SA)*len(SY)
@@ -112,7 +118,7 @@ def generate_data(name, pypfile, SX, SA, SY, disable_slide_constr=False):
         for i2 in range(len(SY)):
             for i1 in range(len(SA)):
                 for i0 in range(len(SX)):
-                    yield SX[i0], SA[i1], SY[i2], pypfile, i0, i1, i2, disable_slide_constr
+                    yield SX[i0], SA[i1], SY[i2], pypfile, i0, i1, i2, disable_slide_constr, stretch_test
 
     def data_ix(vix, isx, isa, isy):
         return isx + (len(SX)) * isa + (len(SX) * len(SA)) * isy + (len(SX) * len(SA) * len(SY)) * vix
