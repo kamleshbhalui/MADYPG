@@ -3,7 +3,7 @@
 ![Teaser Image](teaser.jpg "")
 This repository contains the published code for the paper 'Mechanics Aware Deformation of Yarn Pattern Geometry' by Georg Sperl, Rahul Narain, Chris Wojtan.
 
-Project Website: [TODO](https://visualcomputing.ist.ac.at/publications/)
+Project Website: [https://visualcomputing.ist.ac.at/publications/2021/MADYPG/](https://visualcomputing.ist.ac.at/publications/2021/MADYPG/)
 
 
 ## Download / Setup
@@ -55,7 +55,8 @@ The `data/` directory contains the following subdirectories:
 - `textures/` contains an assortment of matcaps (for shading yarns, or cloth/obstacle meshes), cloth textures, and the base texture for twistable ply/fiber-detail.
 
 **Missing animations and yarnmodels:** Due to filesize/bloating we have not uploaded all mesh animations to this repository. Crucially, the sweater animations (each of which is around 180mb in binary format) are missing. Similarly, due to the filesize we did not upload the 4D bending models or the 15x15x15 and 31x31x31 yarn models. Instead we provide a direct download link to these files:
-[TODO DOWNLOAD LINK](.)
+[(download link coming soon!)](.) 
+<!-- TODO write GB if direct link.. -->
 
 The meshes/animation have been mostly created with our previous method ["Homogenized Yarn-Level Cloth"](https://visualcomputing.ist.ac.at/publications/2020/HYLC/) (sweater animations, 30x30cm^2 stretches), or Blender.
 
