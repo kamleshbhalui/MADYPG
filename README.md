@@ -55,7 +55,7 @@ The `data/` directory contains the following subdirectories:
 - `textures/` contains an assortment of matcaps (for shading yarns, or cloth/obstacle meshes), cloth textures, and the base texture for twistable ply/fiber-detail.
 
 **Missing animations and yarnmodels:** Due to filesize/bloating we have not uploaded all mesh animations to this repository. Crucially, the sweater animations (each of which is around 180mb in binary format) are missing. Similarly, due to the filesize we did not upload the 4D bending models or the 15x15x15 and 31x31x31 yarn models. Instead we provide a direct download link to these files:
-[https://research-explorer.app.ist.ac.at/record/9327](https://research-explorer.app.ist.ac.at/record/9327) 
+[https://doi.org/10.15479/AT:ISTA:9327](https://doi.org/10.15479/AT:ISTA:9327) 
 <!-- TODO write GB if direct link.. -->
 
 The meshes/animation have been mostly created with our previous method ["Homogenized Yarn-Level Cloth"](https://visualcomputing.ist.ac.at/publications/2020/HYLC/) (sweater animations, 30x30cm^2 stretches), or Blender.
