@@ -85,8 +85,8 @@ class YarnSoup {
   //   E.resize(0,0);
   // }
 
-  int numVertices() { return m_nvertices; }
-  int numYarns() { return m_nyarns; }
+  int numVertices() const { return m_nvertices; }
+  int numYarns() const { return m_nyarns; }
   
  private:
   VectorBuffer<VertexMSData> X_ms;                   // [u v h t a ... ] undeformed material space

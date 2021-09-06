@@ -16,9 +16,9 @@ MeshShader::MeshShader() {
 
   const Utility::Resource rs{"ssao-data"};
 
-  GL::Shader vert{GL::Version::GL330, GL::Shader::Type::Vertex};
-  GL::Shader geom{GL::Version::GL330, GL::Shader::Type::Geometry};
-  GL::Shader frag{GL::Version::GL330, GL::Shader::Type::Fragment};
+  GL::Shader vert{GL::Version::GL430, GL::Shader::Type::Vertex};
+  GL::Shader geom{GL::Version::GL430, GL::Shader::Type::Geometry};
+  GL::Shader frag{GL::Version::GL430, GL::Shader::Type::Fragment};
 
   vert.addSource(rs.get("MeshShader.vert"));
 
@@ -34,14 +34,18 @@ MeshShader::MeshShader() {
 
   bindAttributeLocation(Position::Location, "position");
   // bindAttributeLocation(Normal::Location, "normal");
+  bindAttributeLocation(TextureCoordinates::Location, "uv");
 
   bindFragmentDataLocation(AlbedoOutput, "color");
   bindFragmentDataLocation(PositionsOutput, "position");
   bindFragmentDataLocation(NormalsOutput, "normal");
 
   _transformationUniform = uniformLocation("transformation");
-  _projectionUniform = uniformLocation("projection");
+  _projectionUniform     = uniformLocation("projection");
   setUniform(uniformLocation("matcap"), TextureUnit_Matcap);
+  setUniform(uniformLocation("tex_cloth"), TextureUnit_ClothTexture);
+  _uvscaleUniform   = uniformLocation("uv_scale");
+  _uvoffsetUniform  = uniformLocation("uv_offset");
 }
 
 MeshShader &MeshShader::setTransformation(const Matrix4 &transformation) {
@@ -58,3 +62,29 @@ MeshShader &MeshShader::bindMatCap(GL::Texture2D &texture) {
   texture.bind(TextureUnit_Matcap);
   return *this;
 }
+
+MeshShader &MeshShader::bindClothTexture(GL::Texture2D &texture) {
+  texture.bind(TextureUnit_ClothTexture);
+  return *this;
+}
+
+MeshShader &MeshShader::setTextureScale(float scale) {
+  setUniform(_uvscaleUniform, scale);
+  return *this;
+}
+
+MeshShader &MeshShader::setTextureOffset(const Vector2 &offset) {
+  setUniform(_uvoffsetUniform, offset);
+  return *this;
+}
+
+MeshShader &MeshShader::bindUBuffer(Magnum::GL::Buffer &U) {
+  U.bind(Magnum::GL::Buffer::Target::ShaderStorage, SSBO::UBuffer);
+  return *this;
+}
+
+MeshShader &MeshShader::bindFmsBuffer(Magnum::GL::Buffer &Fms) {
+  Fms.bind(Magnum::GL::Buffer::Target::ShaderStorage, SSBO::FmsBuffer);
+  return *this;
+}
+

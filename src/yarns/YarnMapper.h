@@ -63,7 +63,7 @@ class YarnMapper {
   bool isInitialized() const { return m_initialized; }
   VectorBuffer<VertexWSData>& getVertexBuffer() { return m_soup.get_Xws(); }
   VectorBuffer<uint32_t>& getIndexBuffer() { return m_soup.getIndexBuffer(); }
-  int getNumVertices() { return m_soup.numVertices(); }
+  int getNumVertices() const { return m_soup.numVertices(); }
 
   void reloadShaders() {
     m_deformShader   = DeformShader();
@@ -79,6 +79,8 @@ class YarnMapper {
   // Debug::MovingAverageTimer<1000, std::chrono::microseconds> m_timer;
   Debug::MovingAverageTimer<30, std::chrono::microseconds> m_timer;
 
+  // export the current yarn centerlines to an NPY file
+  bool export2npy(const std::string& filename_X, const std::string& filename_I, bool xyz_only=false);
   // export the current yarn geometry to an FBX file
   bool export2fbx(const std::string& filename);
   // export the current cloth mesh to an FBX file

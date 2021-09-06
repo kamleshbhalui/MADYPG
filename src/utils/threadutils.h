@@ -176,7 +176,7 @@ static T parallel_reduce(int size, const T& init,
       tbb::blocked_range<int>(0, size), init,
       [&](tbb::blocked_range<int> r, T reduced) {
         for (int i = r.begin(); i < r.end(); ++i) {
-          // e.g. [](int& reduced, int b) { reduced += b; }
+          // e.g. [&](int& reduced, int i) { reduced += myvec[i]; }
           reduceElementFunc(reduced, i); 
         }
         return reduced;

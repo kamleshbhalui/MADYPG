@@ -84,11 +84,12 @@ class MainApplication : public Platform::Application {
 
   void reset_simulation();
 
+  int _target_num_yarnMappers = 1;
   std::vector<YarnDrawable> _yarnDrawable;
-  std::unique_ptr<MeshDrawable<MeshShader>> _meshdrawable;
-  std::vector<ObsMeshDrawable<ObsMeshShader>> _obsmeshdrawables;
-  std::unique_ptr<YarnMapper> _yarnMapper;
-  YarnMapper::Settings _yarnMapperSettings;
+  std::vector<MeshDrawable<MeshShader>> _meshdrawables;
+  std::vector<std::vector<ObsMeshDrawable<ObsMeshShader>>> _obsmeshdrawables;
+  std::vector<std::shared_ptr<YarnMapper>> _yarnMappers;
+  std::vector<YarnMapper::Settings> _yarnMapperSettings;
   std::unique_ptr<ImGui::FileBrowser> _fileDialog;
   std::unique_ptr<ImGui::FileBrowser> _folderDialog;
   GL::Texture2D _matcapObs{NoCreate};

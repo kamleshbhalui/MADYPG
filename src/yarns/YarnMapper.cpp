@@ -1,6 +1,7 @@
 #include "YarnMapper.h"
 
 #include <Magnum/GL/Renderer.h>
+#include <cnpy/cnpy.h>
 
 #include "../io/export_fbx.h"
 #include "../utils/debug_includes.h"
@@ -316,6 +317,8 @@ void YarnMapper::deform_reference(const Mesh& mesh) {
     s           = Sv[ms_ixs[0]].map() * abc[0] + Sv[ms_ixs[1]].map() * abc[1] +
         Sv[ms_ixs[2]].map() * abc[2];
 
+    // s = S[tri].map(); // flat strain override
+
     /*const*/ auto& X = Xms[vix];
 
 #ifdef MODEL4D
@@ -327,11 +330,11 @@ void YarnMapper::deform_reference(const Mesh& mesh) {
     s.head<3>() << sx, sa, sy;
 
     Vector4s g;
-    if (m_dbg.toggle) {  // NOTE: have to make a GUI checkbox again if needed
-      g = m_model4D->displacement(s, X.pix);
-    } else {
-      g = m_model->displacement(s, X.pix);
-    }
+    // if (m_dbg.toggle) {  // NOTE: have to make a GUI checkbox again if needed
+    g = m_model4D->displacement(s, X.pix);
+    // } else {
+    // g = m_model->displacement(s, X.pix);
+    // }
 #else
     if (m_settings.linearized_bending > 0.001f) {
       s.head<3>() =
@@ -414,7 +417,7 @@ void YarnMapper::shell_map(const Mesh& mesh) {
       MatrixNMs<3, 3> Q;  // transformation from uvh to xyz
       Q.setZero();
       Q.block<3, 2>(0, 0) = defF[tri].map();
-      Q.col(2) = n;
+      Q.col(2)            = n;
       x_ws.block<3, 1>(5, 0) =
           Q.inverse().transpose() * x_ws.block<3, 1>(5, 0);  // b = Q** . b
     }
@@ -423,21 +426,77 @@ void YarnMapper::shell_map(const Mesh& mesh) {
   });
 }
 
+bool YarnMapper::export2npy(const std::string& filename_X,
+                            const std::string& filename_I, bool xyz_only) {
+  if (!m_initialized)
+    return false;
+
+  if (xyz_only) {
+    size_t N;
+    std::vector<float> X;
+    if (m_settings.gpu_compute) {  // gpu 2 cpu
+      auto cdata = m_soup.get_Xws().getGPUData();
+      auto data  = Corrade::Containers::arrayCast<VertexWSData>(cdata);
+      // N = m_soup.get_Xws().getGPUSize();
+      N = data.size();
+      X.resize(N * 3);
+      threadutils::parallel_for(size_t(0), N, [&](size_t i) {
+        X[i * 3 + 0] = data[i].x;
+        X[i * 3 + 1] = data[i].y;
+        X[i * 3 + 2] = data[i].z;
+      });
+
+    } else {
+      const auto& Xws = m_soup.get_Xws().cpu();
+      N               = Xws.size();
+      X.resize(N * 3);
+      threadutils::parallel_for(size_t(0), N, [&](size_t i) {
+        X[i * 3 + 0] = Xws[i].x;
+        X[i * 3 + 1] = Xws[i].y;
+        X[i * 3 + 2] = Xws[i].z;
+      });
+    }
+    cnpy::npy_save(filename_X, reinterpret_cast<const float*>(X.data()), {N, 3},
+                   "w");
+  } else {  // full array
+    auto& Xws = m_soup.get_Xws().cpu();
+    if (m_settings.gpu_compute) {  // gpu 2 cpu
+      // Xws.resize(m_soup.get_Xws().getGPUSize());
+      auto cdata = m_soup.get_Xws().getGPUData();
+      auto data  = Corrade::Containers::arrayCast<VertexWSData>(cdata);
+
+      Xws.resize(data.size());
+      threadutils::parallel_for(size_t(0), data.size(), [&](size_t i) {
+        // memcpy(&Xws[i], &data[i], sizeof(VertexWSData));
+        Xws[i] = data[i];
+      });
+    }
+
+    // Xws: 11 floats
+    // x, y, z, t, a, nx, ny, nz, u, v, r
+    cnpy::npy_save(filename_X, reinterpret_cast<const float*>(Xws.data()),
+                   {Xws.size(), 11}, "w");
+  }
+
+  auto LIM      = std::numeric_limits<uint32_t>::max();
+  const auto& I = m_soup.getIndexBuffer()
+                      .cpu();  // midline vertex indices of LIM separated yarns
+  cnpy::npy_save(filename_I, reinterpret_cast<const uint32_t*>(I.data()),
+                 {I.size()}, "w");
+
+  return true;
+}
+
 bool YarnMapper::export2fbx(const std::string& filename) {
   // NOTE/TODO this takes forever for big garments.
   //  could optimizte by writing this in a compute shader, but maybe the
   //  bottleneck is the disk write using the fbx library.
   //  in the future this should be done with USD.
-  //  (currently blender does not support USD, nor is there an easy USD export. importantly, we need two UV maps)
+  //  (currently blender does not support USD, nor is there an easy USD export.
+  //  importantly, we need two UV maps)
 
   if (!m_initialized)
     return false;
-
-  // NOTE doesn't work in gpu mode, need to run last frame once in cpu mode
-  if (m_settings.gpu_compute) {
-    Debug::warning("yarn fbx export only works in cpu-mode.");
-    return false;
-  }
 
   static std::vector<uint32_t>
       vcids;  // id of circle of vertices, for all non-tip midline vertices
@@ -503,13 +562,16 @@ bool YarnMapper::export2fbx(const std::string& filename) {
   data.uvfaces.resize(num_total_faces * 3);
 
   // mediocre solution of copying back from gpu
-  // TODO doesnt seem to work (always)? but in cpu mode export works?
   auto& Xws = m_soup.get_Xws().cpu();
-  if (m_settings.gpu_compute) {
-    auto data = m_soup.get_Xws().getGPUData();
+  if (m_settings.gpu_compute) {  // gpu 2 cpu
+    // Xws.resize(m_soup.get_Xws().getGPUSize());
+    auto cdata = m_soup.get_Xws().getGPUData();
+    auto data  = Corrade::Containers::arrayCast<VertexWSData>(cdata);
     Xws.resize(data.size());
-    threadutils::parallel_for(size_t(0), data.size(),
-                              [&](size_t i) { Xws[i] = data[i]; });
+    threadutils::parallel_for(size_t(0), data.size(), [&](size_t i) {
+      // memcpy(&Xws[i], &data[i], sizeof(VertexWSData));
+      Xws[i] = data[i];
+    });
   }
   // Xws = xyzt | arc | d1x d1y d1z | u v | rlocal
   threadutils::parallel_for(size_t(0), I.size(), [&](size_t i) {

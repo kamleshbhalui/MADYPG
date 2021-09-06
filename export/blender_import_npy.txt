@@ -1,0 +1,75 @@
+import bpy
+import numpy as np
+import os
+
+def to_vertex_list(X, I):
+    LIM = 4294967295 # std::numeric_limits<uint32_t>::max()
+    indices = []
+    idx = np.where(I != LIM)[0]
+    indices = np.split(I[idx], np.where(np.diff(idx)!=1)[0]+1)
+    
+    xlist = []
+    for i in range(len(indices)):
+        xlist.append(np.array(X[indices[i]]))
+    return xlist
+
+def make_spline(xlist, radius, name="splineobj", collection=bpy.context.scene.collection, **kwargs):
+    # create the curve data
+    curveData = bpy.data.curves.new('name', type='CURVE')
+    curveData.dimensions = '3D'
+
+    for curve in xlist:
+        # map coords to spline
+        spline = curveData.splines.new('NURBS')
+        spline.points.add(len(curve) - 1)  # already starts with 1 point
+        for i, vtx in enumerate(curve):
+            x, y, z = vtx[:3]
+            spline.points[i].co = (x, y, z, 1)
+        if "order_u" in kwargs:
+            spline.order_u = kwargs["order_u"]
+        if "use_endpoint_u" in kwargs:
+            spline.use_endpoint_u = kwargs["use_endpoint_u"]
+        else:
+            spline.use_endpoint_u = True
+    
+    if "use_fill_caps" in kwargs:
+        curveData.use_fill_caps = kwargs["use_fill_caps"]
+
+    # create object from data
+    cobj = bpy.data.objects.new(name, curveData)
+
+    if not collection is None:
+        collection.objects.link(cobj)
+
+    if "resolution_u" in kwargs:
+        # this should set u for all subsplines
+        cobj.data.resolution_u = kwargs["resolution_u"]
+
+    # fill curve
+    cobj.data.fill_mode = 'FULL'
+    cobj.data.bevel_depth = radius
+    if "resolution_v" in kwargs:
+        cobj.data.bevel_resolution = kwargs["resolution_v"]
+    # cobj.scale = (scale, scale, scale)
+
+    return cobj
+
+
+ncloth = 3
+frames = [98]
+#ncloth = 1
+#frames = [0]
+for frame in frames:
+    for ic in range(ncloth):
+        basefilefmt = os.path.join("FOLDER/MADYPGcpp/export","yarns%d_%06d") % (ic, frame)
+        
+        print("loading X,I")
+        X = np.load(basefilefmt + "_X.npy")
+        I = np.load(basefilefmt + "_I.npy")
+
+        print("converting to xlist")
+        xlist = to_vertex_list(X, I)
+        print("generating splines")
+        obj = make_spline(xlist, radius=0.0005, order_u=3, resolution_u=2)
+        obj.scale = (100,100,100)
+print("waiting for blender to finish")

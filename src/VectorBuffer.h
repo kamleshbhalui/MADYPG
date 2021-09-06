@@ -43,9 +43,16 @@ class VectorBuffer {
   }
 
   // return (a copy of the) data on the GPU 
-  auto getGPUData() {
-    return Corrade::Containers::arrayCast<T>(m_buffer.data());
+  // this creates a dangling reference and invites crashes and bugs
+  // auto getGPUData() {
+  //   return Corrade::Containers::arrayCast<T>(m_buffer.data()); 
+  // }
+
+  // return (a copy of the) data on the GPU 
+  Corrade::Containers::Array<char> getGPUData() {
+    return m_buffer.data();
   }
+
 
   size_t getGPUSize() const { return m_allocatedGPUsize; }
   size_t getCPUSize() const { return m_data.size(); }
