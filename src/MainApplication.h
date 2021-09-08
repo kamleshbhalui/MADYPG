@@ -132,7 +132,7 @@ class MainApplication : public Platform::Application {
   SsaoApplyShader _ssaoApplyShader{NoCreate};
   SsaoShader _ssaoShader{NoCreate};
 
-  Containers::Optional<ArcBall> _arcball;
+  std::unique_ptr<ArcBall> _arcball;
   Matrix4 _projection;
   Deg _proj_fov    = 45.0_degf;
   float _proj_near = 0.01f;

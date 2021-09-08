@@ -1,5 +1,6 @@
 #include "MainApplication.h"
 
+#include "io/load_scene.h"
 #include <imgui_stdlib.h>
 
 #include <iomanip>
@@ -179,6 +180,12 @@ MainApplication::MainApplication(const Arguments &arguments)
   ::Debug::logf("Using %dx SSAA\n", SUPERSAMPLING);
 #endif
 
+  // parse arguments
+  int select_scene = -1;
+  if (arguments.argc > 1) {
+    select_scene = atoi(arguments.argv[1]);
+  }  
+
   /* Setup window */
   {
     const Vector2 dpiScaling = this->dpiScaling({});
@@ -267,16 +274,25 @@ MainApplication::MainApplication(const Arguments &arguments)
     _ssaoShader         = SsaoShader{SSAO_SAMPLES};
     _ssaoApplyShader    = SsaoApplyShader{};
 
-    {  // initial yarnmapper settings overrides
-      _yarnMapperSettings.emplace_back();
-      _yarnMapperSettings[0].modelfolder = "data/yarnmodels/model_stock_9";
-      _yarnMapperSettings[0].provider_type =
-          YarnMapper::Settings::Provider::BinSeq;
-      _yarnMapperSettings[0].binseq_settings.filepath =
-          "data/binseqs/sxsy_const.bin";
-      _yarnMapperSettings[0].objseq_settings.folder = "data/objseqs/sxsy_const";
-      _yarnMapperSettings[0].objseq_settings.constant_material_space = true;
+
+    /* Set up the arcball and projection */
+    {
+      const Vector3 eye =
+          2.0f * Vector3(+0.4f, 0.3f, 0.5f);  // Vector3::yAxis(1.0f);
+      const Vector3 center{};
+      const Vector3 up = Vector3::yAxis();
+      ;
+      _arcball = std::make_unique<ArcBall>(eye, center, up, 45.0_degf, windowSize());
+      _arcball->setLagging(0.85f);
+
+      _projection = Matrix4::perspectiveProjection(
+          _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
+          _proj_far);
     }
+    
+    // initial scene setup
+    load_scene(select_scene,
+               _yarnMapperSettings, _rotate_scene, _render_ground, _ground.dY, _ground.scale, _clothtexture_file, *_arcball.get());
 
     _folderDialog = std::make_unique<ImGui::FileBrowser>(
         ImGuiFileBrowserFlags_SelectDirectory |
@@ -298,21 +314,6 @@ MainApplication::MainApplication(const Arguments &arguments)
     loadTexture(_gridtexture_file, _gridTexture, GL::SamplerWrapping::Repeat);
     // loadTexture1D(_normalMap_file, _normalMap, GL::SamplerWrapping::Repeat);
     loadTexture(_normalMap_file, _normalMap, GL::SamplerWrapping::Repeat);
-  }
-
-  /* Set up the arcball and projection */
-  {
-    const Vector3 eye =
-        2.0f * Vector3(+0.4f, 0.3f, 0.5f);  // Vector3::yAxis(1.0f);
-    const Vector3 center{};
-    const Vector3 up = Vector3::yAxis();
-    ;
-    _arcball.emplace(eye, center, up, 45.0_degf, windowSize());
-    _arcball->setLagging(0.85f);
-
-    _projection = Matrix4::perspectiveProjection(
-        _proj_fov, Vector2{framebufferSize()}.aspectRatio(), _proj_near,
-        _proj_far);
   }
 
   _profiler = DebugTools::GLFrameProfiler{
