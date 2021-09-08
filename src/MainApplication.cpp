@@ -1029,7 +1029,8 @@ void MainApplication::drawGUISimple() {
 
   ImGui::SetWindowPos(
       ImVec2(ImGui::GetIO().DisplaySize.x - ImGui::GetWindowWidth() - 10, 10),
-      ImGuiCond_FirstUseEver);
+      ImGuiCond_Always);
+      // ImGuiCond_FirstUseEver);
 
   ImGui::End();
 
@@ -1112,7 +1113,8 @@ void MainApplication::drawGUISliders() {
   ImGui::SetWindowPos(
       ImVec2((ImGui::GetIO().DisplaySize.x - ImGui::GetWindowWidth()) * 0.5f,
              ImGui::GetIO().DisplaySize.y - ImGui::GetWindowHeight() - 50),
-      ImGuiCond_FirstUseEver);  // ImGuiCond_None
+      // ImGuiCond_FirstUseEver);  // ImGuiCond_None
+      ImGuiCond_Always);
   ImGui::End();
 
   // ImGui::Begin("##nsamples", &open_ptr, window_flags);
