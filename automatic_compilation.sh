@@ -8,5 +8,3 @@ pushd vcpkg
 popd
 # build the project without launching/running
 python exec.py mesh2yarns -r 0
-
-  
