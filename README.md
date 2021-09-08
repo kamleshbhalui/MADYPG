@@ -5,6 +5,13 @@ This repository contains the published code for the paper 'Mechanics Aware Defor
 
 Project Website: [https://visualcomputing.ist.ac.at/publications/2021/MADYPG/](https://visualcomputing.ist.ac.at/publications/2021/MADYPG/)
 
+## Automatic Compilation & Launching
+
+We provide a script for automatic downloading of dependencies and compilation `./automatic_compilation.sh` (tested on Ubuntu 18.04).
+
+We also provide a selection of scripts in the `launch_scripts` folder to run some of the animations used in the paper or submission video.
+
+Alternatively, see below for more detailed instructions instead.
 
 ## Download / Setup
 
