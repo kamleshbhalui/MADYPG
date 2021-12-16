@@ -7,7 +7,7 @@ layout (line_strip, max_vertices = Nplus1) out;
 layout (triangle_strip, max_vertices = 3) out;
 #endif
 
-in int gl_PrimitiveIDIn;
+// in int gl_PrimitiveIDIn;
 
 // assume same order of verts in world-face and mat-face
 // then: face index -> uv = U[face[tri], i]
